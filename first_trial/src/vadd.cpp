@@ -6,77 +6,194 @@
 extern "C" {
 
 void vadd(  
-    int page_entry_num, // number of entries per page
-    int page_num_A, // number of pages for input A
-    int page_num_B, // number of pages for input B
+	// in initialization
+	const int query_num, 
+	const int d,
+    const int max_link_num_top, 
+	const int max_link_num_base,
     // in runtime (should from DRAM)
-    const ap_uint<512>* in_pages_A,
-    const ap_uint<512>* in_pages_B,
-    // out format: the first number writes total intersection count, 
-    //   while the rest are intersect ID pairs
-    ap_uint<64>* out_intersect 
+	const ap_uint<512>* query_vectors,
+    const ap_uint<512>* links_top,
+    const ap_uint<512>* links_base,
+    const ap_uint<512>* vectors_top,
+    const ap_uint<512>* vectors_base,
+    // out
+    int* out_id,
+	float* out_dist
     )
 {
 // Share the same AXI interface with several control signals (but they are not allowed in same dataflow)
 //    https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/Controlling-AXI4-Burst-Behavior
 
 // in runtime (should from DRAM)
-#pragma HLS INTERFACE m_axi port=in_pages_A offset=slave bundle=gmem0
-#pragma HLS INTERFACE m_axi port=in_pages_B offset=slave bundle=gmem1
+#pragma HLS INTERFACE m_axi port=query_vectors offset=slave bundle=gmem0
+#pragma HLS INTERFACE m_axi port=links_top offset=slave bundle=gmem1
+#pragma HLS INTERFACE m_axi port=links_base offset=slave bundle=gmem2
+#pragma HLS INTERFACE m_axi port=vectors_top offset=slave bundle=gmem3
+#pragma HLS INTERFACE m_axi port=vectors_base offset=slave bundle=gmem4
 
 // out
-#pragma HLS INTERFACE m_axi port=out_intersect  offset=slave bundle=gmem2
+#pragma HLS INTERFACE m_axi port=out_id  offset=slave bundle=gmem9
+#pragma HLS INTERFACE m_axi port=out_dist  offset=slave bundle=gmem10
 
 #pragma HLS dataflow
 
 ////////////////////     First Half: ADC     ////////////////////
 
-    hls::stream<obj_t> s_page_A;
-#pragma HLS stream variable=s_page_A depth=512
-    hls::stream<obj_t> s_page_B;
-#pragma HLS stream variable=s_page_B depth=512
+    hls::stream<int> s_finish_query_task_scheduler; // finish the current query
+#pragma HLS stream variable=s_finish_query_task_scheduler depth=2
 
-    input_loader(
-        // input
-        page_entry_num, // number of entries per page
-        page_num_A, // number of pages for input A
-        page_num_B, // number of pages for input B
-        in_pages_A,
-        in_pages_B,
-        // output
-        s_page_A,
-        s_page_B);
+	// controls the traversal and maintains the candidate queue
+	task_scheduler(
+		query_num, 
+    	max_link_num_top, 
+		max_link_num_base,
+    	// in runtime (should from DRAM)
+		query_vectors,
+		// out streams
+		s_finish_query_task_scheduler
+	);
+	
 
-    hls::stream<result_t> s_result_pair;
-#pragma HLS stream variable=s_result_pair depth=512
+    hls::stream<int> s_fetched_neighbor_ids; 
+#pragma HLS stream variable=s_fetched_neighbor_ids depth=512
 
-    hls::stream<int> s_join_finish; 
-#pragma HLS stream variable=s_join_finish depth=2
+    hls::stream<int> s_finish_query_fetch_neighbor_ids; // finish all queries
+#pragma HLS stream variable=s_finish_query_fetch_neighbor_ids depth=2
 
-//     hls::stream<ap_uint<64> > s_intersect_count; 
-// #pragma HLS stream variable=s_intersect_count depth=512
+	fetch_neighbor_ids(
+		// in initialization
+		query_num,
+    	max_link_num_top, 
+		max_link_num_base,
+		// in runtime (should from DRAM)
+    	links_top,
+    	links_base,
+		// in runtime (stream)
+		s_finish_query_task_scheduler,
 
-    int page_pair_num = page_num_A * page_num_B;
-    join_page(
-        // input
-        page_entry_num, // number of entries per page
-        page_pair_num, // number of page pairs to join, e.g., page_num_A * page_num_B
-        s_page_A,
-        s_page_B,
-        // output
-        // s_intersect_count, 
-        s_join_finish,
-        s_result_pair);
+		// out (stream)
+		s_fetched_neighbor_ids,
+		s_finish_query_fetch_neighbor_ids
+	);
 
-    write_results(
-        // input
-        page_entry_num, 
-        page_pair_num, // number of page pairs to join, e.g., page_num_A * page_num_B
-        s_join_finish,  // per page pair
-        s_result_pair, 
-        // out format: the first number writes total intersection count, 
-        //   while the rest are intersect ID pairs
-        out_intersect);    
+    hls::stream<int> s_fetched_neighbor_ids_replicated[2]; 
+#pragma HLS stream variable=s_fetched_neighbor_ids_replicated depth=512
+
+    hls::stream<int> s_finish_query_replicate_s_fetched_neighbor_ids; // finish all queries
+#pragma HLS stream variable=s_finish_query_replicate_s_fetched_neighbor_ids depth=2
+
+	replicate_s_fetched_neighbor_ids(
+		// in (initialization)
+		query_num,
+		// in (stream)
+		s_fetched_neighbor_ids,
+		s_finish_query_fetch_neighbor_ids,
+		
+		// out (stream)
+		s_fetched_neighbor_ids_replicated, 
+		s_finish_query_replicate_s_fetched_neighbor_ids
+	);
+
+
+    hls::stream<ap_uint<512>> s_fetched_vectors; 
+#pragma HLS stream variable=s_fetched_vectors depth=512
+	
+//     hls::stream<int> s_num_fetched_vectors; // fetched number of vectors per node
+// #pragma HLS stream variable=s_num_fetched_vectors depth=512
+
+    hls::stream<int> s_finish_query_fetch_vectors; // finish all queries
+#pragma HLS stream variable=s_finish_query_fetch_vectors depth=2
+
+	fetch_vectors(
+		// in initialization
+		query_num,
+		d,
+		// in runtime (should from DRAM)
+    	vectors_top,
+    	vectors_base,
+		// in runtime (stream)
+		s_fetched_neighbor_ids_replicated[0],
+		s_finish_query_replicate_s_fetched_neighbor_ids,
+		
+		// out (stream)
+		s_fetched_vectors,
+		s_finish_query_fetch_vectors
+	);
+
+    hls::stream<ap_uint<512>> s_fetched_vectors_filtered; 
+#pragma HLS stream variable=s_fetched_vectors_filtered depth=512
+	
+    hls::stream<int> s_finish_query_check_visited; // finish all queries
+#pragma HLS stream variable=s_finish_query_check_visited depth=2
+
+	check_visited(
+		// in (initialization)
+		query_num,
+		// in runtime (stream)
+		s_fetched_neighbor_ids_replicated[1],
+		s_fetched_vectors,
+		s_finish_query_fetch_vectors,
+
+		// out (stream)
+		s_fetched_vectors_filtered,
+		s_finish_query_check_visited
+	);
+	
+    hls::stream<float> s_distances; 
+#pragma HLS stream variable=s_distances depth=512
+
+    hls::stream<int> s_finish_query_compute_distances; // finish all queries
+#pragma HLS stream variable=s_finish_query_compute_distances depth=2
+
+	compute_distances(
+		// in initialization
+		query_num,
+		d,
+		// in runtime (stream)
+		s_fetched_vectors_filtered,
+		s_finish_query_check_visited,
+		
+		// out (stream)
+		s_distances,
+		s_finish_query_compute_distances
+	);
+
+	hls::stream<float> s_distances_replicated[2];
+#pragma HLS stream variable=s_distances_replicated depth=512
+
+	hls::stream<int> s_finish_query_replicate_distances; // finish all queries
+#pragma HLS stream variable=s_finish_query_replicate_distances depth=2
+
+	replicate_distances(
+		// in (initialization)
+		query_num,
+		// in runtime (stream)
+		s_distances,
+		s_finish_query_compute_distances,
+
+		// out (stream)
+		s_distances_replicated,
+		s_finish_query_replicate_distances
+	);
+
+
+//     hls::stream<int> s_finish_query_results_collection; // finish all queries
+// #pragma HLS stream variable=s_finish_query_results_collection depth=2
+
+	results_collection(
+		// in (initialization)
+		query_num,
+		// in runtime (stream)
+		s_distances_replicated[0],
+		s_finish_query_replicate_distances,
+
+		// out (stream)
+		// s_finish_query_results_collection
+		// out (DRAM)
+		out_id,
+		out_dist
+	);
 }
 
 }
