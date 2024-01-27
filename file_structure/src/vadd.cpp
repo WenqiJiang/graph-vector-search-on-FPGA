@@ -29,8 +29,6 @@ void vadd(
 
 #pragma HLS dataflow
 
-////////////////////     First Half: ADC     ////////////////////
-
     hls::stream<obj_t> s_page_A;
 #pragma HLS stream variable=s_page_A depth=512
     hls::stream<obj_t> s_page_B;

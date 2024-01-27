@@ -17,6 +17,7 @@ void vadd(
     const ap_uint<512>* links_base,
     const ap_uint<512>* vectors_top,
     const ap_uint<512>* vectors_base,
+	   
     // out
     int* out_id,
 	float* out_dist
@@ -38,10 +39,11 @@ void vadd(
 
 #pragma HLS dataflow
 
-////////////////////     First Half: ADC     ////////////////////
-
     hls::stream<int> s_finish_query_task_scheduler; // finish the current query
 #pragma HLS stream variable=s_finish_query_task_scheduler depth=2
+
+	hls::stream<float> s_query_vectors;
+#pragma HLS stream variable=s_query_vectors depth=1536
 
 	// controls the traversal and maintains the candidate queue
 	task_scheduler(
@@ -51,6 +53,7 @@ void vadd(
     	// in runtime (should from DRAM)
 		query_vectors,
 		// out streams
+		s_query_vectors,
 		s_finish_query_task_scheduler
 	);
 	
@@ -96,9 +99,8 @@ void vadd(
 	);
 
 
-    hls::stream<ap_uint<512>> s_fetched_vectors; 
+    hls::stream<float> s_fetched_vectors[FLOAT_PER_AXI]; 
 #pragma HLS stream variable=s_fetched_vectors depth=512
-	
 //     hls::stream<int> s_num_fetched_vectors; // fetched number of vectors per node
 // #pragma HLS stream variable=s_num_fetched_vectors depth=512
 
@@ -121,7 +123,7 @@ void vadd(
 		s_finish_query_fetch_vectors
 	);
 
-    hls::stream<ap_uint<512>> s_fetched_vectors_filtered; 
+    hls::stream<float> s_fetched_vectors_filtered[FLOAT_PER_AXI]; 
 #pragma HLS stream variable=s_fetched_vectors_filtered depth=512
 	
     hls::stream<int> s_finish_query_check_visited; // finish all queries
@@ -130,6 +132,7 @@ void vadd(
 	check_visited(
 		// in (initialization)
 		query_num,
+		d,
 		// in runtime (stream)
 		s_fetched_neighbor_ids_replicated[1],
 		s_fetched_vectors,
@@ -151,6 +154,7 @@ void vadd(
 		query_num,
 		d,
 		// in runtime (stream)
+		s_query_vectors,
 		s_fetched_vectors_filtered,
 		s_finish_query_check_visited,
 		
@@ -165,7 +169,7 @@ void vadd(
 	hls::stream<int> s_finish_query_replicate_distances; // finish all queries
 #pragma HLS stream variable=s_finish_query_replicate_distances depth=2
 
-	replicate_distances(
+	replicate_s_distances(
 		// in (initialization)
 		query_num,
 		// in runtime (stream)
