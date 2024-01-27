@@ -9,8 +9,10 @@ void vadd(
 	// in initialization
 	const int query_num, 
 	const int d,
+	const int max_level,
     const int max_link_num_top, 
 	const int max_link_num_base,
+	const int entry_point_id,
     // in runtime (should from DRAM)
 	const ap_uint<512>* query_vectors,
     const ap_uint<512>* links_top,
@@ -42,23 +44,39 @@ void vadd(
     hls::stream<int> s_finish_query_task_scheduler; // finish the current query
 #pragma HLS stream variable=s_finish_query_task_scheduler depth=2
 
-	hls::stream<float> s_query_vectors;
-#pragma HLS stream variable=s_query_vectors depth=1536
+    hls::stream<int> s_num_neighbors; // number of neighbors of the current candidate
+#pragma HLS stream variable=s_num_neighbors depth=512
+	
+	hls::stream<ap_uint<512>> s_query_vectors;
+#pragma HLS stream variable=s_query_vectors depth=128
+
+    hls::stream<cand_t> s_top_candidates; // current top candidates
+#pragma HLS stream variable=s_top_candidates depth=512
+ 
+	hls::stream<result_t> s_interm_results;
+#pragma HLS stream variable=s_interm_results depth=512
 
 	// controls the traversal and maintains the candidate queue
 	task_scheduler(
 		query_num, 
+		d, 
+		max_level
     	max_link_num_top, 
 		max_link_num_base,
+		entry_point_id,
     	// in runtime (should from DRAM)
 		query_vectors,
+		// in streams
+		s_num_neighbors, 
+		s_interm_results,
 		// out streams
 		s_query_vectors,
+		s_top_candidates,
 		s_finish_query_task_scheduler
 	);
 	
 
-    hls::stream<int> s_fetched_neighbor_ids; 
+    hls::stream<cand_t> s_fetched_neighbor_ids; 
 #pragma HLS stream variable=s_fetched_neighbor_ids depth=512
 
     hls::stream<int> s_finish_query_fetch_neighbor_ids; // finish all queries
@@ -73,20 +91,24 @@ void vadd(
     	links_top,
     	links_base,
 		// in runtime (stream)
+		s_top_candidates,
 		s_finish_query_task_scheduler,
 
 		// out (stream)
+		s_num_neighbors,
 		s_fetched_neighbor_ids,
 		s_finish_query_fetch_neighbor_ids
 	);
 
-    hls::stream<int> s_fetched_neighbor_ids_replicated[2]; 
+	const int replication_factor_s_fetched_neighbor_ids = 2;
+
+    hls::stream<cand_t> s_fetched_neighbor_ids_replicated[replication_factor_s_fetched_neighbor_ids]; 
 #pragma HLS stream variable=s_fetched_neighbor_ids_replicated depth=512
 
     hls::stream<int> s_finish_query_replicate_s_fetched_neighbor_ids; // finish all queries
 #pragma HLS stream variable=s_finish_query_replicate_s_fetched_neighbor_ids depth=2
 
-	replicate_s_fetched_neighbor_ids(
+	replicate_s_fetched_neighbor_ids<replication_factor_s_fetched_neighbor_ids>(
 		// in (initialization)
 		query_num,
 		// in (stream)

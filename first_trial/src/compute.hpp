@@ -7,7 +7,7 @@ void compute_distances(
 	const int query_num,
 	const int d,
 	// in runtime (stream)
-    hls::stream<float>& s_query_vectors, 
+    hls::stream<ap_uint<512>>& s_query_vectors, 
 	hls::stream<float>& s_fetched_vectors_filtered[FLOAT_PER_AXI],
 	hls::stream<int>& s_finish_query_check_visited,
 	
@@ -26,7 +26,7 @@ void compute_per_AXI(
     const int query_num,
     const int d,
     // in runtime (stream)
-    hls::stream<float>& s_query_vectors, 
+    hls::stream<ap_uint<512>>& s_query_vectors, 
     hls::stream<float>& s_fetched_vectors_filtered[FLOAT_PER_AXI],
     hls::stream<int>& s_finish_query_check_visited,
     
@@ -42,6 +42,7 @@ void compute_per_AXI(
 
     for (int qid = 0; qid < query_num; qid++) {
 
+		// TODO: change this to ap_uint<512>
         // read query vector
         for (int i = 0; i < d; i++) {
             query_vector[i] = s_query_vectors.read();

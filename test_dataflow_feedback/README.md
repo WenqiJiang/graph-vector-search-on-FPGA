@@ -125,4 +125,10 @@ Failed (but deadlock was not detected during simulation). This is weird because 
 
 Succeed. 
 
+### Case with multi-PE for loop 1: all PEs check only at the first iteration (only the first two PEs check)
+
+`dataflow_feedback_multi_PE_loop_with_empty_check_only_once_subset_PEs`
+
+Failed.
+
 Conclusion: for multiple PEs, each PE has to check at the first iteration. 
