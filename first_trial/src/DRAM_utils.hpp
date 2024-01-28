@@ -12,31 +12,24 @@ void fetch_neighbor_ids(
 	const ap_uint<512>* links_base,
 	// in runtime (stream)
 	hls::stream<cand_t>& s_top_candidates,
-	hls::stream<int>& s_finish_query_task_scheduler,
+	hls::stream<int>& s_finish_query_in,
 
 	// out (stream)
 	hls::stream<int>& s_num_neighbors,
 	hls::stream<cand_t>& s_fetched_neighbor_ids,
-	hls::stream<int>& s_finish_query_fetch_neighbor_ids
+	hls::stream<int>& s_finish_query_out
 ) {
 
-	bool first_iter_s_top_candidates = true;
-	// bool first_iter_s_finish_query_task_scheduler = true;
-	
 	for (int qid = 0; qid < query_num; qid++) {
 
 		while (true) {
 
 			// check query finish
-			if (!s_finish_query_task_scheduler.empty() && s_fetched_neighbor_ids.empty()) {
-				s_finish_query_fetch_neighbor_ids.write(s_finish_query_task_scheduler.read());
+			if (!s_finish_query_in.empty() && s_top_candidates.empty()) {
+				s_finish_query_out.write(s_finish_query_in.read());
 				break;
-			} else {
+			} else if (!s_top_candidates.empty()) {
 				// receive task
-				if (first_iter_s_top_candidates) {
-					while (s_top_candidates.empty()) {}
-					first_iter_s_top_candidates = false;
-				}
 				cand_t reg_cand = s_top_candidates.read();
 				int currObj = reg_cand.nodeID;
 				int level = reg_cand.level;
@@ -60,27 +53,21 @@ void fetch_vectors(
 	const float* vectors_base,
 	// in runtime (stream)
 	hls::stream<int>& s_fetched_neighbor_ids_replicated,
-	hls::stream<int>& s_finish_query_replicate_s_fetched_neighbor_ids,
+	hls::stream<int>& s_finish_query_in,
 	
 	// out (stream)
-	hls::stream<float>& s_fetched_vectors,
-	hls::stream<int>& s_finish_query_fetch_vectors
+	hls::stream<ap_uint<512>>& s_fetched_vectors,
+	hls::stream<int>& s_finish_query_out
 ) {
-	
-	bool first_iter_s_fetched_neighbor_ids_replicated = true;
 
 	for (int qid = 0; qid < query_num; qid++) {
 		while (true) {
 			// check query finish
-			if (!s_finish_query_replicate_s_fetched_neighbor_ids.empty() && s_fetched_vectors.empty()) {
-				s_finish_query_fetch_vectors.write(s_finish_query_replicate_s_fetched_neighbor_ids.read());
+			if (!s_finish_query_in.empty() && s_fetched_neighbor_ids_replicated.empty()) {
+				s_finish_query_out.write(s_finish_query_in.read());
 				break;
-			} else {
+			} else if (!s_fetched_neighbor_ids_replicated.empty()) {
 				// receive task
-				if (first_iter_s_fetched_neighbor_ids_replicated) {
-					while (s_fetched_neighbor_ids_replicated.empty()) {}
-					first_iter_s_fetched_neighbor_ids_replicated = false;
-				}
 				cand_t reg_cand = s_fetched_neighbor_ids_replicated.read();
 				int node_id = reg_cand.nodeID;
 				int level = reg_cand.level;
@@ -93,56 +80,33 @@ void fetch_vectors(
 	}
 }
 
-// void axi_to_float(
-//     // in (initialization)
-//     const int query_num,
-//     const int vec_AXI_num,
-//     // in runtime (stream)
-//     hls::stream<ap_uint<512>>& s_fetched_vectors_filtered,
-//     hls::stream<int>& s_finish_query_check_visited,
-    
-//     // out (stream)
-//     hls::stream<float> (&s_float_vectors)[FLOAT_PER_AXI],
-//     hls::stream<int>& s_finish_query_internal
-// ) {
-//     for (int qid = 0; qid < query_num; qid++) {
-//         for (int i = 0; i < vec_AXI_num; i++) {
-//             ap_uint<512> vec_AXI = s_fetched_vectors_filtered.read();
-//             for (int j = 0; j < FLOAT_PER_AXI; j++) {
-//                 ap_uint<32> vec_uint = vec_AXI.range(32 * (j + 1) - 1, 32 * j);
-//                 float vec_float = *((float*) (&vec_uint));
-//                 s_float_vectors[j].write(vec_float);
-//             }
-//         }
-//     }
-// )
-
-void check_visited(
-	// in (initialization)
-	const int query_num,
-	const int d,
-	// in runtime (stream)
-	hls::stream<int>& s_fetched_neighbor_ids_replicated,
-	hls::stream<float>& s_fetched_vectors,
-	hls::stream<int>& s_finish_query_fetch_vectors,
-
-	// out (stream)
-	hls::stream<float>& s_fetched_vectors_filtered,
-	hls::stream<int>& s_finish_query_check_visited
-) {
-	
-}
-
 void results_collection(
 	// in (initialization)
 	const int query_num,
 	// in runtime (stream)
-	hls::stream<float>& s_distances_replicated,
-	hls::stream<int>& s_finish_query_replicate_distances,
+	hls::stream<float>& s_distances_to_results_collection,
+	hls::stream<int>& s_finish_query_in,
 
+	// out (stream)
+	hls::stream<int>& s_finish_query_out,
+	
 	// out (DRAM)
 	float* out_id,
 	float* out_dist
 ) {
 
+	for (int qid = 0; qid < query_num; qid++) {
+		while (true) {
+			// check query finish
+			if (!s_finish_query_in.empty() && s_distances_to_results_collection.empty()) {
+				s_finish_query_out.write(s_finish_query_in.read());
+				break;
+			} else if (!s_distances_to_results_collection.empty()) {
+				// receive task
+				result_t reg_result = s_distances_to_results_collection.read();
+				int node_id = reg_result.node_id;
+				float distance = reg_result.dist;
+			}
+		}
+	}
 }

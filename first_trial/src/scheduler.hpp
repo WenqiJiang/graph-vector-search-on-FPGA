@@ -13,11 +13,11 @@ void task_scheduler(
 	const ap_uint<512>* query_vectors,
 	// in streams
 	hls::stream<int>& s_num_neighbors,
-	hls::stream<result_t>& s_interm_results,
+	hls::stream<result_t>& s_distances_to_scheduler,
 	// out streams
 	hls::stream<ap_uint<512>>& s_query_vectors,
 	hls::stream<cand_t>& s_top_candidates,
-	hls::stream<int>& s_finish_query_task_scheduler
+	hls::stream<int>& s_finish_query_out
 ) {
 	
 	// similar to hsnwlin function `searchKnn`: https://github.com/nmslib/hnswlib/blob/master/hnswlib/hnswalg.h#L1271
@@ -26,7 +26,7 @@ void task_scheduler(
 	bool first_iter_s_interm_results = true;
 
 	for (int qid = 0; qid < query_num; qid++) {
-	
+
 		// send out query vector
 		int start_addr = qid * vec_AXI_num;
 		for (int i = 0; i < vec_AXI_num; i++) {
@@ -58,11 +58,11 @@ void task_scheduler(
 
 				// update candidate
 				if (first_iter_s_interm_results) {
-					while (s_interm_results.emtpy()) {}
+					while (s_distances_to_scheduler.emtpy()) {}
 					first_iter_s_interm_results = false;
 				}
 				for (int i = 0; i < num_neighbors; i++) {
-					result_t interm_result = s_interm_results.read();
+					result_t interm_result = s_distances_to_scheduler.read();
                     if (interm_result.dist < curdist) {
                         curdist = d;
                         currObj = interm_result.node_id;
@@ -81,5 +81,7 @@ void task_scheduler(
 		// do {
 
 		// } while (true);
+
+		s_finish_query_out.write(qid);
 	}
 }

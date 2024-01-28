@@ -7,6 +7,3 @@ const int float_per_axi = FLOAT_PER_AXI;
 
 // largest 32-bit float: 3.4028237 × 10^38
 const float large_float = 1E+20f; // 1E+20f is large enough for cosine similarity
-
-#define REPLICATION_FACTOR_S_FETCHED_NEIGHBOR_IDS 2
-const int replication_factor_s_fetched_neighbor_ids = REPLICATION_FACTOR_S_FETCHED_NEIGHBOR_IDS;
