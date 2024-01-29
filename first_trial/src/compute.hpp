@@ -17,7 +17,7 @@ void compute_distances(
 ) {
 
     // Wenqi comments: future upgrade -> less check on query finish, this will delay the progress
-    //  TOOD: add a signal: everytime we check finish, check how many more computations should the unit expect
+    //  approach: add a signal: everytime we check finish, check how many more computations should the unit expect
 
 	const int vec_AXI_num = d / FLOAT_PER_AXI; 
 
@@ -36,14 +36,10 @@ void compute_distances(
         for (int i = 0; i < vec_AXI_num; i++) {
 		#pragma HLS pipeline II=1
 			ap_uint<512> query_reg = s_query_vectors.read();
-			ap_uint<32> query_reg_uint32_array[FLOAT_PER_AXI];
-			#pragma HLS array_partition variable=query_reg_uint32_array complete
-			ap_uint<32> query_reg_float_array[FLOAT_PER_AXI];
-			#pragma HLS array_partition variable=query_reg_float_array complete
 			for (int j = 0; j < FLOAT_PER_AXI; j++) {
 			#pragma HLS unroll
-				query_reg_uint32_array[j] = query_reg.range(32 * (j + 1) - 1, 32 * j);
-				query_reg_float_array[j] = *((float*) (&query_reg_uint32_array[j]));
+				ap_uint<32> query_reg_uint32 = query_reg.range(32 * (j + 1) - 1, 32 * j);
+				float query_reg_float = *((float*) (&query_reg_uint32));
 				query_vector[i * FLOAT_PER_AXI + j] = query_reg_float_array[j];
 			}
         }
@@ -62,20 +58,16 @@ void compute_distances(
 
 					// read dist vector
 					ap_uint<512> db_vec_reg = s_fetched_vectors.read();
-					ap_uint<32> db_vec_reg_uint32_array[FLOAT_PER_AXI];
-					#pragma HLS array_partition variable=db_vec_reg_uint32_array complete
+                    float distance_partial = 0;
+								   
                     float database_vector_partial[FLOAT_PER_AXI];
 					#pragma HLS array_partition variable=database_vector_partial complete
+
                     for int (int s = 0; s < FLOAT_PER_AXI; s++) {
                     #pragma HLS unroll
-						db_vec_reg_uint32_array[s] = db_vec_reg.range(32 * (s + 1) - 1, 32 * s);
-						database_vector_partial[s] = *((float*) (&db_vec_reg_uint32_array[s]));
-                    }
-
-                    // compute L2 distance
-                    float distance_partial = 0;
-                    for (int s = 0; s < FLOAT_PER_AXI; s++) {
-                    #pragma HLS unroll
+						ap_uint<32> db_vec_reg_uint32 = db_vec_reg.range(32 * (s + 1) - 1, 32 * s);
+						float db_vec_reg_float = *((float*) (&db_vec_reg_uint32));
+						database_vector_partial[s] = *((float*) (&db_vec_reg_float));
                         float diff = query_vector[i * FLOAT_PER_AXI + s] - database_vector_partial[s];
                         distance_partial += diff * diff;
                     }

@@ -8,17 +8,21 @@ extern "C" {
 void vadd(  
 	// in initialization
 	const int query_num, 
+	const int ef, // size of the candidate priority queue
 	const int d,
 	const int max_level,
     const int max_link_num_top, 
 	const int max_link_num_base,
 	const int entry_point_id,
-    // in runtime (should from DRAM)
+	// in initialization (from DRAM)
+	const ap_uint<512>* entry_vector, 
+
+    // in runtime (from DRAM)
 	const ap_uint<512>* query_vectors,
-    const ap_uint<512>* links_top,
+	const int* ptr_to_upper_links, // start addr to upper link address per node
+    const ap_uint<512>* links_upper,
     const ap_uint<512>* links_base,
-    const ap_uint<512>* vectors_top,
-    const ap_uint<512>* vectors_base,
+    const ap_uint<512>* db_vectors,
 	   
     // out
     int* out_id,
@@ -28,12 +32,13 @@ void vadd(
 // Share the same AXI interface with several control signals (but they are not allowed in same dataflow)
 //    https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/Controlling-AXI4-Burst-Behavior
 
-// in runtime (should from DRAM)
+// in runtime (from DRAM)
 #pragma HLS INTERFACE m_axi port=query_vectors offset=slave bundle=gmem0
-#pragma HLS INTERFACE m_axi port=links_top offset=slave bundle=gmem1
-#pragma HLS INTERFACE m_axi port=links_base offset=slave bundle=gmem2
-#pragma HLS INTERFACE m_axi port=vectors_top offset=slave bundle=gmem3
-#pragma HLS INTERFACE m_axi port=vectors_base offset=slave bundle=gmem4
+#pragma HLS INTERFACE m_axi port=entry_vector offset=slave bundle=gmem0 // share the same AXI interface with query_vectors
+#pragma HLS INTERFACE m_axi port=ptr_to_upper_links offset=slave bundle=gmem1
+#pragma HLS INTERFACE m_axi port=links_upper offset=slave bundle=gmem2
+#pragma HLS INTERFACE m_axi port=links_base offset=slave bundle=gmem3
+#pragma HLS INTERFACE m_axi port=db_vectors offset=slave bundle=gmem4
 
 // out
 #pragma HLS INTERFACE m_axi port=out_id  offset=slave bundle=gmem9
@@ -87,7 +92,7 @@ void vadd(
     	max_link_num_top, 
 		max_link_num_base,
 		// in runtime (should from DRAM)
-    	links_top,
+    	links_upper,
     	links_base,
 		// in runtime (stream)
 		s_top_candidates,
@@ -133,8 +138,7 @@ void vadd(
 		query_num,
 		d,
 		// in runtime (should from DRAM)
-    	vectors_top,
-    	vectors_base,
+    	db_vectors,
 		// in runtime (stream)
 		s_fetched_neighbor_ids_replicated[0],
 		s_finish_query_replicate_s_fetched_neighbor_ids,

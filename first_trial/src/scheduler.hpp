@@ -9,11 +9,15 @@ void task_scheduler(
 	const int max_link_num_top, 
 	const int max_link_num_base,
 	const int entry_point_id,
+
+	// in initialization (from DRAM)
+	const ap_uint<512>* entry_vector, 
 	// in runtime (should from DRAM)
 	const ap_uint<512>* query_vectors,
 	// in streams
 	hls::stream<int>& s_num_neighbors,
 	hls::stream<result_t>& s_distances_to_scheduler,
+
 	// out streams
 	hls::stream<ap_uint<512>>& s_query_vectors,
 	hls::stream<cand_t>& s_top_candidates,
@@ -21,27 +25,63 @@ void task_scheduler(
 ) {
 	
 	// similar to hsnwlin function `searchKnn`: https://github.com/nmslib/hnswlib/blob/master/hnswlib/hnswalg.h#L1271
-	const int vec_AXI_num = d / FLOAT_PER_AXI; 
+	const int AXI_num_per_vector = d / FLOAT_PER_AXI; 
 	bool first_iter_s_num_neighbors = true;
 	bool first_iter_s_interm_results = true;
+
+	float entry_vector_buffer[D_MAX];
+#pragma HLS unroll variable=entry_vector_buffer factor=float_per_axi
+
+	float query_vector_buffer[D_MAX];
+#pragma HLS unroll variable=query_vector_buffer factor=float_per_axi
+
+	// read entry vector
+	for (int i = 0; i < AXI_num_per_vector; i++) {
+	#pragma HLS pipeline II=1
+		ap_uint<512> entry_vector_AXI = entry_vector[i];
+		for (int j = 0; j < FLOAT_PER_AXI; j++) {
+		#pragma HLS unroll
+			ap_uint<32> entry_vector_uint32 = entry_vector_AXI.range(32 * (j + 1) - 1, 32 * j);
+			float entry_vector_float = *((float*) (&entry_vector_uint32));
+			entry_vector_buffer[i * FLOAT_PER_AXI + j] = entry_vector_float;
+		}
+	}
 
 	for (int qid = 0; qid < query_num; qid++) {
 
 		// send out query vector
-		int start_addr = qid * vec_AXI_num;
-		for (int i = 0; i < vec_AXI_num; i++) {
+		int start_addr = qid * AXI_num_per_vector;
+		for (int i = 0; i < AXI_num_per_vector; i++) {
 		#pragma HLS pipeline II=1
 			ap_uint<512> query_vector_AXI = query_vectors[start_addr + i];
 			s_query_vectors.write(query_vector_AXI);
+
+			for (int j = 0; j < FLOAT_PER_AXI; j++) {
+			#pragma HLS unroll
+				ap_uint<32> query_vector_uint32 = query_vector_AXI.range(32 * (j + 1) - 1, 32 * j);
+				float query_vector_float = *((float*) (&query_vector_uint32));
+				query_vector_buffer[i * FLOAT_PER_AXI + j] = query_vector_float;
+			}
 		}
 
-		// Wenqi comments: in top level, the neighbor number has to be set as 1, i.e., the entry point, such that 
-		///  we can compute the distance
-		// search upper levels
-		int currObj = entry_point_id;
-		float curdist = large_float;
+		// compute distance between entry and query
+		float dist_entry_query = 0;
+		for (int i = 0; i < d / FLOAT_PER_AXI; i++) {
+#pragma HLS pipeline II=1
+			float partial_dist = 0;
+			for (int s = 0; s < FLOAT_PER_AXI; s++) {
+			#pragma HLS unroll	
+				float diff = entry_vector_buffer[i * FLOAT_PER_AXI + s] - query_vector_buffer[i * FLOAT_PER_AXI + s];
+				float partial_dist += diff * diff;
+			}
+			dist_entry_query += partial_dist;
+		}
 
-        for (int level = max_level; level > 0; level--) {
+		int currObj = entry_point_id;
+		float curdist = dist_entry_query;
+
+		// search upper levels (top layer already computed)
+        for (int level = max_level - 1; level > 0; level--) {
             bool changed = true;
             while (changed) {
                 changed = false;
@@ -64,16 +104,11 @@ void task_scheduler(
 				for (int i = 0; i < num_neighbors; i++) {
 					result_t interm_result = s_distances_to_scheduler.read();
                     if (interm_result.dist < curdist) {
-                        curdist = d;
+                        curdist = interm_result.dist;
                         currObj = interm_result.node_id;
                         changed = true;
                     }
                 }
-
-				// top-level only evaluate one point (update distance), then break
-				if (level == max_level) { 
-					break; 
-				}
             }
         }
 

@@ -1,5 +1,50 @@
 # Test dataflow behavior when there are feedback communications
 
+When following these principles, we do not need to use multiple kernels for feedback dataflow.
+
+Key conlusions from the experiments:
+
+* Do not assume the FIFOs can directly read without empty check
+* For each PE, each input stream has to be checked for empty
+* The empty check only needs to take place during the first time it is read
+
+## Standard ways to handle feedback dataflow
+
+Standard ways of implementing checkes:
+
+Style 1: use a first iteration flag. Suitable for coding patterns with known iterations.
+
+```
+	bool first_iter = true;
+	for (int i = 0; i < LOOP_COUNT; i++) {
+		// at the first time of read, wait until data arrives
+		if (first_iter) {
+			while (s_A_to_B.empty()) {}
+			first_iter = false;
+		} 
+		int in = s_A_to_B.read();
+		int out = layer_cache[in];
+		s_B_to_A.write(out);
+	}
+```
+
+Style 2: while loop + if else per iteration. Suitable for coding patterns with unknown iterations (e.g., graph traversal), which may also include a finish signal.
+
+```
+	while (true) {
+		// check finish
+		if (!s_finish.empty() && s_input.empty()) {
+			s_finish_query_out.write(s_finish.read());
+			break;
+		} else if (!s_input.empty()) { // naturally check empty here.
+			// receive task
+			result_t reg_result = s_input.read();
+			int node_id = reg_result.node_id;
+			float distance = reg_result.dist;
+		}
+	}
+```
+
 ## Evaluation of dataflow behavior in a single kernel
 
 Suppose we have two PE A and B in a dataflow region connected by HLS stream. A writes a start signal to B (stream A2B); B receives the signal, fetches a value from DRAM channel B, and writes the value back to A (stream B2A); A then writes the value back to memory channel A. However, as simple as this, the generated bitstream will run into a deadlock. 

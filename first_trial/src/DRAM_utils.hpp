@@ -8,7 +8,8 @@ void fetch_neighbor_ids(
 	const int max_link_num_top, 
 	const int max_link_num_base,
 	// in runtime (should from DRAM)
-	const ap_uint<512>* links_top,
+	const int* ptr_to_upper_links, // start addr to upper link address per node
+	const ap_uint<512>* links_upper,
 	const ap_uint<512>* links_base,
 	// in runtime (stream)
 	hls::stream<cand_t>& s_top_candidates,
@@ -19,6 +20,12 @@ void fetch_neighbor_ids(
 	hls::stream<cand_t>& s_fetched_neighbor_ids,
 	hls::stream<int>& s_finish_query_out
 ) {
+
+	const int AXI_num_per_upper_link = 1 + max_link_num_upper / INT_PER_AXI; // 4 = int size, 64 = 512 bit
+	const int AXI_num_per_base_link = 1 + max_link_num_base / INT_PER_AXI; // 4 = int size, 64 = 512 bit
+
+	const int max_buffer_size = 32 + 1; // supporting max of 32 * INT_PER_AXI (16) = 512 edges per node
+	const ap_uint<512> local_links_buffer[max_buffer_size]; 
 
 	for (int qid = 0; qid < query_num; qid++) {
 
@@ -31,16 +38,43 @@ void fetch_neighbor_ids(
 			} else if (!s_top_candidates.empty()) {
 				// receive task
 				cand_t reg_cand = s_top_candidates.read();
-				int currObj = reg_cand.nodeID;
-				int level = reg_cand.level;
+				int node_id = reg_cand.node_id;
+				int level_id = reg_cand.level_id;
 
-				// read links
 				int start_addr;
-				// TODO: compute the correct address, and count number & read links
+				int read_num;
+				if (level_id == 0) { // base layer
+					start_addr = node_id * AXI_num_per_base_link;
+					read_num  = AXI_num_per_base_link;
+				} else { // upper layer
+					start_addr = ptr_to_upper_links[node_id] + level_id * AXI_num_per_upper_link;
+					read_num  = AXI_num_per_upper_link;
+				}
+					
+				// first 64-byte = header (4 byte num links + 60 byte padding)
+				// then we have the links (4 byte each, total number = max_link_num)
+				for (int i = 0; i < read_num; i++) {
+				#pragma HLS pipeline II=1
+					local_links_buffer[i] = links_base[start_addr + i];
+				}
 
+				// write out links num & links id
+				ap_uint<32> links_num_ap = local_links_buffer[0].range(31, 0);
+				int num_links = links_num_ap;
+				s_num_neighbors.write(num_links);
+				for (int i = 0; i < read_num - 1; i++) {
+					for (int j = 0; j < INT_PER_AXI && i * INT_PER_AXI + j < num_links; j++) {
+					#pragma HLS pipeline II=1
+						ap_uint<32> link_ap = local_links_buffer[i + 1].range(32 * (j + 1) - 1, 32 * j);
+						int link = link_ap;
+						cand_t reg_neighbor;
+						reg_neighbor.node_id = link;
+						reg_neighbor.level_id = level_id;
+						s_fetched_neighbor_ids.write(reg_neighbor);
+					}
+				}
 			}
 		}
-	
 	}
 }
 
@@ -49,8 +83,7 @@ void fetch_vectors(
 	const int query_num,
 	const int d,
 	// in runtime (should from DRAM)
-	const float* vectors_top,
-	const float* vectors_base,
+	const float* db_vectors,
 	// in runtime (stream)
 	hls::stream<int>& s_fetched_neighbor_ids_replicated,
 	hls::stream<int>& s_finish_query_in,
@@ -59,6 +92,8 @@ void fetch_vectors(
 	hls::stream<ap_uint<512>>& s_fetched_vectors,
 	hls::stream<int>& s_finish_query_out
 ) {
+
+	const int AXI_num_per_vector = d / FLOAT_PER_AXI; // 16 for d = 512
 
 	for (int qid = 0; qid < query_num; qid++) {
 		while (true) {
@@ -69,12 +104,16 @@ void fetch_vectors(
 			} else if (!s_fetched_neighbor_ids_replicated.empty()) {
 				// receive task
 				cand_t reg_cand = s_fetched_neighbor_ids_replicated.read();
-				int node_id = reg_cand.nodeID;
-				int level = reg_cand.level;
+				int node_id = reg_cand.node_id;
+				int level_id = reg_cand.level_id;
 
 				// read vectors
-				int start_addr;
-				// TODO: add proper start addr and write out distance
+				int start_addr = node_id * AXI_num_per_vector;
+				for (int i = 0; i < AXI_num_per_vector; i++) {
+				#pragma HLS pipeline II=1
+					ap_uint<512> vector_AXI = db_vectors[start_addr + i];
+					s_fetched_vectors.write(vector_AXI);
+				}
 			}
 		}
 	}
@@ -106,6 +145,8 @@ void results_collection(
 				result_t reg_result = s_distances_to_results_collection.read();
 				int node_id = reg_result.node_id;
 				float distance = reg_result.dist;
+				
+				// TODO: really collect results
 			}
 		}
 	}
