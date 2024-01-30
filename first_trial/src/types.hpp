@@ -16,3 +16,5 @@ typedef struct {
     int level_id;
 	float dist;
 } result_t;
+
+enum Order { Collect_smallest, Collect_largest };

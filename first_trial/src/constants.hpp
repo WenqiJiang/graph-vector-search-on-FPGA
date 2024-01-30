@@ -8,3 +8,7 @@ const int float_per_axi = FLOAT_PER_AXI;
 
 // largest 32-bit float: 3.4028237 × 10^38
 const float large_float = 1E+20f; // 1E+20f is large enough for cosine similarity
+
+// max queue sizes
+const int max_result_queue_size = 128;
+const int max_candidate_queue_size = 128;
