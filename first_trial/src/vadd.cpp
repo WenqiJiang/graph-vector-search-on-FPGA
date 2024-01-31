@@ -48,9 +48,6 @@ void vadd(
 
     hls::stream<int> s_finish_query_task_scheduler; // finish the current query
 #pragma HLS stream variable=s_finish_query_task_scheduler depth=2
-
-    hls::stream<int> s_num_neighbors; // number of neighbors of the current candidate
-#pragma HLS stream variable=s_num_neighbors depth=512
 	
 	hls::stream<ap_uint<512>> s_query_vectors;
 #pragma HLS stream variable=s_query_vectors depth=128
@@ -58,9 +55,21 @@ void vadd(
     hls::stream<cand_t> s_top_candidates; // current top candidates
 #pragma HLS stream variable=s_top_candidates depth=512
 
-	hls::stream<result_t> s_distances_to_scheduler;
-#pragma HLS stream variable=s_distances_to_scheduler depth=512
+    hls::stream<int> s_num_neighbors_upper_levels; // number of neighbors of the current candidate
+#pragma HLS stream variable=s_num_neighbors_upper_levels depth=512
 
+	hls::stream<int> s_num_inserted_candidates;
+#pragma HLS stream variable=s_num_inserted_candidates depth=512
+
+	hls::stream<result_t> s_inserted_candidates;
+#pragma HLS stream variable=s_inserted_candidates depth=512
+
+	hls::stream<result_t> s_distances_upper_levels;
+#pragma HLS stream variable=s_distances_upper_levels depth=512
+
+	hls::stream<float> s_largest_result_queue_elements;
+#pragma HLS stream variable=s_largest_result_queue_elements depth=512	
+	
 	// controls the traversal and maintains the candidate queue
 	task_scheduler(
 		query_num, 
@@ -72,13 +81,20 @@ void vadd(
     	// in runtime (should from DRAM)
 		query_vectors,
 		// in streams
-		s_num_neighbors, 
-		s_distances_to_scheduler,
+		s_num_neighbors_upper_levels,
+		s_distances_upper_levels,
+		s_num_inserted_candidates,
+		s_inserted_candidates,
+		s_largest_result_queue_elements,
 		// out streams
 		s_query_vectors,
 		s_top_candidates,
 		s_finish_query_task_scheduler
 	);
+
+	
+    hls::stream<int> s_num_neighbors_base_level; // number of neighbors of the current candidate
+#pragma HLS stream variable=s_num_neighbors_base_level depth=512
 
     hls::stream<cand_t> s_fetched_neighbor_ids; 
 #pragma HLS stream variable=s_fetched_neighbor_ids depth=512
@@ -99,7 +115,7 @@ void vadd(
 		s_finish_query_task_scheduler,
 
 		// out (stream)
-		s_num_neighbors,
+		s_num_neighbors_upper_levels,
 		s_fetched_neighbor_ids,
 		s_finish_query_fetch_neighbor_ids
 	);
@@ -190,13 +206,13 @@ void vadd(
 	const int replication_factor_s_distances = 2;
 
  
-	hls::stream<result_t> s_distances_to_results_collection;
-#pragma HLS stream variable=s_distances_to_results_collection depth=512
+	hls::stream<result_t> s_distances_base_level;
+#pragma HLS stream variable=s_distances_base_level depth=512
 
 	hls::stream<int> s_finish_query_replicate_distances; // finish all queries
 #pragma HLS stream variable=s_finish_query_replicate_distances depth=2
 
-	filter_and_replicate_s_distances(
+	split_s_distances(
 		// in (initialization)
 		query_num,
 		// in runtime (stream)
@@ -204,8 +220,8 @@ void vadd(
 		s_finish_query_check_visited,
 
 		// out (stream)
-		s_distances_to_scheduler,
-		s_distances_to_results_collection,
+		s_distances_upper_levels,
+		s_distances_base_level,
 		s_finish_query_replicate_distances
 	);
 
@@ -217,7 +233,7 @@ void vadd(
 		// in (initialization)
 		query_num,
 		// in runtime (stream)
-		s_distances_to_results_collection,
+		s_distances_base_level,
 		s_finish_query_replicate_distances,
 
 		// out (DRAM)

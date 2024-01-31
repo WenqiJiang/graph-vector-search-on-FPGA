@@ -101,7 +101,7 @@ class Priority_queue<result_t, hardware_queue_size, Collect_smallest> {
 			for (int i = runtime_queue_size; i < hardware_queue_size; i++) {
 #pragma HLS UNROLL
 				this->queue[i].vec_ID = -1;
-				this->queue[i].dist = - large_float;
+				this->queue[i].dist = -large_float;
 			}
 		}
 };

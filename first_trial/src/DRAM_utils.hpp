@@ -1,6 +1,7 @@
 #pragma once
 
 #include "types.hpp"
+#include "priority_queue.hpp"
 
 void fetch_neighbor_ids(
 	// in initialization
@@ -16,7 +17,8 @@ void fetch_neighbor_ids(
 	hls::stream<int>& s_finish_query_in,
 
 	// out (stream)
-	hls::stream<int>& s_num_neighbors,
+	hls::stream<int>& s_num_neighbors_upper_levels,
+	hls::stream<int>& s_num_neighbors_base_level,
 	hls::stream<cand_t>& s_fetched_neighbor_ids,
 	hls::stream<int>& s_finish_query_out
 ) {
@@ -61,7 +63,11 @@ void fetch_neighbor_ids(
 				// write out links num & links id
 				ap_uint<32> links_num_ap = local_links_buffer[0].range(31, 0);
 				int num_links = links_num_ap;
-				s_num_neighbors.write(num_links);
+				if (level_id == 0) { // base layer
+					s_num_neighbors_base_level.write(num_links);
+				} else { // upper layer
+					s_num_neighbors_upper_levels.write(num_links);
+				}
 				for (int i = 0; i < read_num - 1; i++) {
 					for (int j = 0; j < INT_PER_AXI && i * INT_PER_AXI + j < num_links; j++) {
 					#pragma HLS pipeline II=1
@@ -122,11 +128,16 @@ void fetch_vectors(
 void results_collection(
 	// in (initialization)
 	const int query_num,
+	const int ef,
 	// in runtime (stream)
-	hls::stream<float>& s_distances_to_results_collection,
+	hls::stream<int>& s_num_neighbors_base_level,
+	hls::stream<result_t>& s_distances_base_level,
 	hls::stream<int>& s_finish_query_in,
 
 	// out (stream)
+	hls::stream<result_t>& s_inserted_candidates,
+	hls::stream<int>& s_num_inserted_candidates,
+	hls::stream<float>& s_largest_result_queue_elements,
 	hls::stream<int>& s_finish_query_out,
 	
 	// out (DRAM)
@@ -134,19 +145,47 @@ void results_collection(
 	float* out_dist
 ) {
 
+	Priority_queue<result_t, hardware_result_queue_size, Collect_smallest> result_queue(ef);
+	const int sort_swap_round = ef % 2 == 0? ef / 2 : ef / 2 + 1;
+
 	for (int qid = 0; qid < query_num; qid++) {
+
+		result_queue.reset_queue(ef); // reset content to large_float
+		int effect_queue_size = 0; // number of results in queue
+
 		while (true) {
 			// check query finish
-			if (!s_finish_query_in.empty() && s_distances_to_results_collection.empty()) {
+			if (!s_finish_query_in.empty() && s_distances_base_level.empty()) {
 				s_finish_query_out.write(s_finish_query_in.read());
 				break;
-			} else if (!s_distances_to_results_collection.empty()) {
-				// receive task
-				result_t reg_result = s_distances_to_results_collection.read();
-				int node_id = reg_result.node_id;
-				float distance = reg_result.dist;
-				
-				// TODO: really collect results
+			} else if (!s_num_neighbors_base_level.empty() && !s_distances_base_level.empty()) {
+
+				int num_neighbors = s_num_neighbors_base_level.read();
+				int inserted_num_this_iter = 0;
+
+				// insert new values & sort
+                for (int i = 0; i < num_neighbors + sort_swap_round; i++) {
+#pragma HLS pipeline II=1
+					if (i < num_neighbors) {
+						result_t reg = s_distances_base_level.read();
+						// if both input & queue element are large_float, then do not insert
+						if (reg.dist < result_queue.queue[0].dist) {
+							result_queue.queue[0] = reg;
+							s_inserted_candidates.write(reg);
+							inserted_num_this_iter++;
+						}
+					}
+					if (i == num_neighbors - 1) {
+						s_num_inserted_candidates.write(inserted_num_this_iter);
+					}
+                    result_queue.compare_swap_array_step_A();
+                    result_queue.compare_swap_array_step_B();
+                }
+
+				// send out largest dist in the queue
+				effect_queue_size = effect_queue_size + inserted_num_this_iter < ef? effect_queue_size + inserted_num_this_iter : ef;
+				int largest_element_position = ef - effect_queue_size;
+				s_largest_result_queue_elements.write(result_queue.queue[largest_element_position].dist);
 			}
 		}
 	}
