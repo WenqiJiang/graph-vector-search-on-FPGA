@@ -21,25 +21,41 @@ int main(int argc, char** argv)
     std::cout << "Allocating memory...\n";
 
     // in init
-    size_t page_entry_num = 1000;
-    size_t page_num_A = 10; 
-    size_t page_num_B = 10; 
+    const int query_num = 1;
+	const int ef = 64;
+	const int d = 128;
+	const int max_level = 16;
+	const int max_link_num_upper = 32;
+	const int max_link_num_base = 32;
+	const int entry_point_id = 0;
+	const int num_db_vec = 1000 * 1000;
+	
+	size_t bytes_per_vec = d * sizeof(float);
+	size_t bytes_entry_vector = bytes_per_vec;
+	size_t bytes_query_vectors = query_num * bytes_per_vec;
+	size_t bytes_db_vectors = num_db_vec * bytes_per_vec;
+	size_t bytes_ptr_to_upper_links = 1000 * 1000;
+	size_t bytes_links_upper = 1000 * 1000;
+	size_t bytes_links_base = 1000 * 1000;
+	size_t bytes_out_id = query_num * ef * sizeof(int);
+	size_t bytes_out_dist = query_num * ef * sizeof(float);	
 
-    // number of 512-bit entries that a page consumes 
-    size_t bytes_per_page = page_entry_num % N_OBJ_PER_AXI == 0?
-        64 * page_entry_num / N_OBJ_PER_AXI : 64 * (page_entry_num / N_OBJ_PER_AXI + 1);
-    size_t bytes_page_A = page_num_A * bytes_per_page;
-    size_t bytes_page_B = page_num_B * bytes_per_page;
+	// input vecs
+	std::vector<float ,aligned_allocator<float>> entry_vector(bytes_entry_vector / sizeof(float));
+	std::vector<float ,aligned_allocator<float>> query_vectors(bytes_query_vectors / sizeof(float));
 
-    std::cout << "bytes_page_A: " << bytes_page_A << std::endl;
-    std::cout << "bytes_page_B: " << bytes_page_B << std::endl;
-    std::vector<int ,aligned_allocator<int>> in_pages_A(bytes_page_A / sizeof(int));
-    std::vector<int ,aligned_allocator<int>> in_pages_B(bytes_page_B / sizeof(int));
+	// db vec
+	std::vector<float ,aligned_allocator<float>> db_vectors(bytes_db_vectors / sizeof(float));
+	
+	// links
+	std::vector<int ,aligned_allocator<int>> ptr_to_upper_links(bytes_ptr_to_upper_links / sizeof(int));
+	std::vector<int ,aligned_allocator<int>> links_upper(bytes_links_upper / sizeof(int));
+	std::vector<int ,aligned_allocator<int>> links_base(bytes_links_base / sizeof(int));
+	
+	// output
+	std::vector<int ,aligned_allocator<int>> out_id(bytes_out_id / sizeof(int));
+	std::vector<float ,aligned_allocator<float>> out_dist(bytes_out_dist / sizeof(float));
 
-    // size_t out_bytes = 10 * 1024 * 1024;
-    size_t out_bytes = 4 * size_t(1000) * size_t(1000) * size_t(1000); // no more than 16 GB
-    std::cout << "out_bytes: " << out_bytes << std::endl;
-    std::vector<int64_t ,aligned_allocator<int64_t>> out(out_bytes / sizeof(int64_t));
 
 // OPENCL HOST CODE AREA START
 
@@ -62,35 +78,62 @@ int main(int argc, char** argv)
     cl::Kernel krnl_vector_add(program, "vadd");
 
     std::cout << "Finish loading bitstream...\n";
-    // in init 
-    OCL_CHECK(err, cl::Buffer buffer_in_pages_A   (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY, 
-            bytes_page_A, in_pages_A.data(), &err));
-    OCL_CHECK(err, cl::Buffer buffer_in_pages_B   (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY, 
-            bytes_page_B, in_pages_B.data(), &err));
-	// out
-    OCL_CHECK(err, cl::Buffer buffer_out(context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY, 
-            out_bytes, out.data(), &err));
-
-    std::cout << "Finish allocate buffer...\n";
-
-    int arg_counter = 0;    
     // in 
-    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(page_entry_num)));
-    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(page_num_A)));
-    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(page_num_B)));
-    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_in_pages_A));
-    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_in_pages_B));
+    OCL_CHECK(err, cl::Buffer buffer_entry_vector (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY, 
+            bytes_entry_vector, entry_vector.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_query_vectors (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+			bytes_query_vectors, query_vectors.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_ptr_to_upper_links (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+			bytes_ptr_to_upper_links, ptr_to_upper_links.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_links_upper (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+			bytes_links_upper, links_upper.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_links_base (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+			bytes_links_base, links_base.data(), &err));
 
-    // out
-    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_out));
+	// in & out (db vec is mixed with visited list)
+	OCL_CHECK(err, cl::Buffer buffer_db_vectors (context,CL_MEM_USE_HOST_PTR,	
+			bytes_db_vectors, db_vectors.data(), &err));
+
+	// out
+	OCL_CHECK(err, cl::Buffer buffer_out_id (context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+			bytes_out_id, out_id.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_out_dist (context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+			bytes_out_dist, out_dist.data(), &err));
+
+	std::cout << "Finish allocate buffer...\n";
+
+	int arg_counter = 0;    
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(query_num)));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(ef)));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(d)));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(max_level)));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(max_link_num_upper)));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(max_link_num_base)));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(entry_point_id)));
+
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_entry_vector));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_query_vectors));
+
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors));
+
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_ptr_to_upper_links));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_upper));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base));
+
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_out_id));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_out_dist));
 
 
     // Copy input data to device global memory
     OCL_CHECK(err, err = q.enqueueMigrateMemObjects({
         // in
-        buffer_in_pages_A,
-        buffer_in_pages_B,
-        buffer_out
+		buffer_entry_vector,
+		buffer_query_vectors,
+		buffer_ptr_to_upper_links,
+		buffer_links_upper,
+		buffer_links_base,
+		// in & out
+		buffer_db_vectors
         },0/* 0 means from host*/));
 
     std::cout << "Launching kernel...\n";
@@ -99,18 +142,13 @@ int main(int argc, char** argv)
     OCL_CHECK(err, err = q.enqueueTask(krnl_vector_add));
 
     // Copy Result from Device Global Memory to Host Local Memory
-    OCL_CHECK(err, err = q.enqueueMigrateMemObjects({buffer_out},CL_MIGRATE_MEM_OBJECT_HOST));
+    OCL_CHECK(err, err = q.enqueueMigrateMemObjects({buffer_out_id, buffer_out_dist},CL_MIGRATE_MEM_OBJECT_HOST));
     q.finish();
 
     auto end = std::chrono::high_resolution_clock::now();
     double duration = (std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count() / 1000.0);
 
     std::cout << "Duration (including memcpy out): " << duration << " sec" << std::endl; 
-
-    std::cout << "Intersect pair number: " << out[0] << std::endl;
-    std::cout << "Overall page per second = " << (page_num_A * page_num_B) / duration << std::endl;
-    std::cout << "Number of comparison (and potentially insertion) per second = " << 
-        (page_num_A * page_num_B) * (page_entry_num * page_entry_num) / duration << std::endl;
 
     std::cout << "TEST FINISHED (NO RESULT CHECK)" << std::endl; 
 

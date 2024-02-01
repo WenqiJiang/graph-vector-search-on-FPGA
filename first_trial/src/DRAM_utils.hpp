@@ -6,7 +6,7 @@
 void fetch_neighbor_ids(
 	// in initialization
 	const int query_num,
-	const int max_link_num_top, 
+	const int max_link_num_upper, 
 	const int max_link_num_base,
 	// in runtime (should from DRAM)
 	const int* ptr_to_upper_links, // start addr to upper link address per node
@@ -27,7 +27,7 @@ void fetch_neighbor_ids(
 	const int AXI_num_per_base_link = 1 + max_link_num_base / INT_PER_AXI; // 4 = int size, 64 = 512 bit
 
 	const int max_buffer_size = 32 + 1; // supporting max of 32 * INT_PER_AXI (16) = 512 edges per node
-	const ap_uint<512> local_links_buffer[max_buffer_size]; 
+	ap_uint<512> local_links_buffer[max_buffer_size]; 
 
 	for (int qid = 0; qid < query_num; qid++) {
 
@@ -89,17 +89,18 @@ void fetch_vectors(
 	const int query_num,
 	const int d,
 	// in runtime (should from DRAM)
-	const float* db_vectors,
+	ap_uint<512>* db_vectors,
 	// in runtime (stream)
-	hls::stream<int>& s_fetched_neighbor_ids_replicated,
+	hls::stream<cand_t>& s_fetched_neighbor_ids_replicated,
 	hls::stream<int>& s_finish_query_in,
 	
 	// out (stream)
 	hls::stream<ap_uint<512>>& s_fetched_vectors,
+	hls::stream<bool>& s_fetch_valid,
 	hls::stream<int>& s_finish_query_out
 ) {
 
-	const int AXI_num_per_vector = d / FLOAT_PER_AXI; // 16 for d = 512
+	const int AXI_num_per_vector = d / FLOAT_PER_AXI + 1; // 16 for d = 512 + visited padding
 
 	for (int qid = 0; qid < query_num; qid++) {
 		while (true) {
@@ -115,10 +116,24 @@ void fetch_vectors(
 
 				// read vectors
 				int start_addr = node_id * AXI_num_per_vector;
+				bool valid;
 				for (int i = 0; i < AXI_num_per_vector; i++) {
 				#pragma HLS pipeline II=1
 					ap_uint<512> vector_AXI = db_vectors[start_addr + i];
-					s_fetched_vectors.write(vector_AXI);
+					if (i < AXI_num_per_vector - 1) {
+						s_fetched_vectors.write(vector_AXI);
+					} else {
+						ap_uint<32> last_visit_qid = vector_AXI.range(31, 0);
+						valid = last_visit_qid != qid;
+						s_fetch_valid.write(valid);
+					}
+				}
+				// update the visited qid if needed
+				if (valid) {
+					ap_uint<32> new_last_visit_qid = qid;
+					ap_uint<512> vector_AXI_updated;
+					vector_AXI_updated.range(31, 0) = new_last_visit_qid;	
+					db_vectors[start_addr + AXI_num_per_vector] = vector_AXI_updated;
 				}
 			}
 		}
@@ -138,10 +153,10 @@ void results_collection(
 	hls::stream<result_t>& s_inserted_candidates,
 	hls::stream<int>& s_num_inserted_candidates,
 	hls::stream<float>& s_largest_result_queue_elements,
-	hls::stream<int>& s_finish_query_out,
+	// hls::stream<int>& s_finish_query_out,
 	
 	// out (DRAM)
-	float* out_id,
+	int* out_id,
 	float* out_dist
 ) {
 
@@ -156,7 +171,8 @@ void results_collection(
 		while (true) {
 			// check query finish
 			if (!s_finish_query_in.empty() && s_distances_base_level.empty()) {
-				s_finish_query_out.write(s_finish_query_in.read());
+				volatile int reg_finish = s_finish_query_in.read();
+				// s_finish_query_out.write(s_finish_query_in.read());
 				break;
 			} else if (!s_num_neighbors_base_level.empty() && !s_distances_base_level.empty()) {
 

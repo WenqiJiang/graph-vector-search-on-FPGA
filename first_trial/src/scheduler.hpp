@@ -4,9 +4,10 @@
 
 void task_scheduler(
 	const int query_num, 
+	const int ef,
 	const int d,
 	const int max_level,
-	const int max_link_num_top, 
+	const int max_link_num_upper, 
 	const int max_link_num_base,
 	const int entry_point_id,
 
@@ -44,7 +45,7 @@ void task_scheduler(
 	Priority_queue<result_t, hardware_result_queue_size, Collect_smallest> candidate_queue(ef);
 	const int sort_swap_round = ef % 2 == 0? ef / 2 : ef / 2 + 1;
 
-	result_t queue_replication_array[hardware_queue_size];
+	result_t queue_replication_array[hardware_candidate_queue_size];
 #pragma HLS array_partition variable=queue_replication_array complete
 
 	// read entry vector
@@ -84,7 +85,7 @@ void task_scheduler(
 			for (int s = 0; s < FLOAT_PER_AXI; s++) {
 			#pragma HLS unroll	
 				float diff = entry_vector_buffer[i * FLOAT_PER_AXI + s] - query_vector_buffer[i * FLOAT_PER_AXI + s];
-				float partial_dist += diff * diff;
+				partial_dist += diff * diff;
 			}
 			dist_entry_query += partial_dist;
 		}
@@ -103,14 +104,14 @@ void task_scheduler(
 
 				// receive the number of neighbors (each with a distance) to collect
 				if (first_iter_s_num_neighbors) {
-					while (s_num_neighbors_upper_levels.emtpy()) {}
+					while (s_num_neighbors_upper_levels.empty()) {}
 					first_iter_s_num_neighbors = false;
 				}
 				int num_neighbors = s_num_neighbors_upper_levels.read();
 
 				// update candidate
 				if (first_iter_s_interm_results) {
-					while (s_distances_upper_levels.emtpy()) {}
+					while (s_distances_upper_levels.empty()) {}
 					first_iter_s_interm_results = false;
 				}
 				for (int i = 0; i < num_neighbors; i++) {
@@ -161,18 +162,22 @@ void task_scheduler(
 					s_top_candidates.write(reg_cand);
 
 					// pop & right shift
-					for (int i = 0; i < hardware_queue_size - 1; i++) {
+					for (int i = 0; i < hardware_candidate_queue_size - 1; i++) {
 					#pragma HLS UNROLL
 						queue_replication_array[i] = candidate_queue.queue[i - 1];
 					}
-					candidate_queue.queue[0] = large_float;
+					result_t reg_tmp_large;
+					reg_tmp_large.dist = large_float;
+					candidate_queue.queue[0] = reg_tmp_large;
 					for (int i = 1; i < ef; i++) {
 					#pragma HLS UNROLL
 						candidate_queue.queue[i] = queue_replication_array[i];
 					}
-					for (int i = ef; i < hardware_queue_size; i++) {
+					result_t reg_tmp_minus_large;
+					reg_tmp_minus_large.dist = -large_float;
+					for (int i = ef; i < hardware_candidate_queue_size; i++) {
 					#pragma HLS UNROLL
-						candidate_queue.queue[i] = -large_float;
+						candidate_queue.queue[i] = reg_tmp_minus_large;
 					}
 				} else {
 					stop = true;

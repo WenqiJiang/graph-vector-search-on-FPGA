@@ -11,13 +11,15 @@ class Priority_queue<result_t, hardware_queue_size, Collect_smallest> {
 
     public: 
 
-        result_t queue[hardware_queue_size];
-#pragma HLS array_partition variable=queue complete
-
+        result_t* queue;
 		int runtime_queue_size;
 
         Priority_queue(const int runtime_queue_size) {
 #pragma HLS inline
+
+        	result_t queue_array[hardware_queue_size];
+#pragma HLS array_partition variable=queue_array complete
+			this->queue = queue_array;
 			this->runtime_queue_size = runtime_queue_size; // must <= hardware_queue_size
 			reset_queue(runtime_queue_size);
         }
@@ -57,7 +59,7 @@ class Priority_queue<result_t, hardware_queue_size, Collect_smallest> {
         }
 
 
-    private:
+    // private:
     
         void compare_swap(int idxA, int idxB) {
             // if smaller -> swap to right
@@ -94,13 +96,15 @@ class Priority_queue<result_t, hardware_queue_size, Collect_smallest> {
 			// 0 ~ runtime_queue_size - 1: valid
 			for (int i = 0; i < runtime_queue_size; i++) {
 #pragma HLS UNROLL
-				this->queue[i].vec_ID = -1;
+				this->queue[i].node_id = -1;
+				this->queue[i].level_id = -1;
 				this->queue[i].dist = large_float;
 			}
 			// runtime_queue_size ~ hardware_queue_size - 1: invalid range
 			for (int i = runtime_queue_size; i < hardware_queue_size; i++) {
 #pragma HLS UNROLL
-				this->queue[i].vec_ID = -1;
+				this->queue[i].node_id = -1;
+				this->queue[i].level_id = -1;
 				this->queue[i].dist = -large_float;
 			}
 		}
