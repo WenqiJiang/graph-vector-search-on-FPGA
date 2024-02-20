@@ -58,19 +58,21 @@ class Priority_queue<result_t, hardware_queue_size, Collect_smallest> {
 
 		void reset_queue(const int runtime_queue_size) {
 #pragma HLS inline
-			// 0 ~ runtime_queue_size - 1: valid
-			for (int i = 0; i < runtime_queue_size; i++) {
+			
+			for (int i = 0; i < hardware_queue_size; i++) {
 #pragma HLS UNROLL
-				this->queue[i].node_id = -1;
-				this->queue[i].level_id = -1;
-				this->queue[i].dist = large_float;
-			}
-			// runtime_queue_size ~ hardware_queue_size - 1: invalid range
-			for (int i = runtime_queue_size; i < hardware_queue_size; i++) {
-#pragma HLS UNROLL
-				this->queue[i].node_id = -1;
-				this->queue[i].level_id = -1;
-				this->queue[i].dist = -large_float;
+				// 0 ~ runtime_queue_size - 1: valid
+				if (i < runtime_queue_size) {
+					this->queue[i].node_id = -1;
+					this->queue[i].level_id = -1;
+					this->queue[i].dist = large_float;
+				}
+				// runtime_queue_size ~ hardware_queue_size - 1: invalid range
+				else {
+					this->queue[i].node_id = -1;
+					this->queue[i].level_id = -1;
+					this->queue[i].dist = -large_float;
+				}
 			}
 		}
 
@@ -87,7 +89,7 @@ class Priority_queue<result_t, hardware_queue_size, Collect_smallest> {
 
 			// insert & sort
 			for (int i = 0; i < num_insertion + sort_swap_round; i++) {
-#pragma HLS pipeline II=1
+#pragma HLS pipeline II=2
 				if (i < num_insertion) {
 					result_t reg = s_input.read();
 					this->queue[0] = this->queue[0].dist <= reg.dist? this->queue[0] : reg;

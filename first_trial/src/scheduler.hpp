@@ -41,7 +41,6 @@ void task_scheduler(
 	float query_vector_buffer[D_MAX];
 #pragma HLS unroll variable=query_vector_buffer factor=float_per_axi
 
-	// TODO: maybe change this queue limit to alternative value? 
 	Priority_queue<result_t, hardware_result_queue_size, Collect_smallest> candidate_queue(ef);
 	const int sort_swap_round = ef % 2 == 0? ef / 2 : ef / 2 + 1;
 
@@ -80,7 +79,7 @@ void task_scheduler(
 		// compute distance between entry and query
 		float dist_entry_query = 0;
 		for (int i = 0; i < d / FLOAT_PER_AXI; i++) {
-#pragma HLS pipeline II=1
+		#pragma HLS pipeline II=1
 			float partial_dist = 0;
 			for (int s = 0; s < FLOAT_PER_AXI; s++) {
 			#pragma HLS unroll	
@@ -133,57 +132,27 @@ void task_scheduler(
 		bool stop = false;
 		while (!stop) {
 			if (!s_num_inserted_candidates.empty()) {
-				int num_inserted_candidates = s_num_inserted_candidates.read();
 
 				if (first_iter_s_inserted_candidates) {
 					while (s_inserted_candidates.empty()) {}
 					first_iter_s_inserted_candidates = false;
 				}
-
 				// insert new values & sort
-				for (int i = 0; i < num_inserted_candidates + sort_swap_round; i++) {
-					if (i < num_inserted_candidates) {
-						result_t reg = s_inserted_candidates.read();
-						// if both input & queue element are large_float, then do not insert
-						if (reg.dist < candidate_queue.queue[0].dist) {
-							candidate_queue.queue[0] = reg;
-						}
-						candidate_queue.compare_swap_array_step_A();
-						candidate_queue.compare_swap_array_step_B();
-					}
-				}
+				candidate_queue.insert_sort(s_num_inserted_candidates, s_inserted_candidates);
 
 				// pop top candidate
+				if (first_iter_s_largest_result_queue_elements) {
+					while (s_largest_result_queue_elements.empty()) {}
+					first_iter_s_largest_result_queue_elements = false;
+				}
 				float threshold = s_largest_result_queue_elements.read();
 				int smallest_element_position = ef - 1;
-				if (smallest_element_position <= threshold) {
-					// write new task
-					cand_t reg_cand = {candidate_queue.queue[smallest_element_position].node_id, 0};
-					s_top_candidates.write(reg_cand);
-
-					// pop & right shift
-					for (int i = 0; i < hardware_candidate_queue_size - 1; i++) {
-					#pragma HLS UNROLL
-						queue_replication_array[i] = candidate_queue.queue[i - 1];
-					}
-					result_t reg_tmp_large;
-					reg_tmp_large.dist = large_float;
-					candidate_queue.queue[0] = reg_tmp_large;
-					for (int i = 1; i < ef; i++) {
-					#pragma HLS UNROLL
-						candidate_queue.queue[i] = queue_replication_array[i];
-					}
-					result_t reg_tmp_minus_large;
-					reg_tmp_minus_large.dist = -large_float;
-					for (int i = ef; i < hardware_candidate_queue_size; i++) {
-					#pragma HLS UNROLL
-						candidate_queue.queue[i] = reg_tmp_minus_large;
-					}
+				if (candidate_queue.queue[smallest_element_position].dist <= threshold) {
+					candidate_queue.pop_top(s_top_candidates);
 				} else {
 					stop = true;
 				}
 			}
-
 		}
 
 		s_finish_query_out.write(qid);

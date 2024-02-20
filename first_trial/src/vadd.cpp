@@ -23,7 +23,7 @@ void vadd(
 	const ap_uint<512>* query_vectors,
     ap_uint<512>* db_vectors, // need to write visited tag
 
-	const int* ptr_to_upper_links, // start addr to upper link address per node
+	const ap_uint<64>* ptr_to_upper_links, // start addr to upper link address per node
     const ap_uint<512>* links_upper,
     const ap_uint<512>* links_base,
 	   
@@ -238,6 +238,7 @@ void vadd(
 		out_id,
 		out_dist
 	);
+
 }
 
 }

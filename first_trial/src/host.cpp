@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <chrono>
+#include <cassert>
 
 #include "host.hpp"
 
@@ -7,6 +8,14 @@
 // Wenqi: seems 2022.1 somehow does not support linking ap_uint.h to host?
 // #include "ap_uint.h"
 
+#include <sys/stat.h>
+
+long GetFileSize(std::string filename)
+{
+    struct stat stat_buf;
+    int rc = stat(filename.c_str(), &stat_buf);
+    return rc == 0 ? stat_buf.st_size : -1;
+}
 
 int main(int argc, char** argv)
 {
@@ -21,41 +30,105 @@ int main(int argc, char** argv)
     std::cout << "Allocating memory...\n";
 
     // in init
-    const int query_num = 1;
-	const int ef = 64;
-	const int d = 128;
-	const int max_level = 16;
-	const int max_link_num_upper = 32;
-	const int max_link_num_base = 32;
-	const int entry_point_id = 0;
-	const int num_db_vec = 1000 * 1000;
+    int query_num = 1;
+	int ef = 64;
+	int d = 128;
+
+	// initialization values
+	int max_level; // = 16;
+	int max_link_num_upper; // = 32;
+	int max_link_num_base; // = 32;
+	int entry_point_id; // = 0;
+	int num_db_vec; // = 1000 * 1000;
+
+	// load metadata from file /mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/meta.bin
+	//  cur_element_count, maxlevel_, enterpoint_node_, maxM_, maxM0_
+	FILE* f_metadata = fopen("/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/meta.bin", "rb");
+	fread(&num_db_vec, sizeof(int), 1, f_metadata);
+	fread(&max_level, sizeof(int), 1, f_metadata);
+	fread(&entry_point_id, sizeof(int), 1, f_metadata);
+	fread(&max_link_num_upper, sizeof(int), 1, f_metadata);
+	fread(&max_link_num_base, sizeof(int), 1, f_metadata);
+	fclose(f_metadata);
+	std::cout << "num_db_vec=" << num_db_vec << std::endl;
+	std::cout << "max_level=" << max_level << std::endl;
+	std::cout << "entry_point_id=" << entry_point_id << std::endl;
+	std::cout << "max_link_num_upper=" << max_link_num_upper << std::endl;
+	std::cout << "max_link_num_base=" << max_link_num_base << std::endl;
 	
 	size_t bytes_per_vec = d * sizeof(float);
 	size_t bytes_entry_vector = bytes_per_vec;
 	size_t bytes_query_vectors = query_num * bytes_per_vec;
-	size_t bytes_db_vectors = num_db_vec * bytes_per_vec;
-	size_t bytes_ptr_to_upper_links = 1000 * 1000;
-	size_t bytes_links_upper = 1000 * 1000;
-	size_t bytes_links_base = 1000 * 1000;
+	size_t bytes_db_vectors;
+	size_t bytes_ptr_to_upper_links; // long = 8 bytes
+	size_t bytes_links_upper;
+	size_t bytes_links_base;
 	size_t bytes_out_id = query_num * ef * sizeof(int);
 	size_t bytes_out_dist = query_num * ef * sizeof(float);	
 
+	const char* fname_ground_links = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links.bin";
+	const char* fname_ground_vectors = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors.bin";
+	const char* fname_upper_links = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/upper_links.bin";
+	const char* fname_upper_links_pointers = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/upper_links_pointers.bin";
+	FILE* f_ground_links = fopen(fname_ground_links, "rb");
+	FILE* f_ground_vectors = fopen(fname_ground_vectors, "rb");
+	FILE* f_upper_links = fopen(fname_upper_links, "rb");
+	FILE* f_upper_links_pointers = fopen(fname_upper_links_pointers, "rb");
+
+	// get file size
+	bytes_db_vectors = GetFileSize(fname_ground_vectors);
+	bytes_ptr_to_upper_links = GetFileSize(fname_upper_links_pointers);
+	bytes_links_upper = GetFileSize(fname_upper_links);
+	bytes_links_base = GetFileSize(fname_ground_links);
+	std::cout << "bytes_db_vectors=" << bytes_db_vectors << std::endl;
+	std::cout << "bytes_ptr_to_upper_links=" << bytes_ptr_to_upper_links << std::endl;
+	std::cout << "bytes_links_upper=" << bytes_links_upper << std::endl;
+	std::cout << "bytes_links_base=" << bytes_links_base << std::endl;
+
 	// input vecs
-	std::vector<float ,aligned_allocator<float>> entry_vector(bytes_entry_vector / sizeof(float));
-	std::vector<float ,aligned_allocator<float>> query_vectors(bytes_query_vectors / sizeof(float));
+	std::vector<float, aligned_allocator<float>> entry_vector(bytes_entry_vector / sizeof(float));
+	std::vector<float, aligned_allocator<float>> query_vectors(bytes_query_vectors / sizeof(float));
 
 	// db vec
-	std::vector<float ,aligned_allocator<float>> db_vectors(bytes_db_vectors / sizeof(float));
+	std::vector<float, aligned_allocator<float>> db_vectors(bytes_db_vectors / sizeof(float));
 	
 	// links
-	std::vector<int ,aligned_allocator<int>> ptr_to_upper_links(bytes_ptr_to_upper_links / sizeof(int));
-	std::vector<int ,aligned_allocator<int>> links_upper(bytes_links_upper / sizeof(int));
-	std::vector<int ,aligned_allocator<int>> links_base(bytes_links_base / sizeof(int));
+	std::vector<int, aligned_allocator<int>> ptr_to_upper_links(bytes_ptr_to_upper_links / sizeof(int));
+	std::vector<int, aligned_allocator<int>> links_upper(bytes_links_upper / sizeof(int));
+	std::vector<int, aligned_allocator<int>> links_base(bytes_links_base / sizeof(int));
 	
 	// output
-	std::vector<int ,aligned_allocator<int>> out_id(bytes_out_id / sizeof(int));
-	std::vector<float ,aligned_allocator<float>> out_dist(bytes_out_dist / sizeof(float));
+	std::vector<int, aligned_allocator<int>> out_id(bytes_out_id / sizeof(int));
+	std::vector<float, aligned_allocator<float>> out_dist(bytes_out_dist / sizeof(float));
 
+	// read data from file
+	std::cout << "Reading database vectors from file...\n";
+	fread(db_vectors.data(), 1, bytes_db_vectors, f_ground_vectors);
+	fclose(f_ground_vectors);
+
+	std::cout << "Reading ptr to upper links from file...\n";
+	fread(ptr_to_upper_links.data(), 1, bytes_ptr_to_upper_links, f_upper_links_pointers);
+	fclose(f_upper_links_pointers);
+
+	std::cout << "Reading upper links from file...\n";
+	fread(links_upper.data(), 1, bytes_links_upper, f_upper_links);
+	fclose(f_upper_links);
+
+	std::cout << "Reading base links from file...\n";
+	fread(links_base.data(), 1, bytes_links_base, f_ground_links);
+	fclose(f_ground_links);
+
+	// copy entry vector
+	size_t bytes_per_db_vec_plus_padding;
+	if (d % 16 == 0) {
+		bytes_per_db_vec_plus_padding = d * sizeof(float) + 64;
+	} else {
+		bytes_per_db_vec_plus_padding = (d + 16 - d % 16) * sizeof(float) + 64;
+	}
+	assert(bytes_per_db_vec_plus_padding * num_db_vec == bytes_db_vectors);
+	memcpy((char*) entry_vector.data(), ((char*) db_vectors.data()) + entry_point_id * bytes_per_db_vec_plus_padding, bytes_entry_vector);
+
+	// TODO: add query vector
 
 // OPENCL HOST CODE AREA START
 

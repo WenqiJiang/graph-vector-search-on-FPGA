@@ -9,7 +9,7 @@ void fetch_neighbor_ids(
 	const int max_link_num_upper, 
 	const int max_link_num_base,
 	// in runtime (should from DRAM)
-	const int* ptr_to_upper_links, // start addr to upper link address per node
+	const ap_uint<64>* ptr_to_upper_links, // start addr to upper link address per node
 	const ap_uint<512>* links_upper,
 	const ap_uint<512>* links_base,
 	// in runtime (stream)
@@ -23,8 +23,10 @@ void fetch_neighbor_ids(
 	hls::stream<int>& s_finish_query_out
 ) {
 
-	const int AXI_num_per_upper_link = 1 + max_link_num_upper / INT_PER_AXI; // 4 = int size, 64 = 512 bit
-	const int AXI_num_per_base_link = 1 + max_link_num_base / INT_PER_AXI; // 4 = int size, 64 = 512 bit
+	const int AXI_num_per_upper_link = max_link_num_upper % INT_PER_AXI == 0?
+		1 + max_link_num_upper / INT_PER_AXI: 2 + max_link_num_upper / INT_PER_AXI; // 4 = int size, 64 = 512 bit
+	const int AXI_num_per_base_link = max_link_num_base % INT_PER_AXI == 0? 
+		1 + max_link_num_base / INT_PER_AXI : 2 + max_link_num_base / INT_PER_AXI; // 4 = int size, 64 = 512 bit
 
 	const int max_buffer_size = 32 + 1; // supporting max of 32 * INT_PER_AXI (16) = 512 edges per node
 	ap_uint<512> local_links_buffer[max_buffer_size]; 
@@ -43,13 +45,15 @@ void fetch_neighbor_ids(
 				int node_id = reg_cand.node_id;
 				int level_id = reg_cand.level_id;
 
-				int start_addr;
+				ap_uint<64> start_addr;
 				int read_num;
 				if (level_id == 0) { // base layer
 					start_addr = node_id * AXI_num_per_base_link;
 					read_num  = AXI_num_per_base_link;
 				} else { // upper layer
-					start_addr = ptr_to_upper_links[node_id] + level_id * AXI_num_per_upper_link;
+					ap_uint<64> byte_addr = ptr_to_upper_links[node_id];
+					ap_uint<64> axi_addr = byte_addr / BYTE_PER_AXI;
+					start_addr = axi_addr + (level_id - 1) * AXI_num_per_upper_link;
 					read_num  = AXI_num_per_upper_link;
 				}
 					
@@ -100,7 +104,8 @@ void fetch_vectors(
 	hls::stream<int>& s_finish_query_out
 ) {
 
-	const int AXI_num_per_vector = d / FLOAT_PER_AXI + 1; // 16 for d = 512 + visited padding
+	const int AXI_num_per_vector = d % FLOAT_PER_AXI == 0? 
+		d / FLOAT_PER_AXI + 1 : d / FLOAT_PER_AXI + 2; // 16 for d = 512 + visited padding
 
 	for (int qid = 0; qid < query_num; qid++) {
 		while (true) {
@@ -133,7 +138,7 @@ void fetch_vectors(
 					ap_uint<32> new_last_visit_qid = qid;
 					ap_uint<512> vector_AXI_updated;
 					vector_AXI_updated.range(31, 0) = new_last_visit_qid;	
-					db_vectors[start_addr + AXI_num_per_vector] = vector_AXI_updated;
+					db_vectors[start_addr + AXI_num_per_vector - 1] = vector_AXI_updated;
 				}
 			}
 		}
