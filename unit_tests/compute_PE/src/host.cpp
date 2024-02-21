@@ -1,4 +1,3 @@
-#include <algorithm>    // std::sort
 #include <stdint.h>
 #include <chrono>
 #include <cassert>
@@ -31,28 +30,37 @@ int main(int argc, char** argv)
     std::cout << "Allocating memory...\n";
 
     // in init
-    int runtime_queue_size = 64;
-	int input_array_size = 256;
-	int iter_insert_sort = 100;
-	int iter_pop = 0;
-	
-	size_t bytes_input_array = input_array_size * sizeof(float);
-	size_t bytes_sorted_array = (input_array_size * 2 + 1) * sizeof(float);
+    int query_num = 1;
+	int num_fetched_vectors_per_query = 64;
+	int d = 128;
+
+	size_t bytes_query_vectors = d * sizeof(float);
+	size_t bytes_fetched_vectors = d * sizeof(float);
+	size_t bytes_out_dist = num_fetched_vectors_per_query * sizeof(float);
 
 	// input vecs
-	std::vector<float, aligned_allocator<float>> input_array(bytes_input_array / sizeof(float));
-	std::vector<float, aligned_allocator<float>> sorted_array(bytes_sorted_array / sizeof(float));
+	std::vector<float, aligned_allocator<float>> query_vectors(bytes_query_vectors / sizeof(float));
+	std::vector<float, aligned_allocator<float>> fetched_vectors(bytes_fetched_vectors / sizeof(float));
 
-	// randomly generate input data
-	for (int i = 0; i < input_array_size; i++) {
-		input_array[i] = (float)rand() / (float)RAND_MAX;
+	// output
+	std::vector<float, aligned_allocator<float>> out_dist(bytes_out_dist / sizeof(float));
+	std::vector<float, aligned_allocator<float>> sw_out_dist(bytes_out_dist / sizeof(float));
+
+	// generate random query and fetched vectors
+	for (int i = 0; i < d; i++) {
+		query_vectors[i] = (float)rand();
+		fetched_vectors[i] = (float)rand();
+	}
+	// compute software results: L2 distance square
+	float dist = 0;
+	for (int j = 0; j < d; j++) {
+		float diff = query_vectors[j] - fetched_vectors[j];
+		dist += diff * diff;
+	}
+	for (int i = 0; i < num_fetched_vectors_per_query; i++) {
+		sw_out_dist[i] = dist;
 	}
 
-	// sort the array via CPU
-	std::vector<float, aligned_allocator<float>> sw_sorted_array(bytes_input_array / sizeof(float));
-	std::copy(input_array.begin(), input_array.end(), sw_sorted_array.begin());
-	std::sort(sw_sorted_array.begin(), sw_sorted_array.end());
-	
 // OPENCL HOST CODE AREA START
 
     std::vector<cl::Device> devices = get_devices();
@@ -75,28 +83,33 @@ int main(int argc, char** argv)
 
     std::cout << "Finish loading bitstream...\n";
     // in 
-    OCL_CHECK(err, cl::Buffer buffer_input_array (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY, 
-            bytes_input_array, input_array.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_query_vectors (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+			bytes_query_vectors, query_vectors.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_fetched_vectors (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+			bytes_fetched_vectors, fetched_vectors.data(), &err));
 
 	// out
-	OCL_CHECK(err, cl::Buffer buffer_sorted_array (context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,	
-			bytes_sorted_array, sorted_array.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_out_dist (context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+			bytes_out_dist, out_dist.data(), &err));
 
 	std::cout << "Finish allocate buffer...\n";
 
 	int arg_counter = 0;    
-	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(runtime_queue_size)));
-	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(input_array_size)));
-	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(iter_insert_sort)));
-	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(iter_pop)));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(query_num)));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(num_fetched_vectors_per_query)));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(d)));
 
-	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_input_array));
-	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_sorted_array));
-	   
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_query_vectors));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_fetched_vectors));
+	
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_out_dist));
+
+
     // Copy input data to device global memory
     OCL_CHECK(err, err = q.enqueueMigrateMemObjects({
         // in
-		buffer_input_array,
+		buffer_query_vectors,
+		buffer_fetched_vectors
         },0/* 0 means from host*/));
 
     std::cout << "Launching kernel...\n";
@@ -105,7 +118,7 @@ int main(int argc, char** argv)
     OCL_CHECK(err, err = q.enqueueTask(krnl_vector_add));
 
     // Copy Result from Device Global Memory to Host Local Memory
-    OCL_CHECK(err, err = q.enqueueMigrateMemObjects({buffer_sorted_array},CL_MIGRATE_MEM_OBJECT_HOST));
+    OCL_CHECK(err, err = q.enqueueMigrateMemObjects({buffer_out_dist},CL_MIGRATE_MEM_OBJECT_HOST));
     q.finish();
 
     auto end = std::chrono::high_resolution_clock::now();
@@ -113,15 +126,14 @@ int main(int argc, char** argv)
 
     std::cout << "Duration (including memcpy out): " << duration << " sec" << std::endl; 
 
-	// Compare the results of the Device to the CPU
+	// compare software and hardware results
 	std::cout << "Comparing the results of the Device to the CPU...\n";
 	bool overall_result = true;
-	int sorted_size = runtime_queue_size < input_array_size? runtime_queue_size : input_array_size;
-	for (int i = 0; i < sorted_size; i++) {
-		if (sorted_array[i] == sw_sorted_array[i]) {
-			std::cout << "Match: " << sorted_array[i] << " (hw) = " << sw_sorted_array[i] << " (sw)" << std::endl;
+	for (int i = 0; i < num_fetched_vectors_per_query; i++) {
+		if (out_dist[i] == sw_out_dist[i]) {
+			std::cout << "Match: " << out_dist[i] << " (hw) = " << sw_out_dist[i] << " (sw)" << std::endl;
 		} else {
-			std::cout << "Mismatch: " << sorted_array[i] << " (hw) != " << sw_sorted_array[i] << " (sw)" << std::endl;
+			std::cout << "Mismatch: " << out_dist[i] << " (hw) != " << sw_out_dist[i] << " (sw)" << std::endl;
 			overall_result = false;
 		}
 	}
@@ -130,6 +142,6 @@ int main(int argc, char** argv)
 	} else {
 		std::cout << "Overall: Mismatch" << std::endl;
 	}
-
+	
     return  0;
 }
