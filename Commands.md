@@ -22,6 +22,13 @@ Make emu:
 time make all TARGET=hw_emu PLATFORM=xilinx_u250_gen3x16_xdma_4_1_202210_1 > out_hw_emu 2>&1
 ```
 
+If enable GUI:
+
+```
+[Emulation]
+debug_mode=gui 
+```
+
 Run emu:
 
 ```
@@ -32,6 +39,7 @@ Kill all emulations:
 
 ```
 ps aux | grep -i hw_emu | grep wejiang | awk '{print $2}' | xargs -i kill -9 {}  
+rm *.log # remove emulation logs
 ```
 
 ### Kill

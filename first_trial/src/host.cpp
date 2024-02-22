@@ -5,6 +5,7 @@
 #include "host.hpp"
 
 #include "constants.hpp"
+// #include "types.hpp"
 // Wenqi: seems 2022.1 somehow does not support linking ap_uint.h to host?
 // #include "ap_uint.h"
 
@@ -30,9 +31,11 @@ int main(int argc, char** argv)
     std::cout << "Allocating memory...\n";
 
     // in init
-    int query_num = 1;
-	int ef = 64;
+    int query_num = 10;
+	int ef = 32;
 	int d = 128;
+	assert (ef <= hardware_result_queue_size);
+	assert (ef <= hardware_candidate_queue_size);
 
 	// initialization values
 	int max_level; // = 16;
@@ -70,16 +73,26 @@ int main(int argc, char** argv)
 	const char* fname_ground_vectors = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors.bin";
 	const char* fname_upper_links = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/upper_links.bin";
 	const char* fname_upper_links_pointers = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/upper_links_pointers.bin";
+	const char* fname_query_vectors =  "/mnt/scratch/wenqi/Faiss_experiments/bigann/bigann_query.bvecs";
+	const char* fname_gt_vec_ID = "/mnt/scratch/wenqi/Faiss_experiments/bigann/gnd/idx_1M.ivecs";
+	const char* fname_gt_dist = "/mnt/scratch/wenqi/Faiss_experiments/bigann/gnd/dis_1M.fvecs";
 	FILE* f_ground_links = fopen(fname_ground_links, "rb");
 	FILE* f_ground_vectors = fopen(fname_ground_vectors, "rb");
 	FILE* f_upper_links = fopen(fname_upper_links, "rb");
 	FILE* f_upper_links_pointers = fopen(fname_upper_links_pointers, "rb");
+	FILE* f_query_vectors = fopen(fname_query_vectors, "rb");
+	FILE* f_gt_vec_ID = fopen(fname_gt_vec_ID, "rb");
+	FILE* f_gt_dist = fopen(fname_gt_dist, "rb");
+
 
 	// get file size
 	bytes_db_vectors = GetFileSize(fname_ground_vectors);
 	bytes_ptr_to_upper_links = GetFileSize(fname_upper_links_pointers);
 	bytes_links_upper = GetFileSize(fname_upper_links);
 	bytes_links_base = GetFileSize(fname_ground_links);
+	size_t raw_query_vectors_size = GetFileSize(fname_query_vectors);
+	size_t raw_gt_vec_ID_size = GetFileSize(fname_gt_vec_ID);
+	size_t raw_gt_dist_size = GetFileSize(fname_gt_dist);
 	std::cout << "bytes_db_vectors=" << bytes_db_vectors << std::endl;
 	std::cout << "bytes_ptr_to_upper_links=" << bytes_ptr_to_upper_links << std::endl;
 	std::cout << "bytes_links_upper=" << bytes_links_upper << std::endl;
@@ -93,13 +106,22 @@ int main(int argc, char** argv)
 	std::vector<float, aligned_allocator<float>> db_vectors(bytes_db_vectors / sizeof(float));
 	
 	// links
-	std::vector<int, aligned_allocator<int>> ptr_to_upper_links(bytes_ptr_to_upper_links / sizeof(int));
+	std::vector<long, aligned_allocator<long>> ptr_to_upper_links(bytes_ptr_to_upper_links / sizeof(long));
 	std::vector<int, aligned_allocator<int>> links_upper(bytes_links_upper / sizeof(int));
 	std::vector<int, aligned_allocator<int>> links_base(bytes_links_base / sizeof(int));
 	
 	// output
 	std::vector<int, aligned_allocator<int>> out_id(bytes_out_id / sizeof(int));
 	std::vector<float, aligned_allocator<float>> out_dist(bytes_out_dist / sizeof(float));
+
+	// intermediate buffer for queries, and ground truth
+	std::vector<unsigned char> raw_query_vectors(raw_query_vectors_size / sizeof(unsigned char));
+	std::vector<int> raw_gt_vec_ID(raw_gt_vec_ID_size / sizeof(int));
+	std::vector<float> raw_gt_dist(raw_gt_dist_size / sizeof(float));
+
+	int max_topK = 100;
+	std::vector<int> gt_vec_ID(query_num * max_topK);
+	std::vector<float> gt_dist(query_num * max_topK);
 
 	// read data from file
 	std::cout << "Reading database vectors from file...\n";
@@ -118,6 +140,31 @@ int main(int argc, char** argv)
 	fread(links_base.data(), 1, bytes_links_base, f_ground_links);
 	fclose(f_ground_links);
 
+	std::cout << "Reading queries and ground truths from file...\n";
+	fread(raw_query_vectors.data(), 1, raw_query_vectors_size, f_query_vectors);
+	fclose(f_query_vectors);
+	fread(raw_gt_vec_ID.data(), 1, raw_gt_vec_ID_size, f_gt_vec_ID);
+	fclose(f_gt_vec_ID);
+	fread(raw_gt_dist.data(), 1, raw_gt_dist_size, f_gt_dist);
+	fclose(f_gt_dist);
+
+	// query vector = 4-byte ID + d * (uint8) vectors
+	size_t len_per_query = 4 + d;
+    for (int qid = 0; qid < query_num; qid++) {
+		for (int i = 0; i < d; i++) {
+			query_vectors[qid * d + i] = (float) raw_query_vectors[qid * len_per_query + 4 + i];
+		}
+	}
+
+	// ground truth = 4-byte ID + 1000 * 4-byte ID + 1000 or 4-byte distances
+	size_t len_per_gt = (4 + 1000 * 4) / 4;
+    for (int qid = 0; qid < query_num; qid++) {
+		for (int i = 0; i < max_topK; i++) {
+			gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[qid * len_per_gt + 1 + i];
+			gt_dist[qid * max_topK + i] = raw_gt_dist[qid * len_per_gt + 1 + i];
+		}
+    }
+
 	// copy entry vector
 	size_t bytes_per_db_vec_plus_padding;
 	if (d % 16 == 0) {
@@ -128,7 +175,6 @@ int main(int argc, char** argv)
 	assert(bytes_per_db_vec_plus_padding * num_db_vec == bytes_db_vectors);
 	memcpy((char*) entry_vector.data(), ((char*) db_vectors.data()) + entry_point_id * bytes_per_db_vec_plus_padding, bytes_entry_vector);
 
-	// TODO: add query vector
 
 // OPENCL HOST CODE AREA START
 
@@ -223,7 +269,25 @@ int main(int argc, char** argv)
 
     std::cout << "Duration (including memcpy out): " << duration << " sec" << std::endl; 
 
-    std::cout << "TEST FINISHED (NO RESULT CHECK)" << std::endl; 
+	// verify top-1 result
+	std::cout << "Verifying top-1 result...\n";
+	for (int qid = 0; qid < query_num; qid++) {
+		int top1_id = out_id[qid * ef];
+		float top1_dist = out_dist[qid * ef];
+
+		int gt_id_cur = gt_vec_ID[qid * max_topK];
+		float gt_dist_cur = gt_dist[qid * max_topK];
+
+		bool match = top1_id == gt_id_cur;
+		if (match) {
+			std::cout << "qid=" << qid << " top1_id=" << top1_id << " gt_id=" << gt_id_cur <<  " top1_dist=" << top1_dist << " gt_dist=" << gt_dist_cur << std::endl;
+		} else {
+			std::cout << "MISTMATCH " << "qid=" << qid << " top1_id=" << top1_id << " gt_id=" << gt_id_cur << " top1_dist=" << top1_dist <<  " gt_dist=" << gt_dist_cur << std::endl;
+		}
+	}
+
+
+    // std::cout << "TEST FINISHED (NO RESULT CHECK)" << std::endl; 
 
     return  0;
 }

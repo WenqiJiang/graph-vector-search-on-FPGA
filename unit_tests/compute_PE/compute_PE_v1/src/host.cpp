@@ -33,6 +33,7 @@ int main(int argc, char** argv)
     int query_num = 1;
 	int num_fetched_vectors_per_query = 64;
 	int d = 128;
+	bool valid = true;
 
 	size_t bytes_query_vectors = d * sizeof(float);
 	size_t bytes_fetched_vectors = d * sizeof(float);
@@ -98,6 +99,7 @@ int main(int argc, char** argv)
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(query_num)));
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(num_fetched_vectors_per_query)));
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(d)));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, bool(valid)));
 
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_query_vectors));
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_fetched_vectors));
@@ -142,6 +144,6 @@ int main(int argc, char** argv)
 	} else {
 		std::cout << "Overall: Mismatch" << std::endl;
 	}
-	
+
     return  0;
 }

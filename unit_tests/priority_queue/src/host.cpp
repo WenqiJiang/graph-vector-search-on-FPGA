@@ -33,7 +33,7 @@ int main(int argc, char** argv)
     // in init
     int runtime_queue_size = 64;
 	int input_array_size = 256;
-	int iter_insert_sort = 100;
+	int iter_insert_sort = 10000;
 	int iter_pop = 0;
 	
 	size_t bytes_input_array = input_array_size * sizeof(float);
@@ -114,22 +114,26 @@ int main(int argc, char** argv)
     std::cout << "Duration (including memcpy out): " << duration << " sec" << std::endl; 
 
 	// Compare the results of the Device to the CPU
-	std::cout << "Comparing the results of the Device to the CPU...\n";
-	bool overall_result = true;
-	int sorted_size = runtime_queue_size < input_array_size? runtime_queue_size : input_array_size;
-	for (int i = 0; i < sorted_size; i++) {
-		if (sorted_array[i] == sw_sorted_array[i]) {
-			std::cout << "Match: " << sorted_array[i] << " (hw) = " << sw_sorted_array[i] << " (sw)" << std::endl;
-		} else {
-			std::cout << "Mismatch: " << sorted_array[i] << " (hw) != " << sw_sorted_array[i] << " (sw)" << std::endl;
-			overall_result = false;
+	if (iter_insert_sort > 0) {
+		std::cout << "Comparing the results of the Device to the CPU...\n";
+		bool overall_result = true;
+		int sorted_size = runtime_queue_size < input_array_size? runtime_queue_size : input_array_size;
+		for (int i = 0; i < sorted_size; i++) {
+			if (sorted_array[i] == sw_sorted_array[i]) {
+				std::cout << "Match: " << sorted_array[i] << " (hw) = " << sw_sorted_array[i] << " (sw)" << std::endl;
+			} else {
+				std::cout << "Mismatch: " << sorted_array[i] << " (hw) != " << sw_sorted_array[i] << " (sw)" << std::endl;
+				overall_result = false;
+			}
 		}
-	}
-	if (overall_result) {
-		std::cout << "Overall: Match" << std::endl;
+		if (overall_result) {
+			std::cout << "Overall: Match" << std::endl;
+		} else {
+			std::cout << "Overall: Mismatch" << std::endl;
+		}
 	} else {
-		std::cout << "Overall: Mismatch" << std::endl;
-	}
+		std::cout << "No comparison as no sorting is performed on the device" << std::endl;
+	}	
 
     return  0;
 }

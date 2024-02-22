@@ -58,3 +58,19 @@ int iter_insert_sort = 10000;
 expected cycles = (16 * 2 + 16) * 10000 = 480,000 cycles 
 actual cycles = 2.65194 / 1000 * 2e8 = 530,388 cycles -> great!
 ```
+
+### Pop Performance
+
+Pop II = 1 cycle, latency = 3 cycles
+
+From HLS report: Final II = 1, Depth = 3
+
+```
+int iter_insert_sort = 0;
+int iter_pop = 1000 * 1000;
+
+expected cycles = 1 * 1e6 cycles 
+actual cycles = 5.0023 / 1000 * 2e8 = 1,000,460 cycles -> great!
+```
+
+Correctness untested yet.

@@ -39,9 +39,13 @@ void vadd(
 #pragma HLS INTERFACE m_axi port=query_vectors offset=slave bundle=gmem0
 #pragma HLS INTERFACE m_axi port=entry_vector offset=slave bundle=gmem0 // share the same AXI interface with query_vectors
 #pragma HLS INTERFACE m_axi port=db_vectors offset=slave bundle=gmem4
-#pragma HLS INTERFACE m_axi port=ptr_to_upper_links offset=slave bundle=gmem1
+#pragma HLS INTERFACE m_axi port=ptr_to_upper_links offset=slave bundle=gmem2
 #pragma HLS INTERFACE m_axi port=links_upper offset=slave bundle=gmem2
-#pragma HLS INTERFACE m_axi port=links_base offset=slave bundle=gmem3
+#pragma HLS INTERFACE m_axi port=links_base offset=slave bundle=gmem2
+// // for debugging use, seperate the bundles
+// #pragma HLS INTERFACE m_axi port=ptr_to_upper_links offset=slave bundle=gmem1
+// #pragma HLS INTERFACE m_axi port=links_upper offset=slave bundle=gmem2
+// #pragma HLS INTERFACE m_axi port=links_base offset=slave bundle=gmem3
 
 // out
 #pragma HLS INTERFACE m_axi port=out_id  offset=slave bundle=gmem9
@@ -51,6 +55,9 @@ void vadd(
 
     hls::stream<int> s_finish_query_task_scheduler; // finish the current query
 #pragma HLS stream variable=s_finish_query_task_scheduler depth=16
+
+    hls::stream<int> s_finish_query_results_collection; // finish all queries
+#pragma HLS stream variable=s_finish_query_results_collection depth=16
 	
 	hls::stream<ap_uint<512>> s_query_vectors;
 #pragma HLS stream variable=s_query_vectors depth=128
@@ -92,6 +99,7 @@ void vadd(
 		s_num_inserted_candidates,
 		s_inserted_candidates,
 		s_largest_result_queue_elements,
+		s_finish_query_results_collection,
 		
 		// out streams
 		s_query_vectors,
@@ -216,10 +224,6 @@ void vadd(
 		s_finish_query_replicate_distances
 	);
 
-
-//     hls::stream<int> s_finish_query_results_collection; // finish all queries
-// #pragma HLS stream variable=s_finish_query_results_collection depth=16
-
 	results_collection(
 		// in (initialization)
 		query_num,
@@ -233,6 +237,7 @@ void vadd(
 		s_inserted_candidates,
 		s_num_inserted_candidates,
 		s_largest_result_queue_elements,
+		s_finish_query_results_collection,
 
 		// out (DRAM)
 		out_id,

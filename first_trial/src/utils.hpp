@@ -36,6 +36,39 @@ void replicate_s_fetched_neighbor_ids(
 	}
 }
 
+// Send only upper-level results to results collection; replicate to other levels
+void split_s_distances(
+	// in (initialization)
+	const int query_num,
+	// in runtime (stream)
+	hls::stream<result_t>& s_distances_filtered,
+	hls::stream<int>& s_finish_query_in,
+
+	// out (stream)
+	hls::stream<result_t> &s_distances_upper_levels,
+	hls::stream<result_t> &s_distances_base_level,
+	hls::stream<int>& s_finish_query_out
+) {
+
+	for (int qid = 0; qid < query_num; qid++) {
+		while (true) {
+			// check query finish
+			if (!s_finish_query_in.empty() && s_distances_filtered.empty()) {
+				s_finish_query_out.write(s_finish_query_in.read());
+				break;
+			} else if (!s_distances_filtered.empty()) {
+				// receive task
+				result_t reg_out = s_distances_filtered.read();
+				if (reg_out.level_id == 0) {
+					s_distances_base_level.write(reg_out);
+				} else {
+					s_distances_upper_levels.write(reg_out);
+				}
+			}
+		}
+	}
+}
+
 // void check_visited(
 // 	// in (initialization)
 // 	const int query_num,
@@ -98,36 +131,3 @@ void replicate_s_fetched_neighbor_ids(
 // 	}
 // }
 
-
-// Send only upper-level results to results collection; replicate to other levels
-void split_s_distances(
-	// in (initialization)
-	const int query_num,
-	// in runtime (stream)
-	hls::stream<result_t>& s_distances_filtered,
-	hls::stream<int>& s_finish_query_in,
-
-	// out (stream)
-	hls::stream<result_t> &s_distances_upper_levels,
-	hls::stream<result_t> &s_distances_base_level,
-	hls::stream<int>& s_finish_query_out
-) {
-
-	for (int qid = 0; qid < query_num; qid++) {
-		while (true) {
-			// check query finish
-			if (!s_finish_query_in.empty() && s_distances_filtered.empty()) {
-				s_finish_query_out.write(s_finish_query_in.read());
-				break;
-			} else if (!s_distances_filtered.empty()) {
-				// receive task
-				result_t reg_out = s_distances_filtered.read();
-				if (reg_out.level_id == 0) {
-					s_distances_base_level.write(reg_out);
-				} else {
-					s_distances_upper_levels.write(reg_out);
-				}
-			}
-		}
-	}
-}

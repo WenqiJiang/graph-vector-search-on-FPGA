@@ -21,7 +21,7 @@ void compute_distances(
     // Wenqi comments: future upgrade -> less check on query finish, this will delay the progress
     //  approach: add a signal: everytime we check finish, check how many more computations should the unit expect
 
-	const int vec_AXI_num = d / FLOAT_PER_AXI; 
+	const int vec_AXI_num = d % FLOAT_PER_AXI == 0? d / FLOAT_PER_AXI : d / FLOAT_PER_AXI + 1; 
 
     float query_vector[D_MAX];
 #pragma HLS unroll variable=query_vector factor=float_per_axi
@@ -57,11 +57,13 @@ void compute_distances(
 				cand_t reg_cand = s_fetched_neighbor_ids_replicated.read();
 				bool valid = s_fetch_valid.read();
 
-				float distance;
+				float distance = 0;
 				if (!valid) { // skip this vector
 					distance = large_float;
+					for (int i = 0; i < vec_AXI_num; i++) {
+						volatile ap_uint<512> db_vec_reg = s_fetched_vectors.read();
+					}
 				} else { // compute
-					distance = 0;
 
 					for (int i = 0; i < vec_AXI_num; i++) {
 					#pragma HLS pipeline II=1

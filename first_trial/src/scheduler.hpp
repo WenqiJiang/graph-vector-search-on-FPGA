@@ -21,6 +21,7 @@ void task_scheduler(
 	hls::stream<int>& s_num_inserted_candidates,
 	hls::stream<result_t>& s_inserted_candidates,
 	hls::stream<float>& s_largest_result_queue_elements,
+	hls::stream<int>& s_finish_query_in,
 
 	// out streams
 	hls::stream<ap_uint<512>>& s_query_vectors,
@@ -61,6 +62,13 @@ void task_scheduler(
 
 	for (int qid = 0; qid < query_num; qid++) {
 
+		// here, make sure do not start the next query before the current query if fully ended,
+		//   because the query termination condition of other PEs is that finish signal arrives && data FIFOs are empty
+		if (qid > 0) {
+			while (s_finish_query_in.empty()) {}
+			int finish_query_in = s_finish_query_in.read();
+		}
+
 		// send out query vector
 		int start_addr = qid * AXI_num_per_vector;
 		for (int i = 0; i < AXI_num_per_vector; i++) {
@@ -92,7 +100,8 @@ void task_scheduler(
 		int currObj = entry_point_id;
 		float curdist = dist_entry_query;
 
-		// search upper levels (top layer already computed)
+		// search upper levels (top layer already computed, and it has 0 links, 
+		//   so starting from max_level will lead to deadlock, differing from the sw version which can handle 0 links)
         for (int level = max_level - 1; level > 0; level--) {
             bool changed = true;
             while (changed) {
@@ -128,6 +137,7 @@ void task_scheduler(
 		// search base layer
 		candidate_queue.reset_queue(ef); // reset content to large_float
 		int effect_queue_size = 0; // number of results in queue
+		s_top_candidates.write({currObj, 0});
 
 		bool stop = false;
 		while (!stop) {
