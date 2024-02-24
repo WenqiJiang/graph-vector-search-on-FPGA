@@ -11,5 +11,5 @@ const int float_per_axi = FLOAT_PER_AXI;
 const float large_float = 1E+20f; // 1E+20f is large enough for cosine similarity
 
 // max queue sizes
-const int hardware_result_queue_size = 32; // 128;
-const int hardware_candidate_queue_size = 32; // 128;
+const int hardware_result_queue_size = 64; // 128;
+const int hardware_candidate_queue_size = 64; // 128;

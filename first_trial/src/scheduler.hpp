@@ -4,7 +4,7 @@
 
 void task_scheduler(
 	const int query_num, 
-	const int ef,
+	const int candidate_queue_runtime_size,
 	const int d,
 	const int max_level,
 	const int max_link_num_upper, 
@@ -42,8 +42,8 @@ void task_scheduler(
 	float query_vector_buffer[D_MAX];
 #pragma HLS unroll variable=query_vector_buffer factor=float_per_axi
 
-	Priority_queue<result_t, hardware_result_queue_size, Collect_smallest> candidate_queue(ef);
-	const int sort_swap_round = ef % 2 == 0? ef / 2 : ef / 2 + 1;
+	Priority_queue<result_t, hardware_result_queue_size, Collect_smallest> candidate_queue(candidate_queue_runtime_size);
+	const int sort_swap_round = candidate_queue_runtime_size % 2 == 0? candidate_queue_runtime_size / 2 : candidate_queue_runtime_size / 2 + 1;
 
 	result_t queue_replication_array[hardware_candidate_queue_size];
 #pragma HLS array_partition variable=queue_replication_array complete
@@ -135,7 +135,7 @@ void task_scheduler(
 
 
 		// search base layer
-		candidate_queue.reset_queue(ef); // reset content to large_float
+		candidate_queue.reset_queue(candidate_queue_runtime_size); // reset content to large_float
 		int effect_queue_size = 0; // number of results in queue
 		s_top_candidates.write({currObj, 0});
 
@@ -155,9 +155,13 @@ void task_scheduler(
 					while (s_largest_result_queue_elements.empty()) {}
 					first_iter_s_largest_result_queue_elements = false;
 				}
+
+				// two stop condition: 1. smallest candidate distance > largest result queue element; 
+				//  2. candidate queue is empty (which also means the first condition is satisfied), so only need to check (1)
 				float threshold = s_largest_result_queue_elements.read();
-				int smallest_element_position = ef - 1;
-				if (candidate_queue.queue[smallest_element_position].dist <= threshold) {
+				int smallest_element_position = candidate_queue_runtime_size - 1;
+				if (candidate_queue.queue[smallest_element_position].dist <= threshold &&
+					candidate_queue.queue[smallest_element_position].dist < large_float) {
 					candidate_queue.pop_top(s_top_candidates);
 				} else {
 					stop = true;

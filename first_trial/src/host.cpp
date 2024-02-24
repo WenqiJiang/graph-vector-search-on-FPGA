@@ -31,8 +31,9 @@ int main(int argc, char** argv)
     std::cout << "Allocating memory...\n";
 
     // in init
-    int query_num = 10;
-	int ef = 32;
+    int query_num = 10000;
+	int ef = 64;
+	int candidate_queue_runtime_size = hardware_candidate_queue_size;
 	int d = 128;
 	assert (ef <= hardware_result_queue_size);
 	assert (ef <= hardware_candidate_queue_size);
@@ -224,6 +225,7 @@ int main(int argc, char** argv)
 	int arg_counter = 0;    
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(query_num)));
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(ef)));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(candidate_queue_runtime_size)));
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(d)));
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(max_level)));
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(max_link_num_upper)));
@@ -270,22 +272,43 @@ int main(int argc, char** argv)
     std::cout << "Duration (including memcpy out): " << duration << " sec" << std::endl; 
 
 	// verify top-1 result
-	std::cout << "Verifying top-1 result...\n";
+	std::cout << "Verifying top-1 and top-10 result...\n";
+	int top1_correct_count = 0;
+	int top10_correct_count = 0;
+	int k = 1;
+
 	for (int qid = 0; qid < query_num; qid++) {
-		int top1_id = out_id[qid * ef];
-		float top1_dist = out_dist[qid * ef];
 
-		int gt_id_cur = gt_vec_ID[qid * max_topK];
-		float gt_dist_cur = gt_dist[qid * max_topK];
+		k = 1;
+		for (int i = 0; i < k; i++) {
+			int hw_id = out_id[qid * ef];
+			// float hw_dist = out_dist[qid * ef];
+			int gt_id_cur = gt_vec_ID[qid * max_topK];
+			// float gt_dist_cur = gt_dist[qid * max_topK];
+			
+			if (hw_id == gt_id_cur) {
+				top1_correct_count++;
+			}
+		}
 
-		bool match = top1_id == gt_id_cur;
-		if (match) {
-			std::cout << "qid=" << qid << " top1_id=" << top1_id << " gt_id=" << gt_id_cur <<  " top1_dist=" << top1_dist << " gt_dist=" << gt_dist_cur << std::endl;
-		} else {
-			std::cout << "MISTMATCH " << "qid=" << qid << " top1_id=" << top1_id << " gt_id=" << gt_id_cur << " top1_dist=" << top1_dist <<  " gt_dist=" << gt_dist_cur << std::endl;
+		// Check top-10 recall
+		k = 10;
+		for (int i = 1; i < k; i++) {
+			int topk_id = out_id[qid * ef + i];
+			// check if it matches any top-10 ground truth
+			for (int j = 0; j < k; j++) {
+				int gt_id_cur = gt_vec_ID[qid * max_topK + j];
+				if (topk_id == gt_id_cur) {
+					top10_correct_count++;
+					break;
+				}
+			}
 		}
 	}
 
+	// Print recall
+	std::cout << "Recall@1=" << (float) top1_correct_count / query_num << std::endl;
+	std::cout << "Recall@10=" << (float) top10_correct_count / (query_num * 10) << std::endl;
 
     // std::cout << "TEST FINISHED (NO RESULT CHECK)" << std::endl; 
 

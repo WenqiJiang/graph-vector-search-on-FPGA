@@ -177,11 +177,11 @@ void results_collection(
 	for (int qid = 0; qid < query_num; qid++) {
 
 		result_queue.reset_queue(ef); // reset content to large_float
-		int effect_queue_size = 0; // number of results in queue
+		// int effect_queue_size = 0; // number of results in queue
 
 		while (true) {
 			// check query finish
-			if (!s_finish_query_in.empty() && s_distances_base_level.empty()) {
+			if (!s_finish_query_in.empty() && s_num_neighbors_base_level.empty() && s_distances_base_level.empty()) {
 				// volatile int reg_finish = s_finish_query_in.read();
 				s_finish_query_out.write(s_finish_query_in.read());
 				break;
@@ -209,10 +209,14 @@ void results_collection(
                     result_queue.compare_swap_array_step_B();
                 }
 
-				// send out largest dist in the queue
-				effect_queue_size = effect_queue_size + inserted_num_this_iter < ef? effect_queue_size + inserted_num_this_iter : ef;
-				int largest_element_position = ef - effect_queue_size;
-				s_largest_result_queue_elements.write(result_queue.queue[largest_element_position].dist);
+				// send out largest dist in the queue:
+				//   if the queue is not full, always consider the candidate
+				//   if the queue is full, only consider the candidate when it is smaller than the largest element in the queue
+				s_largest_result_queue_elements.write(result_queue.queue[0].dist);
+
+				// effect_queue_size = effect_queue_size + inserted_num_this_iter < ef? effect_queue_size + inserted_num_this_iter : ef;
+				// int largest_element_position = ef - effect_queue_size;
+				// s_largest_result_queue_elements.write(result_queue.queue[largest_element_position].dist);
 			}
 		}
 

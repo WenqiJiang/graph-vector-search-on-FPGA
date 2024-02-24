@@ -10,7 +10,8 @@ extern "C" {
 void vadd(  
 	// in initialization
 	const int query_num, 
-	const int ef, // size of the candidate priority queue
+	const int ef, // size of the result priority queue
+	const int candidate_queue_runtime_size, 
 	const int d,
 	const int max_level,
     const int max_link_num_upper, 
@@ -83,7 +84,7 @@ void vadd(
 	// controls the traversal and maintains the candidate queue
 	task_scheduler(
 		query_num, 
-		ef,
+		candidate_queue_runtime_size,
 		d, 
 		max_level,
     	max_link_num_upper, 
