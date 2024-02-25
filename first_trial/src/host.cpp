@@ -11,6 +11,8 @@
 
 #include <sys/stat.h>
 
+#define DEBUG
+
 long GetFileSize(std::string filename)
 {
     struct stat stat_buf;
@@ -61,6 +63,7 @@ int main(int argc, char** argv)
 	std::cout << "max_link_num_base=" << max_link_num_base << std::endl;
 	
 	size_t bytes_per_vec = d * sizeof(float);
+	size_t bytes_per_db_vec_plus_padding = d % 16 == 0? d * sizeof(float) + 64 : (d + 16 - d % 16) * sizeof(float) + 64;
 	size_t bytes_entry_vector = bytes_per_vec;
 	size_t bytes_query_vectors = query_num * bytes_per_vec;
 	size_t bytes_db_vectors;
@@ -69,6 +72,7 @@ int main(int argc, char** argv)
 	size_t bytes_links_base;
 	size_t bytes_out_id = query_num * ef * sizeof(int);
 	size_t bytes_out_dist = query_num * ef * sizeof(float);	
+	size_t bytes_mem_debug = query_num * 2 * sizeof(int);
 
 	const char* fname_ground_links = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links.bin";
 	const char* fname_ground_vectors = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors.bin";
@@ -98,6 +102,7 @@ int main(int argc, char** argv)
 	std::cout << "bytes_ptr_to_upper_links=" << bytes_ptr_to_upper_links << std::endl;
 	std::cout << "bytes_links_upper=" << bytes_links_upper << std::endl;
 	std::cout << "bytes_links_base=" << bytes_links_base << std::endl;
+	assert(bytes_per_db_vec_plus_padding * num_db_vec == bytes_db_vectors);
 
 	// input vecs
 	std::vector<float, aligned_allocator<float>> entry_vector(bytes_entry_vector / sizeof(float));
@@ -114,6 +119,7 @@ int main(int argc, char** argv)
 	// output
 	std::vector<int, aligned_allocator<int>> out_id(bytes_out_id / sizeof(int));
 	std::vector<float, aligned_allocator<float>> out_dist(bytes_out_dist / sizeof(float));
+	std::vector<int, aligned_allocator<int>> mem_debug(bytes_mem_debug / sizeof(int));
 
 	// intermediate buffer for queries, and ground truth
 	std::vector<unsigned char> raw_query_vectors(raw_query_vectors_size / sizeof(unsigned char));
@@ -167,13 +173,6 @@ int main(int argc, char** argv)
     }
 
 	// copy entry vector
-	size_t bytes_per_db_vec_plus_padding;
-	if (d % 16 == 0) {
-		bytes_per_db_vec_plus_padding = d * sizeof(float) + 64;
-	} else {
-		bytes_per_db_vec_plus_padding = (d + 16 - d % 16) * sizeof(float) + 64;
-	}
-	assert(bytes_per_db_vec_plus_padding * num_db_vec == bytes_db_vectors);
 	memcpy((char*) entry_vector.data(), ((char*) db_vectors.data()) + entry_point_id * bytes_per_db_vec_plus_padding, bytes_entry_vector);
 
 
@@ -219,6 +218,8 @@ int main(int argc, char** argv)
 			bytes_out_id, out_id.data(), &err));
 	OCL_CHECK(err, cl::Buffer buffer_out_dist (context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
 			bytes_out_dist, out_dist.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_mem_debug (context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+			bytes_mem_debug, mem_debug.data(), &err));
 
 	std::cout << "Finish allocate buffer...\n";
 
@@ -243,7 +244,7 @@ int main(int argc, char** argv)
 
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_out_id));
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_out_dist));
-
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_mem_debug));
 
     // Copy input data to device global memory
     OCL_CHECK(err, err = q.enqueueMigrateMemObjects({
@@ -263,13 +264,24 @@ int main(int argc, char** argv)
     OCL_CHECK(err, err = q.enqueueTask(krnl_vector_add));
 
     // Copy Result from Device Global Memory to Host Local Memory
-    OCL_CHECK(err, err = q.enqueueMigrateMemObjects({buffer_out_id, buffer_out_dist},CL_MIGRATE_MEM_OBJECT_HOST));
+    OCL_CHECK(err, err = q.enqueueMigrateMemObjects({
+		buffer_out_id, buffer_out_dist, buffer_mem_debug}, CL_MIGRATE_MEM_OBJECT_HOST));
     q.finish();
 
     auto end = std::chrono::high_resolution_clock::now();
     double duration = (std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count() / 1000.0);
 
     std::cout << "Duration (including memcpy out): " << duration << " sec" << std::endl; 
+
+#ifdef DEBUG
+	// print out the debug signals (each 4 byte):
+	//   0: bottom layer entry node id,
+	//   1: number of hops in base layer (number of pop operations)
+	int print_qnum = 10 < query_num? 10 : query_num;
+	for (int i = 0; i < print_qnum; i++) {
+		std::cout << "query " << i << " bottom layer entry node id=" << mem_debug[i * 2] << " hops=" << mem_debug[i * 2 + 1] << std::endl;
+	}
+#endif
 
 	// verify top-1 result
 	std::cout << "Verifying top-1 and top-10 result...\n";
@@ -281,24 +293,24 @@ int main(int argc, char** argv)
 
 		k = 1;
 		for (int i = 0; i < k; i++) {
+			int gt = gt_vec_ID[qid * max_topK];
+			// float gt_dist_cur = gt_dist[qid * max_topK];
 			int hw_id = out_id[qid * ef];
 			// float hw_dist = out_dist[qid * ef];
-			int gt_id_cur = gt_vec_ID[qid * max_topK];
-			// float gt_dist_cur = gt_dist[qid * max_topK];
 			
-			if (hw_id == gt_id_cur) {
+			if (hw_id == gt) {
 				top1_correct_count++;
 			}
 		}
 
 		// Check top-10 recall
 		k = 10;
-		for (int i = 1; i < k; i++) {
-			int topk_id = out_id[qid * ef + i];
+		for (int i = 0; i < k; i++) {
+			int gt = gt_vec_ID[qid * max_topK + i];
 			// check if it matches any top-10 ground truth
 			for (int j = 0; j < k; j++) {
-				int gt_id_cur = gt_vec_ID[qid * max_topK + j];
-				if (topk_id == gt_id_cur) {
+				int hw_id = out_id[qid * ef + j];
+				if (hw_id == gt) {
 					top10_correct_count++;
 					break;
 				}

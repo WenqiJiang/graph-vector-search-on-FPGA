@@ -30,7 +30,12 @@ void vadd(
 	   
     // out
     int* out_id,
-	float* out_dist
+	float* out_dist,
+
+	// debug signals (each 4 byte):
+	//   0: bottom layer entry node id,
+	//   1: number of hops in base layer (number of pop operations)
+	int* mem_debug
     )
 {
 // Share the same AXI interface with several control signals (but they are not allowed in same dataflow)
@@ -50,7 +55,8 @@ void vadd(
 
 // out
 #pragma HLS INTERFACE m_axi port=out_id  offset=slave bundle=gmem9
-#pragma HLS INTERFACE m_axi port=out_dist  offset=slave bundle=gmem10
+#pragma HLS INTERFACE m_axi port=out_dist  offset=slave bundle=gmem9
+#pragma HLS INTERFACE m_axi port=mem_debug  offset=slave bundle=gmem10 // cannot share gmem with out as they are different PEs
 
 #pragma HLS dataflow
 
@@ -62,6 +68,9 @@ void vadd(
 	
 	hls::stream<ap_uint<512>> s_query_vectors;
 #pragma HLS stream variable=s_query_vectors depth=128
+
+	hls::stream<result_t> s_entry_point_base_level;
+#pragma HLS stream variable=s_entry_point_base_level depth=16
 
     hls::stream<cand_t> s_top_candidates; // current top candidates
 #pragma HLS stream variable=s_top_candidates depth=512
@@ -104,8 +113,11 @@ void vadd(
 		
 		// out streams
 		s_query_vectors,
+		s_entry_point_base_level,
 		s_top_candidates,
-		s_finish_query_task_scheduler
+		s_finish_query_task_scheduler,
+
+		mem_debug
 	);
 
 	
@@ -230,6 +242,7 @@ void vadd(
 		query_num,
 		ef,
 		// in runtime (stream)
+		s_entry_point_base_level,
 		s_num_neighbors_base_level,
 		s_distances_base_level,
 		s_finish_query_replicate_distances,

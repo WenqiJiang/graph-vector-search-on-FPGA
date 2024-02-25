@@ -50,7 +50,7 @@ void queue_operations(
 	Priority_queue<result_t, hardware_result_queue_size, Collect_smallest> result_queue(runtime_queue_size);
 
 	for (int i = 0; i < iter_insert_sort; i++) {
-		result_queue.reset_queue(runtime_queue_size);
+		result_queue.reset_queue();
 		result_queue.insert_sort(s_num_inserted_candidates, s_input);
 	}
 

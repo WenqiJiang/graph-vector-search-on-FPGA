@@ -25,9 +25,17 @@ void task_scheduler(
 
 	// out streams
 	hls::stream<ap_uint<512>>& s_query_vectors,
+	hls::stream<result_t>& s_entry_point_base_level,
 	hls::stream<cand_t>& s_top_candidates,
-	hls::stream<int>& s_finish_query_out
+	hls::stream<int>& s_finish_query_out,
+
+	// debug signals (each 4 byte): 
+	//   0: bottom layer entry node id, 
+	//   1: number of hops in base layer (number of pop operations)
+	int* mem_debug
 ) {
+
+	const int debug_size = 2;
 	
 	// similar to hsnwlin function `searchKnn`: https://github.com/nmslib/hnswlib/blob/master/hnswlib/hnswalg.h#L1271
 	const int AXI_num_per_vector = d / FLOAT_PER_AXI; 
@@ -133,11 +141,17 @@ void task_scheduler(
             }
         }
 
+		mem_debug[qid * debug_size] = currObj;
 
 		// search base layer
-		candidate_queue.reset_queue(candidate_queue_runtime_size); // reset content to large_float
+		candidate_queue.reset_queue(); // reset content to large_float
 		int effect_queue_size = 0; // number of results in queue
+		// first task
 		s_top_candidates.write({currObj, 0});
+		// entry point needs to be sent to the result queue
+		s_entry_point_base_level.write({currObj, 0, curdist}); 
+
+		int debug_num_hops = 1;
 
 		bool stop = false;
 		while (!stop) {
@@ -163,6 +177,7 @@ void task_scheduler(
 				if (candidate_queue.queue[smallest_element_position].dist <= threshold &&
 					candidate_queue.queue[smallest_element_position].dist < large_float) {
 					candidate_queue.pop_top(s_top_candidates);
+					debug_num_hops++;
 				} else {
 					stop = true;
 				}
@@ -170,5 +185,7 @@ void task_scheduler(
 		}
 
 		s_finish_query_out.write(qid);
+
+		mem_debug[qid * debug_size + 1] = debug_num_hops;
 	}
 }

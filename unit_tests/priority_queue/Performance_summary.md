@@ -61,9 +61,9 @@ actual cycles = 2.65194 / 1000 * 2e8 = 530,388 cycles -> great!
 
 ### Pop Performance
 
-Pop II = 1 cycle, latency = 3 cycles
+Pop II = 1 cycle, latency = 2 cycles
 
-From HLS report: Final II = 1, Depth = 3
+From HLS report: Final II = 1, Depth = 2
 
 ```
 int iter_insert_sort = 0;

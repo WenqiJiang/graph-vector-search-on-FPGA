@@ -33,8 +33,11 @@ int main(int argc, char** argv)
     // in init
     int runtime_queue_size = 64;
 	int input_array_size = 256;
-	int iter_insert_sort = 10000;
-	int iter_pop = 0;
+	// int iter_insert_sort = 10000;
+	// int iter_pop = runtime_queue_size;
+	int iter_insert_sort = 1;
+	int iter_pop = 1000 * 1000;
+
 	
 	size_t bytes_input_array = input_array_size * sizeof(float);
 	size_t bytes_sorted_array = (input_array_size * 2 + 1) * sizeof(float);
@@ -49,8 +52,10 @@ int main(int argc, char** argv)
 	}
 
 	// sort the array via CPU
-	std::vector<float, aligned_allocator<float>> sw_sorted_array(bytes_input_array / sizeof(float));
-	std::copy(input_array.begin(), input_array.end(), sw_sorted_array.begin());
+	std::vector<std::tuple<float, int>, aligned_allocator<std::tuple<float, int>>> sw_sorted_array(bytes_input_array / sizeof(float));
+	for (int i = 0; i < input_array_size; i++) {
+		sw_sorted_array[i] = std::make_tuple(input_array[i], i);
+	}
 	std::sort(sw_sorted_array.begin(), sw_sorted_array.end());
 	
 // OPENCL HOST CODE AREA START
@@ -113,16 +118,16 @@ int main(int argc, char** argv)
 
     std::cout << "Duration (including memcpy out): " << duration << " sec" << std::endl; 
 
-	// Compare the results of the Device to the CPU
+	// Compare the sort results 
 	if (iter_insert_sort > 0) {
-		std::cout << "Comparing the results of the Device to the CPU...\n";
+		std::cout << "Comparing the Sort results of the Device to the CPU...\n";
 		bool overall_result = true;
 		int sorted_size = runtime_queue_size < input_array_size? runtime_queue_size : input_array_size;
 		for (int i = 0; i < sorted_size; i++) {
-			if (sorted_array[i] == sw_sorted_array[i]) {
-				std::cout << "Match: " << sorted_array[i] << " (hw) = " << sw_sorted_array[i] << " (sw)" << std::endl;
+			if (sorted_array[i] == std::get<0>(sw_sorted_array[i])) {
+				std::cout << "Match: " << sorted_array[i] << " (hw) = " << std::get<0>(sw_sorted_array[i]) << " (sw)" << std::endl;
 			} else {
-				std::cout << "Mismatch: " << sorted_array[i] << " (hw) != " << sw_sorted_array[i] << " (sw)" << std::endl;
+				std::cout << "Mismatch: " << sorted_array[i] << " (hw) != " << std::get<0>(sw_sorted_array[i]) << " (sw)" << std::endl;
 				overall_result = false;
 			}
 		}
@@ -134,6 +139,28 @@ int main(int argc, char** argv)
 	} else {
 		std::cout << "No comparison as no sorting is performed on the device" << std::endl;
 	}	
+
+	// Compare the pop results
+	int min_iter = iter_pop < runtime_queue_size? iter_pop : runtime_queue_size;
+	if (iter_pop > 0 && iter_insert_sort > 0) {
+		std::cout << "Comparing the Pop results of the Device to the CPU...\n";
+		bool overall_result = true;
+		for (int i = 0; i < min_iter; i++) {
+			if (sorted_array[runtime_queue_size + i] == std::get<1>(sw_sorted_array[i])) {
+				std::cout << "Match: " << sorted_array[runtime_queue_size + i] << " (hw) = " << std::get<1>(sw_sorted_array[i]) << " (sw)" << std::endl;
+			} else {
+				std::cout << "Mismatch: " << sorted_array[runtime_queue_size + i] << " (hw) != " << std::get<1>(sw_sorted_array[i]) << " (sw)" << std::endl;
+				overall_result = false;
+			}
+		}
+		if (overall_result) {
+			std::cout << "Overall: Match" << std::endl;
+		} else {
+			std::cout << "Overall: Mismatch" << std::endl;
+		}
+	} else {
+		std::cout << "No comparison as no popping is performed on the device" << std::endl;
+	}
 
     return  0;
 }
