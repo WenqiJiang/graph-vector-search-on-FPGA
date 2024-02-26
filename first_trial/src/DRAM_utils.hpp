@@ -156,7 +156,7 @@ void results_collection(
 	const int query_num,
 	const int ef,
 	// in runtime (stream)
-	hls::stream<result_t>& s_entry_point_base_level,
+	// hls::stream<result_t>& s_entry_point_base_level,
 	hls::stream<int>& s_num_neighbors_base_level,
 	hls::stream<result_t>& s_distances_base_level,
 	hls::stream<int>& s_finish_query_in,
@@ -179,9 +179,9 @@ void results_collection(
 
 		result_queue.reset_queue(); // reset content to large_float
 		// int effect_queue_size = 0; // number of results in queue
-		while (s_entry_point_base_level.empty()) {}
-		result_t entry_point = s_entry_point_base_level.read();
-		result_queue.queue[ef - 1] = entry_point;
+		// while (s_entry_point_base_level.empty()) {}
+		// result_t entry_point = s_entry_point_base_level.read();
+		// result_queue.queue[ef - 1] = entry_point;
 
 		while (true) {
 			// check query finish

@@ -25,7 +25,7 @@ void task_scheduler(
 
 	// out streams
 	hls::stream<ap_uint<512>>& s_query_vectors,
-	hls::stream<result_t>& s_entry_point_base_level,
+	// hls::stream<result_t>& s_entry_point_base_level,
 	hls::stream<cand_t>& s_top_candidates,
 	hls::stream<int>& s_finish_query_out,
 
@@ -148,8 +148,11 @@ void task_scheduler(
 		int effect_queue_size = 0; // number of results in queue
 		// first task
 		s_top_candidates.write({currObj, 0});
-		// entry point needs to be sent to the result queue
-		s_entry_point_base_level.write({currObj, 0, curdist}); 
+
+		// Note: entry point must not be sent to the result queue: if the entry point
+		//   is close to the query, the neighbors of entry point will be inserted into the queue, which will then search entry,
+		//   adding entry to the result immediately will lead to visit tag mismatch as entry can be inserted twice into the result queue
+		// s_entry_point_base_level.write({currObj, 0, curdist}); 
 
 		int debug_num_hops = 1;
 

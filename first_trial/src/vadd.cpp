@@ -69,8 +69,8 @@ void vadd(
 	hls::stream<ap_uint<512>> s_query_vectors;
 #pragma HLS stream variable=s_query_vectors depth=128
 
-	hls::stream<result_t> s_entry_point_base_level;
-#pragma HLS stream variable=s_entry_point_base_level depth=16
+// 	hls::stream<result_t> s_entry_point_base_level;
+// #pragma HLS stream variable=s_entry_point_base_level depth=16
 
     hls::stream<cand_t> s_top_candidates; // current top candidates
 #pragma HLS stream variable=s_top_candidates depth=512
@@ -113,7 +113,7 @@ void vadd(
 		
 		// out streams
 		s_query_vectors,
-		s_entry_point_base_level,
+		// s_entry_point_base_level,
 		s_top_candidates,
 		s_finish_query_task_scheduler,
 
@@ -242,7 +242,7 @@ void vadd(
 		query_num,
 		ef,
 		// in runtime (stream)
-		s_entry_point_base_level,
+		// s_entry_point_base_level,
 		s_num_neighbors_base_level,
 		s_distances_base_level,
 		s_finish_query_replicate_distances,
