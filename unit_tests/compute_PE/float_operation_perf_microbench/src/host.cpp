@@ -30,7 +30,7 @@ int main(int argc, char** argv)
     std::cout << "Allocating memory...\n";
 
     // in init
-    int query_num = 1000;
+    int query_num = 1;
 	int num_fetched_vectors_per_query = 64;
 	int d = 128;
 	bool valid = true;

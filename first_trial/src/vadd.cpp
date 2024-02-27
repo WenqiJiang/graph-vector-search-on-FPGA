@@ -120,6 +120,8 @@ void vadd(
 		mem_debug
 	);
 
+	hls::stream<int> s_fetch_batch_size;
+#pragma HLS stream variable=s_fetch_batch_size depth=16
 	
     hls::stream<int> s_num_neighbors_base_level; // number of neighbors of the current candidate
 #pragma HLS stream variable=s_num_neighbors_base_level depth=512
@@ -144,6 +146,7 @@ void vadd(
 		s_finish_query_task_scheduler,
 
 		// out (stream)
+		s_fetch_batch_size,
 		s_num_neighbors_upper_levels,
 		s_num_neighbors_base_level,
 		s_fetched_neighbor_ids,
@@ -208,6 +211,7 @@ void vadd(
 		d,
 		// in runtime (stream)
 		s_query_vectors,
+		s_fetch_batch_size,
 		s_fetched_vectors,
 		s_fetch_valid,
 		s_fetched_neighbor_ids_replicated[1],

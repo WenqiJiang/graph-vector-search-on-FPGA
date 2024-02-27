@@ -17,6 +17,7 @@ void fetch_neighbor_ids(
 	hls::stream<int>& s_finish_query_in,
 
 	// out (stream)
+	hls::stream<int>& s_fetch_batch_size,
 	hls::stream<int>& s_num_neighbors_upper_levels,
 	hls::stream<int>& s_num_neighbors_base_level,
 	hls::stream<cand_t>& s_fetched_neighbor_ids,
@@ -78,6 +79,7 @@ void fetch_neighbor_ids(
 				} else { // upper layer
 					s_num_neighbors_upper_levels.write(num_links);
 				}
+				s_fetch_batch_size.write(num_links); // whether base or upper, write the fetch batch
 				for (int i = 0; i < read_num - 1; i++) { // first one is the num_links
 					for (int j = 0; j < INT_PER_AXI && i * INT_PER_AXI + j < num_links; j++) {
 					#pragma HLS pipeline II=1

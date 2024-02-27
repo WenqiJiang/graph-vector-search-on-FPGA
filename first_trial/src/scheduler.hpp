@@ -38,7 +38,7 @@ void task_scheduler(
 	const int debug_size = 2;
 	
 	// similar to hsnwlin function `searchKnn`: https://github.com/nmslib/hnswlib/blob/master/hnswlib/hnswalg.h#L1271
-	const int AXI_num_per_vector = d / FLOAT_PER_AXI; 
+	const int vec_AXI_num = d % FLOAT_PER_AXI == 0? d / FLOAT_PER_AXI : d / FLOAT_PER_AXI + 1; 
 	bool first_iter_s_num_neighbors = true;
 	bool first_iter_s_interm_results = true;
 	bool first_iter_s_inserted_candidates = true;
@@ -57,7 +57,7 @@ void task_scheduler(
 #pragma HLS array_partition variable=queue_replication_array complete
 
 	// read entry vector
-	for (int i = 0; i < AXI_num_per_vector; i++) {
+	for (int i = 0; i < vec_AXI_num; i++) {
 	#pragma HLS pipeline II=1
 		ap_uint<512> entry_vector_AXI = entry_vector[i];
 		for (int j = 0; j < FLOAT_PER_AXI; j++) {
@@ -78,8 +78,8 @@ void task_scheduler(
 		}
 
 		// send out query vector
-		int start_addr = qid * AXI_num_per_vector;
-		for (int i = 0; i < AXI_num_per_vector; i++) {
+		int start_addr = qid * vec_AXI_num;
+		for (int i = 0; i < vec_AXI_num; i++) {
 		#pragma HLS pipeline II=1
 			ap_uint<512> query_vector_AXI = query_vectors[start_addr + i];
 			s_query_vectors.write(query_vector_AXI);
@@ -94,7 +94,7 @@ void task_scheduler(
 
 		// compute distance between entry and query
 		float dist_entry_query = 0;
-		for (int i = 0; i < d / FLOAT_PER_AXI; i++) {
+		for (int i = 0; i < vec_AXI_num; i++) {
 		#pragma HLS pipeline II=1
 			float partial_dist = 0;
 			for (int s = 0; s < FLOAT_PER_AXI; s++) {
