@@ -17,6 +17,58 @@ long GetFileSize(std::string filename)
     return rc == 0 ? stat_buf.st_size : -1;
 }
 
+uint32_t MurmurHash2 ( const void * key, int len, uint32_t seed )
+{
+  /* 'm' and 'r' are mixing constants generated offline.
+     They're not really 'magic', they just happen to work well.  */
+
+  const uint32_t m = 0x5bd1e995;
+  const int r = 24;
+
+  /* Initialize the hash to a 'random' value */
+
+  uint32_t h = seed ^ len;
+
+  /* Mix 4 bytes at a time into the hash */
+
+  const unsigned char * data = (const unsigned char *)key;
+
+  while(len >= 4)
+  {
+    uint32_t k = *(uint32_t*)data;
+
+    k *= m;
+    k ^= k >> r;
+    k *= m;
+
+    h *= m;
+    h ^= k;
+
+    data += 4;
+    len -= 4;
+  }
+
+  /* Handle the last few bytes of the input array  */
+
+  switch(len)
+  {
+  case 3: h ^= data[2] << 16;
+  case 2: h ^= data[1] << 8;
+  case 1: h ^= data[0];
+      h *= m;
+  };
+
+  /* Do a few final mixes of the hash to ensure the last few
+  // bytes are well-incorporated.  */
+
+  h ^= h >> 13;
+  h *= m;
+  h ^= h >> 15;
+
+  return h;
+} 
+
+
 int main(int argc, char** argv)
 {
     cl_int err;
@@ -30,31 +82,24 @@ int main(int argc, char** argv)
     std::cout << "Allocating memory...\n";
 
     // in init
-    int query_num = 1000;
+    int query_num = 10;
 	int read_iter_per_query = 1000;
-	int d = 128;
-	int total_node_num = 1000 * 1000; // 1 M nodes
 
-	const int AXI_num_per_vector = d % FLOAT_PER_AXI == 0? 
-		d / FLOAT_PER_AXI + 1 : d / FLOAT_PER_AXI + 2; // 16 for d = 512 + visited padding
-
-	size_t bytes_mem_read_node_id = read_iter_per_query * sizeof(int);
-	size_t bytes_db_vectors = AXI_num_per_vector * total_node_num * 64;
-	size_t bytes_out_dist = 1024;
+	size_t bytes_mem_keys = read_iter_per_query * sizeof(int);
+	size_t bytes_out = read_iter_per_query * sizeof(int);
 
 	// input vecs
-	std::vector<int, aligned_allocator<int>> mem_read_node_id(bytes_mem_read_node_id / sizeof(int));
-	std::vector<float, aligned_allocator<float>> db_vectors(bytes_db_vectors / sizeof(float));
+	std::vector<int, aligned_allocator<int>> mem_keys(bytes_mem_keys / sizeof(int));
 
 	// output
-	std::vector<float, aligned_allocator<float>> out_dist(bytes_out_dist / sizeof(float));
+	std::vector<int, aligned_allocator<int>> out(bytes_out / sizeof(int));
+	std::vector<int, aligned_allocator<int>> sw_results(bytes_out / sizeof(int));
 
 	// generate random query and fetched vectors
 	for (int i = 0; i < read_iter_per_query; i++) {
-		mem_read_node_id[i] = 1000 * i % total_node_num; // make sure every time the memory addresses are very far from each other
+		mem_keys[i] = i;
+		sw_results[i] = MurmurHash2(&mem_keys[i], 4, 0);
 	}
-
-// OPENCL HOST CODE AREA START
 
     std::vector<cl::Device> devices = get_devices();
     cl::Device device = devices[0];
@@ -76,33 +121,28 @@ int main(int argc, char** argv)
 
     std::cout << "Finish loading bitstream...\n";
     // in 
-	OCL_CHECK(err, cl::Buffer buffer_mem_read_node_id (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-			bytes_mem_read_node_id, mem_read_node_id.data(), &err));
-	OCL_CHECK(err, cl::Buffer buffer_db_vectors (context,CL_MEM_USE_HOST_PTR,
-			bytes_db_vectors, db_vectors.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_mem_keys (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+			bytes_mem_keys, mem_keys.data(), &err));
 
 	// out
-	OCL_CHECK(err, cl::Buffer buffer_out_dist (context,CL_MEM_USE_HOST_PTR,
-			bytes_out_dist, out_dist.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_out (context,CL_MEM_USE_HOST_PTR,
+			bytes_out, out.data(), &err));
 
 	std::cout << "Finish allocate buffer...\n";
 
 	int arg_counter = 0;    
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(query_num)));
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(read_iter_per_query)));
-	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(d)));
 
-	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_mem_read_node_id));
-	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_mem_keys));
 	
-	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_out_dist));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_out));
 
 
     // Copy input data to device global memory
     OCL_CHECK(err, err = q.enqueueMigrateMemObjects({
         // in
-		buffer_mem_read_node_id,
-		buffer_db_vectors
+		buffer_mem_keys
         },0/* 0 means from host*/));
 
     std::cout << "Launching kernel...\n";
@@ -111,7 +151,7 @@ int main(int argc, char** argv)
     OCL_CHECK(err, err = q.enqueueTask(krnl_vector_add));
 
     // Copy Result from Device Global Memory to Host Local Memory
-    OCL_CHECK(err, err = q.enqueueMigrateMemObjects({buffer_out_dist},CL_MIGRATE_MEM_OBJECT_HOST));
+    OCL_CHECK(err, err = q.enqueueMigrateMemObjects({buffer_out},CL_MIGRATE_MEM_OBJECT_HOST));
     q.finish();
 
     auto end = std::chrono::high_resolution_clock::now();
@@ -120,7 +160,19 @@ int main(int argc, char** argv)
     std::cout << "Duration (including memcpy out): " << duration << " sec" << std::endl; 
 
 	// compare software and hardware results
-	std::cout << "No result checking." << std::endl;
+	std::cout << "Comparing software and hardware results...\n";
+	bool match = true;
+	for (int i = 0; i < read_iter_per_query; i++) {
+		if (sw_results[i] != out[i]) {
+			std::cout << "Mismatch at " << i << ": " << sw_results[i] << " vs " << out[i] << std::endl;
+			match = false;
+		}
+	}
+	if (match) {
+		std::cout << "Software and hardware results match." << std::endl;
+	} else {
+		std::cout << "Software and hardware results DO NOT match." << std::endl;
+	}
 
 	return  0;
 }

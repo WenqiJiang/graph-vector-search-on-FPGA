@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <chrono>
 
+// https://github.com/abrandoned/murmur2/blob/master/MurmurHash2.c
 uint32_t MurmurHash2 ( const void * key, int len, uint32_t seed )
 {
   /* 'm' and 'r' are mixing constants generated offline.

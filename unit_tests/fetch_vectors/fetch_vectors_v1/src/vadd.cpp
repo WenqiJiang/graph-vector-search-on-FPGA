@@ -23,17 +23,27 @@ void send_requests(
     hls::stream<int>& s_finish_query_send_requests // finish the current query
     ) {
 	int finish;
+	bool first_iter_s_finish_query_write_memory = true;
 	for (int qid = 0; qid < query_num; qid++) {
-		if (qid > 0) {
-			finish = block_read<int>(s_finish_query_write_memory);
+		if (qid > 0) { 
+			if (first_iter_s_finish_query_write_memory) {
+				while (s_finish_query_write_memory.empty()) {}
+				first_iter_s_finish_query_write_memory = false;
+			}
+			finish = s_finish_query_write_memory.read();
 		}
 		for (int i = 0; i < read_iter_per_query; i++) {
 	#pragma HLS pipeline II=1
 			int node_id = mem_read_node_id[i];
 			s_fetched_neighbor_ids_replicated.write({node_id, 0});
 		}
-		s_finish_query_send_requests.write(1);
+		s_finish_query_send_requests.write(finish);
 	}
+	if (first_iter_s_finish_query_write_memory) {
+		while (s_finish_query_write_memory.empty()) {}
+		first_iter_s_finish_query_write_memory = false;
+	}
+	finish = s_finish_query_write_memory.read();
 }
 
 void write_memory(
@@ -55,23 +65,24 @@ void write_memory(
 
 	ap_uint<512> reg;
 	bool valid;
-	volatile int finish;
 	for (int i = 0; i < query_num; i++) {
-
-		while (s_fetched_vectors.empty() || s_fetch_valid.empty()) {}
-
-		// read distance
-		for (int j = 0; j < read_iter_per_query; j++) {
-			#pragma HLS pipeline II=1
-			for (int k = 0; k < AXI_num_per_vector; k++) {
-				if (k == 0) {
+		while (true) {
+			if (!s_finish_fetch_vectors.empty() && s_fetched_vectors.empty() && s_fetch_valid.empty()) {
+				int finish = s_finish_fetch_vectors.read();
+				s_finish_query_write_memory.write(finish);
+				break;
+			}
+			else if (!s_fetched_vectors.empty() && !s_fetch_valid.empty()) {
+				// read distance
+				for (int j = 0; j < read_iter_per_query; j++) {
+					for (int k = 0; k < AXI_num_per_vector; k++) {
+		#pragma HLS pipeline II=1
+						reg = s_fetched_vectors.read();
+					}	
 					valid = s_fetch_valid.read();
 				}
-				reg = s_fetched_vectors.read();
-			}	
+			}
 		}
-		finish = block_read<int>(s_finish_fetch_vectors);
-		s_finish_query_write_memory.write(1);
 	}
 
 	if (valid) {
