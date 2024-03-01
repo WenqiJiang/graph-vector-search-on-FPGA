@@ -1,3 +1,6 @@
+#pragma once
+
+#include <stdint.h>
 
 // https://github.com/abrandoned/murmur2/blob/master/MurmurHash2.c
 uint32_t MurmurHash2 ( const void * key, int len, uint32_t seed )
@@ -83,3 +86,49 @@ uint32_t MurmurHash2_KeyLen4 ( const void * key, uint32_t seed )
 
   return h;
 } 
+
+class BloomFilter {
+
+public:
+	int num_buckets_;
+	int num_hashes_;
+	int seed_;
+	bool* byte_array_;
+
+  BloomFilter(int num_buckets, int num_hashes, int seed) : 
+  	num_buckets_(num_buckets), num_hashes_(num_hashes), seed_(seed){
+	byte_array_ = (bool*) malloc(num_buckets);
+	memset(byte_array_, 0, num_buckets);
+  }
+
+  ~BloomFilter() {
+	free(byte_array_);
+  }
+
+  void insert(int key) {
+	for (int i = 0; i < num_hashes_; i++) {
+	  uint32_t hash = MurmurHash2_KeyLen4((char*) &key, i + seed_);
+	  uint32_t bucket = hash % num_buckets_;
+	  byte_array_[bucket] = true;
+	}
+  }
+
+  bool contains(int key) {
+	for (int i = 0; i < num_hashes_; i++) {
+	  uint32_t hash = MurmurHash2_KeyLen4((char*) &key, i + seed_);
+	  uint32_t bucket = hash % num_buckets_;
+	  if (!byte_array_[bucket]) {
+		return false;
+	  }
+	}
+	return true;
+  }
+
+  bool check_and_insert(int key) {
+	bool exists = contains(key);
+	if (!exists) {
+	  insert(key);
+	}
+	return exists;
+  }
+};

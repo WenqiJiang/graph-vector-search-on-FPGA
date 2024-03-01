@@ -4,7 +4,8 @@
 #include "utils.hpp"	
 
 const int num_hash_funs = 4; 
-const int num_buckets = 64 * 1024;
+const int num_bucket_addr_bits = 6 + 10; // 64 * 1024
+const int num_buckets = 1 << num_bucket_addr_bits;
 
 void send_requests(
 	const int query_num, 
@@ -47,11 +48,11 @@ void write_memory(
 	ap_uint<32>* mem_out,
 	hls::stream<int>& s_finish_query_write_memory
 ) {
+	bool first_iter_s_valid_keys = true;
 	
-	int addr_cnt = 0;
-
-	for (int i = 0; i < query_num; i++) {
-
+	for (int qid = 0; qid < query_num; qid++) {
+		
+		int addr_cnt = 0;
 		while (true) {
 			
 			if (!s_finish_bloom.empty() && s_num_valid_keys.empty() &&s_valid_keys.empty()) {
@@ -60,6 +61,8 @@ void write_memory(
 			} else if (!s_num_valid_keys.empty()) {
 
 				int num_keys = s_num_valid_keys.read();
+				wait_data_fifo_first_iter<ap_uint<32>>(
+					num_keys, s_valid_keys, first_iter_s_valid_keys);
 				for (int j = 0; j < num_keys; j++) {
 					#pragma HLS pipeline II=1
 					mem_out[addr_cnt + j] = s_valid_keys.read();
@@ -77,7 +80,7 @@ void vadd(
 	// in initialization
 	const int query_num, 
 	const int iter_per_query,
-	const ap_uint<32> runtime_n_buckets,
+	const int runtime_n_bucket_addr_bits,
 	const ap_uint<32> hash_seed,
 
     // in runtime (from DRAM)
@@ -133,7 +136,7 @@ void vadd(
     hls::stream<int> s_finish_bloom; // finish the current query
 #pragma HLS stream variable=s_finish_bloom depth=16
 
-	BloomFilter<num_hash_funs, num_buckets> bloom_filter(runtime_n_buckets);
+	BloomFilter<num_hash_funs, num_bucket_addr_bits> bloom_filter(runtime_n_bucket_addr_bits);
 
 	bloom_filter.run_continuous_insert_check(
 		query_num, 

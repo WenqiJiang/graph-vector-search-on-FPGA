@@ -3,25 +3,37 @@
 #include "types.hpp"
 #include "utils.hpp"
 
+#define BITS_512_ADDR 9
 
-template<int num_hash_funs, int num_buckets_int> // ap_uint cannot be used as template type
+template<int num_hash_funs, int num_bucket_addr_bits> // ap_uint cannot be used as template type
 class BloomFilter {
 public:
 
-	bool* buckets;
+	ap_uint<512>* buckets;
 	ap_uint<32> num_buckets;
+	ap_uint<32> num_512b_buckets;
 	ap_uint<32> runtime_num_buckets;
+	ap_uint<32> runtime_num_512b_buckets; // 2^5-1=31, make sure later on the range selection would not overflow
+	ap_uint<5> runtime_num_512b_bucket_addr_bits;
 
-	BloomFilter(const ap_uint<32> runtime_n_buckets) {
+	BloomFilter(const int runtime_n_bucket_addr_bits) {
 #pragma HLS inline
-		bool hash_buckets[num_buckets_int];
-		this->num_buckets = num_buckets_int;
+		this->num_buckets = 1 << num_bucket_addr_bits;
+		const int num_512b_buckets_int = 1 << (num_bucket_addr_bits - BITS_512_ADDR) > 1? 1 << (num_bucket_addr_bits - BITS_512_ADDR) : 1;
+		num_512b_buckets = num_512b_buckets_int;
+
+		ap_uint<512> hash_buckets[num_512b_buckets_int];
 		this->buckets = hash_buckets;
-		this->runtime_num_buckets = runtime_n_buckets < num_buckets? runtime_n_buckets : num_buckets;
+
+		this->runtime_num_buckets = 1 << runtime_n_bucket_addr_bits;
+		int runtime_num_512b_buckets_int = 1 << (runtime_n_bucket_addr_bits - BITS_512_ADDR) > 1? 1 << (runtime_n_bucket_addr_bits - BITS_512_ADDR) : 1;
+		this->runtime_num_512b_buckets = runtime_num_512b_buckets_int;
+		this->runtime_num_512b_bucket_addr_bits = runtime_n_bucket_addr_bits - BITS_512_ADDR;
+		// this->reset(); // cannot reset here, in dataflow, bucket can only have a single reader/writer in one PE
 	}
 
 	void reset() {
-		for (int i = 0; i < num_buckets; i++) {
+		for (int i = 0; i < this->runtime_num_512b_buckets; i++) {
 #pragma HLS pipeline II=1
 			this->buckets[i] = false;
 		}
@@ -101,8 +113,11 @@ public:
 
 		bool first_iter_s_keys = true;
 		bool first_iter_s_hash_values_per_pe = true;
+		this->reset(); // reset before the first query
 
-		// TODO: break num valid to smaller units, otherwise the pipeline can be deadlocked
+		// break num valid to smaller units, otherwise the pipeline can be deadlocked
+		const int match_burst_size = 64; 
+
 		for (int qid = 0; qid < query_num; qid++) {
 
 			while (true) {
@@ -126,9 +141,13 @@ public:
 						ap_uint<32> key = s_keys.read();
 						for (int j = 0; j < num_hash_funs; j++) {
 							ap_uint<32> hash = s_hash_values_per_pe[j].read();
-							ap_uint<32> bucket_id = hash % this->runtime_num_buckets;
-							if (!this->buckets[bucket_id]) {
-								this->buckets[bucket_id] = true;
+							// layout of bits in the hash code: [...useless bits...] [outer_bucket_id] [inner_bucket_id]
+							// outer_bucket_id is the bucket ID to the 512-bit bucket array, while inner_bucket_id is the bit ID in the 512-bit bucket
+							ap_uint<32> outer_bucket_id = hash.range(BITS_512_ADDR + this->runtime_num_512b_bucket_addr_bits - 1, BITS_512_ADDR);
+							ap_uint<32> inner_bucket_id = hash.range(BITS_512_ADDR - 1, 0);
+							if (!this->buckets[outer_bucket_id].range(inner_bucket_id, inner_bucket_id)) {
+								this->buckets[outer_bucket_id].range(inner_bucket_id, inner_bucket_id) = 1;
+							} else {
 								bit_match_cnt++;
 							}
 						}
@@ -136,8 +155,15 @@ public:
 							s_valid_keys.write(key);
 							num_valid++;
 						}
+						// if already some data in data fifo, write num acount
+						if (num_valid == match_burst_size) {
+							s_num_valid_keys.write(num_valid);
+							num_valid = 0;
+						}
 					}
-					s_num_valid_keys.write(num_valid);
+					if (num_valid > 0) {
+						s_num_valid_keys.write(num_valid);
+					}
 				}
 			}
 		}
@@ -203,7 +229,7 @@ public:
 #pragma HLS UNROLL
 			stream_hash(
 				query_num, 
-				pe_id + 1, // hash_seed
+				hash_seed + pe_id, // hash_seed
 				// in streams
 				s_num_keys_replicated[pe_id],
 				s_keys_replicated[pe_id],

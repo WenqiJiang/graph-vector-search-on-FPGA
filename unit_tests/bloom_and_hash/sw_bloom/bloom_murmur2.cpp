@@ -2,48 +2,10 @@
 
 #include <iostream>
 #include <cstring>
-#include <stdint.h>
 #include <chrono>
 #include <cassert> 
 
-#include "murmur2.hpp"
-
-class BloomFilter {
-
-public:
-	int num_buckets_;
-	int num_hashes_;
-	bool* byte_array_;
-
-  BloomFilter(int num_buckets, int num_hashes) : num_buckets_(num_buckets), num_hashes_(num_hashes){
-	byte_array_ = (bool*) malloc(num_buckets);
-	memset(byte_array_, 0, num_buckets);
-  }
-
-  ~BloomFilter() {
-	free(byte_array_);
-  }
-
-  void insert(int key) {
-	for (int i = 0; i < num_hashes_; i++) {
-	  uint32_t hash = MurmurHash2_KeyLen4((char*) &key, i + 1);
-	  uint32_t bucket = hash % num_buckets_;
-	  byte_array_[bucket] = true;
-	}
-  }
-
-  bool contains(int key) {
-	for (int i = 0; i < num_hashes_; i++) {
-	  uint32_t hash = MurmurHash2_KeyLen4((char*) &key, i + 1);
-	  uint32_t bucket = hash % num_buckets_;
-	  if (!byte_array_[bucket]) {
-		return false;
-	  }
-	}
-	return true;
-  }
-};
-
+#include "bloom_murmur2.hpp"
 
 int main() {
 
@@ -51,17 +13,18 @@ int main() {
 	int num_buckets = 512000;
 	int num_hashes = 5;
 	int num_insertions = 10000;
+	int seed = 1;
 
 	int num_checks = 1000 * num_insertions;
 
 	// instantiate bloom filter
-	BloomFilter bloom(num_buckets, num_hashes);
+	BloomFilter bloom(num_buckets, num_hashes, seed);
 	
 	// insert values
 	std::cout << "Inserting values..." << std::endl;
 	for (int i = 0; i < num_insertions; i++) {
     	uint32_t key = i;
-		bloom.insert(key);
+		assert(!bloom.check_and_insert(key));
 	}
 
 	// make sure all of the inserted values are conflict
