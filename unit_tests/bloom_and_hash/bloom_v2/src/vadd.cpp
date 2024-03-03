@@ -72,7 +72,9 @@ void write_memory(
 		int addr_cnt = 0;
 		while (true) {
 			
-			if (!s_finish_bloom.empty() && s_num_valid_candidates_burst.empty() &&s_valid_candidates.empty()) {
+			if (!s_finish_bloom.empty() && s_num_valid_candidates_burst.empty() 
+				&& s_num_valid_candidates_upper_levels_total_out.empty() && s_num_valid_candidates_base_level_total_out.empty() 
+				&& s_valid_candidates.empty()) {
 				s_finish_query_write_memory.write(s_finish_bloom.read());
 				break;
 			} else if (!s_num_valid_candidates_burst.empty()) {
