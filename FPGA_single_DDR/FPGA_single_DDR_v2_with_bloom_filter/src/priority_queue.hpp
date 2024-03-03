@@ -73,14 +73,12 @@ class Priority_queue<result_t, hardware_queue_size, Collect_smallest> {
 
 		// insert and then sort
         void insert_sort(
-            hls::stream<int> &s_num_insertion,
+            int num_insertion,
             hls::stream<result_t> &s_input) {
 #pragma HLS inline	
 
 			const int sort_swap_round = this->runtime_queue_size % 2 == 0? 
 				this->runtime_queue_size / 2 : (this->runtime_queue_size + 1) / 2;
-
-			int num_insertion = s_num_insertion.read();
 
 			// insert & sort
 			if (num_insertion > 0) {

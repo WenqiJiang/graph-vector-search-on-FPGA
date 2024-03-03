@@ -156,11 +156,11 @@ void task_scheduler(
 		while (!stop) {
 			if (!s_num_inserted_candidates.empty()) {
 
-				// assuming the first iteration in bottom layer contains at least 1 valid neighbor
+				int num_insertion = s_num_inserted_candidates.read();
 				wait_data_fifo_first_iter<result_t>(
-					1, s_inserted_candidates, first_iter_s_inserted_candidates);
+					num_insertion, s_inserted_candidates, first_iter_s_inserted_candidates);
 				// insert new values & sort
-				candidate_queue.insert_sort(s_num_inserted_candidates, s_inserted_candidates);
+				candidate_queue.insert_sort(num_insertion, s_inserted_candidates);
 
 				// pop top candidate
 				wait_data_fifo_first_iter<float>(

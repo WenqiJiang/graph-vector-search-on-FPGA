@@ -209,24 +209,28 @@ void results_collection(
 
 				int inserted_num_this_iter = 0;
 
+				if (num_neighbors > 0) {
 				// insert new values & sort
-                for (int i = 0; i < num_neighbors + sort_swap_round; i++) {
+					for (int i = 0; i < num_neighbors + sort_swap_round; i++) {
 #pragma HLS pipeline II=1
-					if (i < num_neighbors) {
-						result_t reg = s_distances_base_level.read();
-						// if both input & queue element are large_float, then do not insert
-						if (reg.dist < result_queue.queue[0].dist) {
-							result_queue.queue[0] = reg;
-							s_inserted_candidates.write(reg);
-							inserted_num_this_iter++;
+						if (i < num_neighbors) {
+							result_t reg = s_distances_base_level.read();
+							// if both input & queue element are large_float, then do not insert
+							if (reg.dist < result_queue.queue[0].dist) {
+								result_queue.queue[0] = reg;
+								s_inserted_candidates.write(reg);
+								inserted_num_this_iter++;
+							}
+							if (i == num_neighbors - 1) {
+								s_num_inserted_candidates.write(inserted_num_this_iter);
+							}
 						}
-						if (i == num_neighbors - 1) {
-							s_num_inserted_candidates.write(inserted_num_this_iter);
-						}
+						result_queue.compare_swap_array_step_A();
+						result_queue.compare_swap_array_step_B();
 					}
-                    result_queue.compare_swap_array_step_A();
-                    result_queue.compare_swap_array_step_B();
-                }
+				} else { // num_neighbors == 0
+					s_num_inserted_candidates.write(0);
+				}
 
 				// send out largest dist in the queue:
 				//   if the queue is not full, always consider the candidate

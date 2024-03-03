@@ -53,7 +53,8 @@ void write_memory(
 
 	// in
 	hls::stream<int>& s_num_valid_candidates_burst,
-	hls::stream<int>& s_num_valid_candidates_total, // one round can contain multiple bursts
+	hls::stream<int>& s_num_valid_candidates_upper_levels_total_out, // one round can contain multiple bursts
+	hls::stream<int>& s_num_valid_candidates_base_level_total_out, // one round can contain multiple bursts
 	hls::stream<cand_t>& s_valid_candidates,
 	hls::stream<int>& s_finish_bloom,
 
@@ -85,8 +86,10 @@ void write_memory(
 					mem_out[addr_cnt + j] = reg_cand.node_id;
 				}
 				addr_cnt += num_keys;
-			} else if (!s_num_valid_candidates_total.empty()) {
-				s_num_valid_candidates_total.read();
+			} else if (!s_num_valid_candidates_upper_levels_total_out.empty()) {
+				s_num_valid_candidates_upper_levels_total_out.read();
+			} else if (!s_num_valid_candidates_base_level_total_out.empty()) {
+				s_num_valid_candidates_base_level_total_out.read();
 			}
 		}
 	}
@@ -153,8 +156,11 @@ void vadd(
 	hls::stream<int> s_num_valid_candidates_burst;
 #pragma HLS stream variable=s_num_valid_candidates_burst depth=16
 
-	hls::stream<int> s_num_valid_candidates_total;
-#pragma HLS stream variable=s_num_valid_candidates_total depth=16
+	hls::stream<int> s_num_valid_candidates_upper_levels_total_out;
+#pragma HLS stream variable=s_num_valid_candidates_upper_levels_total_out depth=16
+
+	hls::stream<int> s_num_valid_candidates_base_level_total_out;
+#pragma HLS stream variable=s_num_valid_candidates_base_level_total_out depth=16
 
 	hls::stream<cand_t> s_valid_candidates;
 #pragma HLS stream variable=s_valid_candidates depth=512
@@ -175,7 +181,8 @@ void vadd(
 
 		// out streams
 		s_num_valid_candidates_burst, // one round (s_num_neighbors) can contain multiple bursts
-		s_num_valid_candidates_total, // one round can contain multiple bursts
+		s_num_valid_candidates_upper_levels_total_out, // one round can contain multiple bursts
+		s_num_valid_candidates_base_level_total_out,
 		s_valid_candidates,
 		s_finish_bloom);
 	
@@ -184,7 +191,8 @@ void vadd(
 
 		// in
 		s_num_valid_candidates_burst,
-		s_num_valid_candidates_total,
+		s_num_valid_candidates_upper_levels_total_out,
+		s_num_valid_candidates_base_level_total_out,
 		s_valid_candidates,
 		s_finish_bloom,
 

@@ -119,7 +119,7 @@ public:
 		this->reset(); // reset before the first query
 
 		// break num valid to smaller units, otherwise the pipeline can be deadlocked
-		const int match_burst_size = 64; 
+		const int max_burst_size = 64; 
 
 		for (int qid = 0; qid < query_num; qid++) {
 
@@ -139,6 +139,8 @@ public:
 
 					int num_valid = 0;
 					int num_processed = 0;
+					bool sent_out_s_num_valid_candidates_burst = false; // needs to be at least sent once even with 0 results
+					bool sent_out_s_num_processed_candidates_burst = false; // needs to be at least sent once even with 0 results
 					for (int i = 0; i < num_candidates; i++) {
 						// check each bucket, if false, write true
 						int bit_match_cnt = 0;
@@ -161,17 +163,19 @@ public:
 						}
 						num_processed++;
 						// if already some data in data fifo, write num acount
-						if (num_valid == match_burst_size) {
+						if (num_valid == max_burst_size) {
 							s_num_valid_candidates_burst.write(num_valid);
 							s_num_processed_candidates_burst.write(num_processed);
 							num_valid = 0;
 							num_processed = 0;
+							sent_out_s_num_valid_candidates_burst = true;
+							sent_out_s_num_processed_candidates_burst = true;
 						}
 					}
-					if (num_valid > 0) {
+					if (num_valid > 0 || !sent_out_s_num_valid_candidates_burst) {
 						s_num_valid_candidates_burst.write(num_valid);
 					}
-					if (num_processed > 0) {
+					if (num_processed > 0 || !sent_out_s_num_processed_candidates_burst) {
 						s_num_processed_candidates_burst.write(num_processed);
 					}
 				}
@@ -306,24 +310,29 @@ public:
 		bool first_iter_s_all_candidates = true;
 		bool first_iter_s_valid_candidates_burst_in = true;
 
-		// break num valid to smaller units, otherwise the pipeline can be deadlocked
-		const int match_burst_size = 64; 
+		// if input number of candidates > FIFO length, with bursting there would be a deadlock
+		const int max_burst_to_bloom_filter = 128; 
 
 		for (int qid = 0; qid < query_num; qid++) {
 
 			int current_base_nodes_before_filtering = 0; // before bloom filter
+			int current_base_nodes_sent_to_filter = 0; // already sent to bloom filter (burst by burst)
 			int current_base_nodes_filtered = 0; // already processed by bloom filter (burst by burst)
 			int current_base_nodes_valid = 0; // already processed & valid by bloom filter (burst by burst)
+			int burst_to_bloom_to_be_consumed = 0; // sent to bloom, but not yet consumed
 
 			while (true) {
 				if (!s_finish_in.empty() && s_num_neighbors_upper_levels.empty() 
 					&& s_num_neighbors_base_level.empty() && s_all_candidates.empty()
-					&& s_num_processed_candidates_burst_in.empty() && s_valid_candidates_burst_in.empty()) {
+					&& s_num_processed_candidates_burst_in.empty() && s_num_valid_candidates_burst_in.empty()
+					&& s_valid_candidates_burst_in.empty()) {
+
 					s_finish_out.write(s_finish_in.read());
 					break;
 				} 
 				// forward the upper level neighbors to output, when no other rounds are being processed
 				else if (!s_num_neighbors_upper_levels.empty() && current_base_nodes_before_filtering == 0) {
+
 					int num_neighbors = s_num_neighbors_upper_levels.read();
 					wait_data_fifo_first_iter<cand_t>(
 						num_neighbors, s_all_candidates, first_iter_s_all_candidates);
@@ -336,13 +345,34 @@ public:
 					}
 				} 
 				// forward the base level neighbors to bloom filter, when no other rounds are being processed
-				else if (!s_num_neighbors_base_level.empty() && current_base_nodes_before_filtering == 0) {
+				// first iteration of forwarding upper levels
+				else if (!s_num_neighbors_base_level.empty() && current_base_nodes_before_filtering == 0 && burst_to_bloom_to_be_consumed == 0) {
+
 					int num_neighbors = s_num_neighbors_base_level.read();
 					current_base_nodes_before_filtering = num_neighbors;
 					wait_data_fifo_first_iter<cand_t>(
 						num_neighbors, s_all_candidates, first_iter_s_all_candidates);
-					s_num_neighbors_base_level_to_bloom.write(num_neighbors);
-					for (int i = 0; i < num_neighbors; i++) {
+					int num_cand_to_bloom_this_burst = num_neighbors > max_burst_to_bloom_filter? max_burst_to_bloom_filter : num_neighbors;
+					current_base_nodes_sent_to_filter = num_cand_to_bloom_this_burst;
+					burst_to_bloom_to_be_consumed = num_cand_to_bloom_this_burst;
+					s_num_neighbors_base_level_to_bloom.write(num_cand_to_bloom_this_burst);
+					for (int i = 0; i < num_cand_to_bloom_this_burst; i++) {
+					#pragma HLS pipeline II=1
+						cand_t cand = s_all_candidates.read();
+						s_base_candidates_to_bloom.write(cand);
+					}
+				}
+				// rest rounds of forwarding upper levels
+				else if (current_base_nodes_before_filtering > 0 && current_base_nodes_sent_to_filter < current_base_nodes_before_filtering
+					&& burst_to_bloom_to_be_consumed < max_burst_to_bloom_filter) {
+
+					int num_cand_to_bloom_this_burst = current_base_nodes_before_filtering - current_base_nodes_sent_to_filter;
+					num_cand_to_bloom_this_burst = num_cand_to_bloom_this_burst > max_burst_to_bloom_filter - burst_to_bloom_to_be_consumed? 
+						max_burst_to_bloom_filter - burst_to_bloom_to_be_consumed : num_cand_to_bloom_this_burst;
+					current_base_nodes_sent_to_filter += num_cand_to_bloom_this_burst;
+					burst_to_bloom_to_be_consumed += num_cand_to_bloom_this_burst;
+					s_num_neighbors_base_level_to_bloom.write(num_cand_to_bloom_this_burst);
+					for (int i = 0; i < num_cand_to_bloom_this_burst; i++) {
 					#pragma HLS pipeline II=1
 						cand_t cand = s_all_candidates.read();
 						s_base_candidates_to_bloom.write(cand);
@@ -350,6 +380,7 @@ public:
 				}
 				// forward the valid candidates & number from bloom to output
 				else if (!s_num_processed_candidates_burst_in.empty() && !s_num_valid_candidates_burst_in.empty()) {
+
 					int num_valid = s_num_valid_candidates_burst_in.read();
 					current_base_nodes_valid += num_valid;
 					wait_data_fifo_first_iter<cand_t>(
@@ -360,13 +391,17 @@ public:
 						cand_t valid_cand = s_valid_candidates_burst_in.read();
 						s_valid_candidates_out.write(valid_cand);
 					}
-					current_base_nodes_filtered += s_num_processed_candidates_burst_in.read();
+					int num_processed = s_num_processed_candidates_burst_in.read();
+					current_base_nodes_filtered += num_processed;
+					burst_to_bloom_to_be_consumed -= num_processed;
 					// whether finished processing all batches in the current round
 					if (current_base_nodes_filtered == current_base_nodes_before_filtering) {
 						s_num_valid_candidates_base_level_total_out.write(current_base_nodes_valid);
 						current_base_nodes_valid = 0;
 						current_base_nodes_filtered = 0;
 						current_base_nodes_before_filtering = 0;
+						current_base_nodes_sent_to_filter = 0;
+						burst_to_bloom_to_be_consumed = 0;
 					}
 				}
 			}

@@ -111,7 +111,7 @@ public:
 
 			while (true) {
 
-				if (!s_finish_in.empty() && s_num_keys.empty() && all_streams_empty<num_hash_funs, ap_uint<32>>(s_hash_values_per_pe)) {
+				if (!s_finish_in.empty() && s_num_keys.empty() && s_keys.empty() && all_streams_empty<num_hash_funs, ap_uint<32>>(s_hash_values_per_pe)) {
 					s_finish_out.write(s_finish_in.read());
 					// reset the hash buckets
 					reset();
@@ -124,6 +124,7 @@ public:
 						num_keys, s_hash_values_per_pe, first_iter_s_hash_values_per_pe);
 
 					int num_valid = 0;
+					bool sent_out_s_num_valid_candidates_burst = false; // needs to be at least sent once even with 0 results
 					for (int i = 0; i < num_keys; i++) {
 						// check each bucket, if false, write true
 						int bit_match_cnt = 0;
@@ -144,10 +145,11 @@ public:
 						// if already some data in data fifo, write num acount
 						if (num_valid == match_burst_size) {
 							s_num_valid_keys.write(num_valid);
+							sent_out_s_num_valid_candidates_burst = true;
 							num_valid = 0;
 						}
 					}
-					if (num_valid > 0) {
+					if (num_valid > 0 || !sent_out_s_num_valid_candidates_burst) {
 						s_num_valid_keys.write(num_valid);
 					}
 				}
