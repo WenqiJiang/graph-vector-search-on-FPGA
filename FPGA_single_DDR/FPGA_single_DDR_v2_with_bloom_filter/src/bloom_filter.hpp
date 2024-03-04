@@ -175,10 +175,9 @@ public:
 							sent_out_s_num_processed_candidates_burst = true;
 						}
 					}
-					if (num_valid > 0 || !sent_out_s_num_valid_candidates_burst) {
+					if ((num_valid > 0 || !sent_out_s_num_valid_candidates_burst) || 
+						 (num_processed > 0 || !sent_out_s_num_processed_candidates_burst)) {
 						s_num_valid_candidates_burst.write(num_valid);
-					}
-					if (num_processed > 0 || !sent_out_s_num_processed_candidates_burst) {
 						s_num_processed_candidates_burst.write(num_processed);
 					}
 				}

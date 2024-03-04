@@ -104,13 +104,11 @@ public:
 	// the bloom filter's RAM part, check whether the input candidate is visited & update RAM
 	void check_update(
 		const int query_num, 
-		// input streams
 		hls::stream<int>& s_num_candidates,
 		hls::stream<cand_t>& s_all_candidates,
 		hls::stream<ap_uint<32>> (&s_hash_values_per_pe)[num_hash_funs],
 		hls::stream<int>& s_finish_in,
 
-		// output streams
 		hls::stream<int>& s_num_processed_candidates_burst, // number of processed input, no matter whether valid
 		hls::stream<int>& s_num_valid_candidates_burst, // does not exist in bloom filter
 		hls::stream<cand_t>& s_valid_candidates,
@@ -127,8 +125,7 @@ public:
 
 			while (true) {
 
-				if (!s_finish_in.empty() && s_num_candidates.empty() && s_all_candidates.empty()
-					&& all_streams_empty<num_hash_funs, ap_uint<32>>(s_hash_values_per_pe)) {
+				if (!s_finish_in.empty() && s_num_candidates.empty() && all_streams_empty<num_hash_funs, ap_uint<32>>(s_hash_values_per_pe)) {
 					s_finish_out.write(s_finish_in.read());
 					// reset the hash buckets
 					reset();
@@ -175,9 +172,10 @@ public:
 							sent_out_s_num_processed_candidates_burst = true;
 						}
 					}
-					if ((num_valid > 0 || !sent_out_s_num_valid_candidates_burst) || 
-						 (num_processed > 0 || !sent_out_s_num_processed_candidates_burst)) {
+					if (num_valid > 0 || !sent_out_s_num_valid_candidates_burst) {
 						s_num_valid_candidates_burst.write(num_valid);
+					}
+					if (num_processed > 0 || !sent_out_s_num_processed_candidates_burst) {
 						s_num_processed_candidates_burst.write(num_processed);
 					}
 				}
@@ -189,13 +187,10 @@ public:
 	void run_bloom_filter(
 		const int query_num, 
 		const ap_uint<32> hash_seed,
-
-		// in streams
 		hls::stream<int>& s_num_candidates,
 		hls::stream<cand_t>& s_all_candidates,
 		hls::stream<int>& s_finish_in,
 
-		// out streams
 		hls::stream<int>& s_num_processed_candidates_burst, // number of processed input, no matter whether valid
 		hls::stream<int>& s_num_valid_candidates_burst, // one round (s_num_candidates) can contain multiple bursts
 		hls::stream<cand_t>& s_valid_candidates,

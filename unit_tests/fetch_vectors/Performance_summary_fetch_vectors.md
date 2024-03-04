@@ -67,6 +67,9 @@ Literally no improvement over V1.
 set max_burst_length = 16. I have tried max_burst_length of 32 and 64, and the performance is exactly the same.
 
 Prefetching + batching.
+
+Large read batches (1000): 
+
 ```
     int query_num = 1000;
 	int read_iter_per_query = 1000;
@@ -74,3 +77,11 @@ Prefetching + batching.
 ```
 
 125.515 ms @200 MHz -> 125 ns per read (length of 8) == 25 cycles (given lenght = 8, the pure latency is 25 - 8 + 1 = 18 cycles)
+
+Medium read batches (100): 
+
+13.0161 ms @200 MHz -> 130 ns per read (length of 8) 
+
+Small read batches (10):
+
+1.8214 @200 MHz -> 182 ns per read (length of 8) -> 1.46x time compared to maximal batch sizes. 
