@@ -1,4 +1,5 @@
 #include "bloom_filter.hpp"
+#include "bloom_fetch_compute.hpp"
 #include "compute.hpp"
 #include "constants.hpp"
 #include "DRAM_utils.hpp"
@@ -37,9 +38,12 @@ void vadd(
     int* out_id,
 	float* out_dist,
 
-	// debug signals (each 4 byte):
-	//   0: bottom layer entry node id,
-	//   1: number of hops in base layer (number of pop operations)
+	// debug signals (each 4 byte): 
+	//   0: bottom layer entry node id, 
+	//   1: number of hops in upper layers 
+	//   2: number of read vectors in upper layers
+	//   3: number of hops in base layer (number of pop operations)
+	//   4: number of valid read vectors in base layer
 	int* mem_debug
     )
 {
@@ -48,20 +52,20 @@ void vadd(
 
 // in runtime (from DRAM)
 #pragma HLS INTERFACE m_axi port=query_vectors offset=slave bundle=gmem0
-#pragma HLS INTERFACE m_axi port=entry_vector offset=slave bundle=gmem1 // share the same AXI interface with query_vectors
-#pragma HLS INTERFACE m_axi port=db_vectors latency=1 num_read_outstanding=32 max_read_burst_length=16 offset=slave bundle=offset=slave bundle=gmem2 
-#pragma HLS INTERFACE m_axi port=ptr_to_upper_links offset=slave bundle=gmem3
-#pragma HLS INTERFACE m_axi port=links_upper offset=slave bundle=gmem4
-#pragma HLS INTERFACE m_axi port=links_base offset=slave bundle=gmem5
+#pragma HLS INTERFACE m_axi port=entry_vector offset=slave bundle=gmem0 // share the same AXI interface with query_vectors
+#pragma HLS INTERFACE m_axi port=db_vectors latency=1 num_read_outstanding=32 max_read_burst_length=16 offset=slave bundle=gmem4 
+#pragma HLS INTERFACE m_axi port=ptr_to_upper_links offset=slave bundle=gmem2
+#pragma HLS INTERFACE m_axi port=links_upper offset=slave bundle=gmem2
+#pragma HLS INTERFACE m_axi port=links_base offset=slave bundle=gmem2
 // // for debugging use, seperate the bundles
 // #pragma HLS INTERFACE m_axi port=ptr_to_upper_links offset=slave bundle=gmem1
 // #pragma HLS INTERFACE m_axi port=links_upper offset=slave bundle=gmem2
 // #pragma HLS INTERFACE m_axi port=links_base offset=slave bundle=gmem3
 
 // out
-#pragma HLS INTERFACE m_axi port=out_id  offset=slave bundle=gmem6
-#pragma HLS INTERFACE m_axi port=out_dist  offset=slave bundle=gmem7
-#pragma HLS INTERFACE m_axi port=mem_debug  offset=slave bundle=gmem8 // cannot share gmem with out as they are different PEs
+#pragma HLS INTERFACE m_axi port=out_id  offset=slave bundle=gmem9
+#pragma HLS INTERFACE m_axi port=out_dist  offset=slave bundle=gmem9
+#pragma HLS INTERFACE m_axi port=mem_debug  offset=slave bundle=gmem10 // cannot share gmem with out as they are different PEs
 
 #pragma HLS dataflow
 
@@ -95,12 +99,21 @@ void vadd(
 	hls::stream<int> s_num_valid_candidates_upper_levels_total;
 #pragma HLS stream variable=s_num_valid_candidates_upper_levels_total depth=16
 
+	hls::stream<int> s_num_valid_candidates_base_level_total;
+#pragma HLS stream variable=s_num_valid_candidates_base_level_total depth=16
+
 	hls::stream<result_t> s_distances_upper_levels;
 #pragma HLS stream variable=s_distances_upper_levels depth=512
+
+	hls::stream<result_t> s_distances_base_level;
+#pragma HLS stream variable=s_distances_base_level depth=512
 
 	hls::stream<float> s_largest_result_queue_elements;
 #pragma HLS stream variable=s_largest_result_queue_elements depth=512	
 	
+	hls::stream<int> s_debug_num_vec_base_layer;
+#pragma HLS stream variable=s_debug_num_vec_base_layer depth=16
+
 	// controls the traversal and maintains the candidate queue
 	task_scheduler(
 		query_num, 
@@ -122,6 +135,7 @@ void vadd(
 		s_num_inserted_candidates,
 		s_inserted_candidates,
 		s_largest_result_queue_elements,
+		s_debug_num_vec_base_layer,
 		s_finish_query_results_collection,
 		
 		// out streams
@@ -167,123 +181,32 @@ void vadd(
 	);
 
 
-	hls::stream<int> s_num_valid_candidates_burst;
-#pragma HLS stream variable=s_num_valid_candidates_burst depth=16
+    hls::stream<int> s_finish_query_bloom_fetch_compute; // finish all queries
+#pragma HLS stream variable=s_finish_query_bloom_fetch_compute depth=16
 
-	hls::stream<int> s_num_valid_candidates_base_level_total;
-#pragma HLS stream variable=s_num_valid_candidates_base_level_total depth=16
-
-	hls::stream<cand_t> s_valid_candidates;
-#pragma HLS stream variable=s_valid_candidates depth=512
-
-    hls::stream<int> s_finish_bloom; // finish all queries
-#pragma HLS stream variable=s_finish_bloom depth=16
-
-	BloomFilter<bloom_num_hash_funs, bloom_num_bucket_addr_bits> 
-		bloom_filter(runtime_n_bucket_addr_bits);
-
-	bloom_filter.bloom_filter_top_level(
+	bloom_fetch_compute(
+		// in initialization
 		query_num, 
+		runtime_n_bucket_addr_bits,
 		hash_seed,
+		d,
+
+		// in runtime (from DRAM)
+		db_vectors, // need to write visited tag
+
 		// in streams
+		s_query_vectors,
 		s_num_neighbors_upper_levels,
 		s_num_neighbors_base_level,
 		s_fetched_neighbor_ids,
 		s_finish_query_fetch_neighbor_ids,
 
 		// out streams
-		s_num_valid_candidates_burst, // one round (s_num_neighbors) can contain multiple bursts
-		s_num_valid_candidates_upper_levels_total, // one round can contain multiple bursts
-		s_num_valid_candidates_base_level_total, // one round can contain multiple bursts
-		s_valid_candidates,
-		s_finish_bloom);
-	
-    hls::stream<ap_uint<512>> s_fetched_vectors; 
-#pragma HLS stream variable=s_fetched_vectors depth=512
-	
-    hls::stream<int> s_finish_query_fetch_vectors; // finish all queries
-#pragma HLS stream variable=s_finish_query_fetch_vectors depth=16
-
-	const int rep_factor_s_num_valid_candidates_burst = 2;
-
-	hls::stream<int> s_num_valid_candidates_burst_replicated[rep_factor_s_num_valid_candidates_burst];
-#pragma HLS stream variable=s_num_valid_candidates_burst_replicated depth=16
-
-	hls::stream<cand_t> s_valid_candidates_replicated[rep_factor_s_num_valid_candidates_burst];
-#pragma HLS stream variable=s_valid_candidates_replicated depth=512
-
-	hls::stream<int> s_finish_query_replicate_candidates; // finish all queries
-#pragma HLS stream variable=s_finish_query_replicate_candidates depth=16
-
-	replicate_s_read_iter_and_s_data<rep_factor_s_num_valid_candidates_burst, cand_t>(
-		// in (initialization)
-		query_num,
-		// in (stream)
-		s_num_valid_candidates_burst,
-		s_valid_candidates,
-		s_finish_bloom,
-		
-		// out (stream)
-		s_num_valid_candidates_burst_replicated,
-		s_valid_candidates_replicated,
-		s_finish_query_replicate_candidates
-	);
-
-	fetch_vectors(
-		// in initialization
-		query_num,
-		d,
-		// in runtime (should from DRAM)
-    	db_vectors,
-		// in runtime (stream)
-		s_num_valid_candidates_burst_replicated[0], 
-		s_valid_candidates_replicated[0], 
-		s_finish_query_replicate_candidates,
-		
-		// out (stream)
-		s_fetched_vectors,
-		s_finish_query_fetch_vectors
-	);
-
-    hls::stream<result_t> s_distances; 
-#pragma HLS stream variable=s_distances depth=512
-
-    hls::stream<int> s_finish_query_compute_distances; // finish all queries
-#pragma HLS stream variable=s_finish_query_compute_distances depth=16
-
-	compute_distances(
-		// in initialization
-		query_num,
-		d,
-		// in runtime (stream)
-		s_query_vectors,
-		s_num_valid_candidates_burst_replicated[1], 
-		s_fetched_vectors,
-		s_valid_candidates_replicated[1],
-		s_finish_query_fetch_vectors,
-		
-		// out (stream)
-		s_distances,
-		s_finish_query_compute_distances
-	);
-
-	hls::stream<result_t> s_distances_base_level;
-#pragma HLS stream variable=s_distances_base_level depth=512
-
-	hls::stream<int> s_finish_query_replicate_distances; // finish all queries
-#pragma HLS stream variable=s_finish_query_replicate_distances depth=16
-
-	split_s_distances(
-		// in (initialization)
-		query_num,
-		// in runtime (stream)
-		s_distances,
-		s_finish_query_compute_distances,
-
-		// out (stream)
+		s_num_valid_candidates_upper_levels_total,
+		s_num_valid_candidates_base_level_total,
 		s_distances_upper_levels,
 		s_distances_base_level,
-		s_finish_query_replicate_distances
+		s_finish_query_bloom_fetch_compute
 	);
 
 	results_collection(
@@ -295,12 +218,13 @@ void vadd(
 		s_cand_batch_size,
 		s_num_valid_candidates_base_level_total,
 		s_distances_base_level,
-		s_finish_query_replicate_distances,
+		s_finish_query_bloom_fetch_compute,
 
 		// out (stream)
 		s_inserted_candidates,
 		s_num_inserted_candidates,
 		s_largest_result_queue_elements,
+		s_debug_num_vec_base_layer,
 		s_finish_query_results_collection,
 
 		// out (DRAM)

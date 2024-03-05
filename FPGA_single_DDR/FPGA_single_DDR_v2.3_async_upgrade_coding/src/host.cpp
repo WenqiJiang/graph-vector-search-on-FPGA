@@ -73,7 +73,7 @@ int main(int argc, char** argv)
     size_t bytes_query_vectors = query_num * bytes_per_vec;
     size_t bytes_out_id = query_num * ef * sizeof(int);
     size_t bytes_out_dist = query_num * ef * sizeof(float);	
-    size_t bytes_mem_debug = query_num * 2 * sizeof(int);
+    size_t bytes_mem_debug = query_num * 5 * sizeof(int);
 
     const char* fname_ground_links = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links.bin";
     const char* fname_ground_labels = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_labels.bin";
@@ -292,11 +292,21 @@ int main(int argc, char** argv)
 
 #ifdef DEBUG
     // print out the debug signals (each 4 byte):
-    //   0: bottom layer entry node id,
-    //   1: number of hops in base layer (number of pop operations)
+
+	// debug signals (each 4 byte): 
+	//   0: bottom layer entry node id, 
+	//   1: number of hops in upper layers 
+	//   2: number of read vectors in upper layers
+	//   3: number of hops in base layer (number of pop operations)
+	//   4: number of valid read vectors in base layer
     int print_qnum = 10 < query_num? 10 : query_num;
+	int debug_size = 5;
     for (int i = 0; i < print_qnum; i++) {
-        std::cout << "query " << i << " bottom layer entry node id=" << mem_debug[i * 2] << " hops=" << mem_debug[i * 2 + 1] << std::endl;
+        std::cout << "query " << i << " bottom layer entry node id=" << mem_debug[i * debug_size] 
+			<< "\t#hops (upper layers) =" << mem_debug[i * debug_size + 1] 
+			<< "\t#read vecs (upper layers) =" << mem_debug[i * debug_size + 2]
+			<< "\t#hops (base layer) =" << mem_debug[i * debug_size + 3]
+			<< "\t#valid read vecs (base layer) =" << mem_debug[i * debug_size + 4] << std::endl;
         if (gt_vec_ID[i * max_topK] != out_id[i * ef]) {
                 std::cout << "Mismatch ";
         }    

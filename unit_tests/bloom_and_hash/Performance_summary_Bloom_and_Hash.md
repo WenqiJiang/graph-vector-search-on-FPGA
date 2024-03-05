@@ -146,6 +146,10 @@ Resource (For 64 * 1024 bits -> only 9 BRAM, compared to the bool version using 
     |run_continuous_insert_check_U0  |run_continuous_insert_check  |        9|  48|  4294|  7878|    0|
 ```
 
+### V1.3 (failed) tried to unroll bloom bit array to further improve performance
+
+The unrolling operation takes super long... And not sure the performance is improved. 
+
 ### (Use this!) V2: +support for upper/lower layer split based on V1.2
 
 Based on 

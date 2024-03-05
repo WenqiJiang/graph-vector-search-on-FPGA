@@ -6,11 +6,59 @@
 #include "types.hpp"
 #include "utils.hpp"
 
-void bloom_fetch_compute(
+void split_upper_base_inputs(
+	const int query_num,
+
+	// in streams
+	hls::stream<int>& s_num_neighbors_upper_levels,
+	hls::stream<int>& s_num_neighbors_base_level,
+	hls::stream<cand_t>& s_fetched_neighbor_ids,
+	hls::stream<int>& s_finish_query_in,
+
+	// out streams
+	hls::stream<int>& s_num_valid_candidates_burst,
+	hls::stream<int>& s_num_valid_candidates_upper_levels_total,
+	hls::stream<int>& s_num_valid_candidates_base_level_total,
+	hls::stream<cand_t>& s_valid_candidates,
+	hls::stream<int>& s_finish_split
+) {
+	bool first_iter_s_fetched_neighbor_ids = true;
+	for (int qid = 0; qid < query_num; qid++) {
+		while (true) {
+			if (!s_finish_query_in.empty() && s_num_neighbors_upper_levels.empty()
+				&& s_num_neighbors_base_level.empty() && s_fetched_neighbor_ids.empty()) {
+				int finish = s_finish_query_in.read();
+				s_finish_split.write(finish);
+				break;
+			} else if (!s_num_neighbors_upper_levels.empty()) {
+				int num_neighbors_upper_levels = s_num_neighbors_upper_levels.read();
+				wait_data_fifo_first_iter<cand_t>(
+					num_neighbors_upper_levels, s_fetched_neighbor_ids, first_iter_s_fetched_neighbor_ids);
+				s_num_valid_candidates_burst.write(num_neighbors_upper_levels);
+				s_num_valid_candidates_upper_levels_total.write(num_neighbors_upper_levels);
+				for (int i = 0; i < num_neighbors_upper_levels; i++) {
+					cand_t reg_cand = s_fetched_neighbor_ids.read();
+					s_valid_candidates.write(reg_cand);
+				}
+			} else if (!s_num_neighbors_base_level.empty()) {
+				int num_neighbors_base_level = s_num_neighbors_base_level.read();
+				wait_data_fifo_first_iter<cand_t>(
+					num_neighbors_base_level, s_fetched_neighbor_ids, first_iter_s_fetched_neighbor_ids);
+				s_num_valid_candidates_burst.write(num_neighbors_base_level);
+				s_num_valid_candidates_base_level_total.write(num_neighbors_base_level);
+				for (int i = 0; i < num_neighbors_base_level; i++) {
+					cand_t reg_cand = s_fetched_neighbor_ids.read();
+					s_valid_candidates.write(reg_cand);
+				}
+			}
+		}
+	}
+}
+
+
+void fetch_compute(
 	// in initialization
 	const int query_num, 
-	const int runtime_n_bucket_addr_bits,
-	const ap_uint<32> hash_seed,
 	const int d,
 
     // in runtime (from DRAM)
@@ -40,28 +88,25 @@ void bloom_fetch_compute(
 	hls::stream<cand_t> s_valid_candidates;
 #pragma HLS stream variable=s_valid_candidates depth=512
 
-    hls::stream<int> s_finish_bloom; // finish all queries
-#pragma HLS stream variable=s_finish_bloom depth=16
+    hls::stream<int> s_finish_split; // finish all queries
+#pragma HLS stream variable=s_finish_split depth=16
 
-	BloomFilter<bloom_num_hash_funs, bloom_num_bucket_addr_bits> 
-		bloom_filter(runtime_n_bucket_addr_bits);
-
-	bloom_filter.bloom_filter_top_level(
-		query_num, 
-		hash_seed,
-		// in streams
+	split_upper_base_inputs(
+		// in (initialization)
+		query_num,
+		// in (stream)
 		s_num_neighbors_upper_levels,
 		s_num_neighbors_base_level,
 		s_fetched_neighbor_ids,
 		s_finish_query_in,
-
-		// out streams
-		s_num_valid_candidates_burst, // one round (s_num_neighbors) can contain multiple bursts
-		s_num_valid_candidates_upper_levels_total, // one round can contain multiple bursts
-		s_num_valid_candidates_base_level_total, // one round can contain multiple bursts
+		
+		// out (stream)
+		s_num_valid_candidates_burst,
+		s_num_valid_candidates_upper_levels_total,
+		s_num_valid_candidates_base_level_total,
 		s_valid_candidates,
-		s_finish_bloom);
-
+		s_finish_split
+	);
 
 	const int rep_factor_s_num_valid_candidates_burst = 2;
 
@@ -80,7 +125,7 @@ void bloom_fetch_compute(
 		// in (stream)
 		s_num_valid_candidates_burst,
 		s_valid_candidates,
-		s_finish_bloom,
+		s_finish_split,
 		
 		// out (stream)
 		s_num_valid_candidates_burst_replicated,

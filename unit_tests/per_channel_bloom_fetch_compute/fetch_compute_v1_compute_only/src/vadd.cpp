@@ -1,5 +1,5 @@
 #include "bloom_filter.hpp"
-#include "bloom_fetch_compute.hpp"
+#include "fetch_compute.hpp"
 #include "compute.hpp"
 #include "constants.hpp"
 #include "DRAM_utils.hpp"
@@ -144,8 +144,6 @@ void vadd(
 	const int d,
 	const int run_upper_levels,
 	const int run_base_level,
-	const int runtime_n_bucket_addr_bits,
-	const ap_uint<32> hash_seed,
 
     // in runtime (from DRAM)
 	const ap_uint<512>* query_vectors,
@@ -222,11 +220,9 @@ void vadd(
     hls::stream<int> s_finish_query_bloom_fetch_compute; // finish all queries
 #pragma HLS stream variable=s_finish_query_bloom_fetch_compute depth=16
 
-	bloom_fetch_compute(
+	fetch_compute(
 		// in initialization
 		query_num, 
-		runtime_n_bucket_addr_bits,
-		hash_seed,
 		d,
 
 		// in runtime (from DRAM)
