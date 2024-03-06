@@ -150,6 +150,11 @@ Resource (For 64 * 1024 bits -> only 9 BRAM, compared to the bool version using 
 
 The unrolling operation takes super long... And not sure the performance is improved. 
 
-### (Use this!) V2: +support for upper/lower layer split based on V1.2
 
-Based on 
+### (Use this for base-layer search) V1.4: support higher-level interface
+
+Developped on V1.2, support cand_t and interface to the base-level-only accelerator.  
+
+### (Use this for multi-layer search) V2: +support for upper/lower layer split based on V1.2
+
+Based on V1.2, add higher-level interface to support the split of upper/base layers. Essentially bypassing the bloom filter for the upper layers.

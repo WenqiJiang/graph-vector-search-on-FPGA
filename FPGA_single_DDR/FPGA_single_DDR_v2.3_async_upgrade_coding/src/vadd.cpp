@@ -53,19 +53,16 @@ void vadd(
 // in runtime (from DRAM)
 #pragma HLS INTERFACE m_axi port=query_vectors offset=slave bundle=gmem0
 #pragma HLS INTERFACE m_axi port=entry_vector offset=slave bundle=gmem0 // share the same AXI interface with query_vectors
+#pragma HLS INTERFACE m_axi port=mem_debug  offset=slave bundle=gmem0 // cannot share gmem with out as they are different PEs
+
 #pragma HLS INTERFACE m_axi port=db_vectors latency=1 num_read_outstanding=32 max_read_burst_length=16 offset=slave bundle=gmem4 
 #pragma HLS INTERFACE m_axi port=ptr_to_upper_links offset=slave bundle=gmem2
 #pragma HLS INTERFACE m_axi port=links_upper offset=slave bundle=gmem2
 #pragma HLS INTERFACE m_axi port=links_base offset=slave bundle=gmem2
-// // for debugging use, seperate the bundles
-// #pragma HLS INTERFACE m_axi port=ptr_to_upper_links offset=slave bundle=gmem1
-// #pragma HLS INTERFACE m_axi port=links_upper offset=slave bundle=gmem2
-// #pragma HLS INTERFACE m_axi port=links_base offset=slave bundle=gmem3
 
 // out
 #pragma HLS INTERFACE m_axi port=out_id  offset=slave bundle=gmem9
 #pragma HLS INTERFACE m_axi port=out_dist  offset=slave bundle=gmem9
-#pragma HLS INTERFACE m_axi port=mem_debug  offset=slave bundle=gmem10 // cannot share gmem with out as they are different PEs
 
 #pragma HLS dataflow
 
