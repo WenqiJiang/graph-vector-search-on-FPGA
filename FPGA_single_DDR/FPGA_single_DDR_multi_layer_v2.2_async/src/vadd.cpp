@@ -46,22 +46,22 @@ void vadd(
 // Share the same AXI interface with several control signals (but they are not allowed in same dataflow)
 //    https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/Controlling-AXI4-Burst-Behavior
 
+// If the port is a read-only port, then set the num_write_outstanding=1 and max_write_burst_length=2 to conserve memory resources. For write-only ports, set the num_read_outstanding=1 and max_read_burst_length=2.
+// https://docs.xilinx.com/r/2022.1-English/ug1399-vitis-hls/pragma-HLS-interface
+
 // in runtime (from DRAM)
-#pragma HLS INTERFACE m_axi port=query_vectors offset=slave bundle=gmem0
-#pragma HLS INTERFACE m_axi port=entry_vector offset=slave bundle=gmem0 // share the same AXI interface with query_vectors
-#pragma HLS INTERFACE m_axi port=db_vectors latency=1 num_read_outstanding=32 max_read_burst_length=16 offset=slave bundle=gmem4 
-#pragma HLS INTERFACE m_axi port=ptr_to_upper_links offset=slave bundle=gmem2
-#pragma HLS INTERFACE m_axi port=links_upper offset=slave bundle=gmem2
-#pragma HLS INTERFACE m_axi port=links_base offset=slave bundle=gmem2
-// // for debugging use, seperate the bundles
-// #pragma HLS INTERFACE m_axi port=ptr_to_upper_links offset=slave bundle=gmem1
-// #pragma HLS INTERFACE m_axi port=links_upper offset=slave bundle=gmem2
-// #pragma HLS INTERFACE m_axi port=links_base offset=slave bundle=gmem3
+#pragma HLS INTERFACE m_axi port=query_vectors num_read_outstanding=4 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmem0
+#pragma HLS INTERFACE m_axi port=entry_vector num_read_outstanding=4 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmem0 // share the same AXI interface with query_vectors
+#pragma HLS INTERFACE m_axi port=db_vectors latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmem4 
+#pragma HLS INTERFACE m_axi port=ptr_to_upper_links num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmem2
+#pragma HLS INTERFACE m_axi port=links_upper num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmem2
+#pragma HLS INTERFACE m_axi port=links_base num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmem2
 
 // out
 #pragma HLS INTERFACE m_axi port=out_id  offset=slave bundle=gmem9
 #pragma HLS INTERFACE m_axi port=out_dist  offset=slave bundle=gmem9
 #pragma HLS INTERFACE m_axi port=mem_debug  offset=slave bundle=gmem10 // cannot share gmem with out as they are different PEs
+
 
 #pragma HLS dataflow
 

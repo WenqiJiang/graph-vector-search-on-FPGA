@@ -20,7 +20,9 @@ Upon v2.1, further allowing multiple batches in the pipeline. The user can speci
 
 Minor updates based on V2.2.
 
-Performance wise: use two loops to write result distances and IDs, so we make sure burst is inferred.
+Performance wise: 
+* use two loops to write result distances and IDs, so we make sure burst is inferred.
+* add entry node ID as part of the evaluation in the first iteration, so avoid redundant visits
 
 Debug wise: add signal to track the total amount of upper / base layer nodes we visited. 
 

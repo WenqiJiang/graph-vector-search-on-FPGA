@@ -47,7 +47,7 @@ void task_scheduler(
 	float query_vector_buffer[D_MAX];
 #pragma HLS unroll variable=query_vector_buffer factor=float_per_axi
 
-	Priority_queue<result_t, hardware_result_queue_size, Collect_smallest> candidate_queue(candidate_queue_runtime_size);
+	Priority_queue<result_t, hardware_candidate_queue_size, Collect_smallest> candidate_queue(candidate_queue_runtime_size);
 	const int sort_swap_round = candidate_queue_runtime_size % 2 == 0? candidate_queue_runtime_size / 2 : candidate_queue_runtime_size / 2 + 1;
 
 	result_t queue_replication_array[hardware_candidate_queue_size];

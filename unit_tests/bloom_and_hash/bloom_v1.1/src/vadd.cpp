@@ -99,7 +99,7 @@ void vadd(
 // out
 #pragma HLS INTERFACE m_axi port=mem_out  offset=slave bundle=gmem2
 
-#pragma HLS dataflow
+#pragma HLS inline
 
     hls::stream<int> s_finish_query_send_requests; // finish the current query
 #pragma HLS stream variable=s_finish_query_send_requests depth=16

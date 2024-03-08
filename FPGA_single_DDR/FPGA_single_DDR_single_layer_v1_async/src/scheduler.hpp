@@ -16,7 +16,7 @@ void task_scheduler(
 	hls::stream<int>& s_num_inserted_candidates,
 	hls::stream<result_t>& s_inserted_candidates,
 	hls::stream<float>& s_largest_result_queue_elements,
-	hls::stream<int>& s_debug_num_vec_base_layer,
+	// hls::stream<int>& s_debug_num_vec_base_layer,
 	hls::stream<int>& s_finish_query_in,
 
 	// out streams
@@ -37,27 +37,28 @@ void task_scheduler(
 	const int vec_AXI_num = d % FLOAT_PER_AXI == 0? d / FLOAT_PER_AXI : d / FLOAT_PER_AXI + 1; 
 	bool first_iter_s_inserted_candidates = true;
 	bool first_iter_s_largest_result_queue_elements = true;
-	bool first_iter_s_debug_num_vec_base_layer = true;
+	// bool first_iter_s_debug_num_vec_base_layer = true;
 
 	float query_vector_buffer[D_MAX];
 #pragma HLS unroll variable=query_vector_buffer factor=float_per_axi
 
-	Priority_queue<result_t, hardware_result_queue_size, Collect_smallest> candidate_queue(candidate_queue_runtime_size);
+	Priority_queue<result_t, hardware_candidate_queue_size, Collect_smallest> candidate_queue(candidate_queue_runtime_size);
 	const int sort_swap_round = candidate_queue_runtime_size % 2 == 0? candidate_queue_runtime_size / 2 : candidate_queue_runtime_size / 2 + 1;
 
 	result_t queue_replication_array[hardware_candidate_queue_size];
 #pragma HLS array_partition variable=queue_replication_array complete
 
-	int async_batch_size_array[hardware_candidate_queue_size];
+	int async_batch_size_array[hardware_async_batch_size];
+	const int debug_size = 2;
+	int debug_signals[debug_size];
+	int* debug_hops_base_layer = &debug_signals[0];
+	int* debug_num_vec_base_layer = &debug_signals[1];
 
 	for (int qid = 0; qid < query_num; qid++) {
 
-		const int debug_size = 5;
-		int debug_bottom_entry_id = 0;
-		int debug_hops_upper_layers = 0;
-		int debug_num_vec_upper_layers = 0;
-		int debug_hops_base_layer = 0;
-		int debug_num_vec_base_layer = 0;
+		for (int did = 0; did < debug_size; did++) {
+			debug_signals[did] = 0;
+		}
 
 		// send out query vector
 		int start_addr = qid * vec_AXI_num;
@@ -91,7 +92,7 @@ void task_scheduler(
 		//   adding entry to the result immediately will lead to visit tag mismatch as entry can be inserted twice into the result queue
 		// s_entry_point_base_level.write({currObj, 0, curdist}); 
 
-		debug_hops_base_layer = 1;
+		*debug_hops_base_layer = 1;
 
 		bool stop = false;
 		while (!stop) {
@@ -128,7 +129,7 @@ void task_scheduler(
 							if (candidate_queue.queue[smallest_element_position].dist <= threshold &&
 								candidate_queue.queue[smallest_element_position].dist < large_float) {
 								candidate_queue.pop_top(s_top_candidates);
-								debug_hops_base_layer++;
+								(*debug_hops_base_layer)++;
 								current_cand_batch_size++;
 							} else {
 								break;
@@ -153,13 +154,9 @@ void task_scheduler(
 
 		s_finish_query_out.write(qid);
 
-		wait_data_fifo_first_iter<int>(
-			1, s_debug_num_vec_base_layer, first_iter_s_debug_num_vec_base_layer);
-		debug_num_vec_base_layer = s_debug_num_vec_base_layer.read();
-
-		int debug_signals[debug_size];
-		debug_signals[0] = debug_hops_base_layer;
-		debug_signals[1] = debug_num_vec_base_layer;
+		// wait_data_fifo_first_iter<int>(
+		// 	1, s_debug_num_vec_base_layer, first_iter_s_debug_num_vec_base_layer);
+		// *debug_num_vec_base_layer = s_debug_num_vec_base_layer.read();
 
 		for (int did = 0; did < debug_size; did++) {
 		#pragma HLS pipeline II=1

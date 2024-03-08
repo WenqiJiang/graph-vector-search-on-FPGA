@@ -196,7 +196,7 @@ public:
 		hls::stream<cand_t>& s_valid_candidates,
 		hls::stream<int>& s_finish_out) {
 
-#pragma HLS dataflow
+#pragma HLS inline
 
 		hls::stream<int> s_num_candidates_replicated[num_hash_funs + 1];
 #pragma HLS stream variable=s_num_candidates_replicated depth=16

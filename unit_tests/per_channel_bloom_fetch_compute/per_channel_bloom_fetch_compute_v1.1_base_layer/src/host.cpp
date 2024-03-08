@@ -35,7 +35,7 @@ int main(int argc, char** argv)
     // in init
     int query_num = 1;
 	int read_iter_per_query = 500;
-	int runtime_n_bucket_addr_bits = 10;
+	int runtime_n_bucket_addr_bits = 18;
 	int runtime_n_buckets = 1 << runtime_n_bucket_addr_bits;
 	uint32_t hash_seed = 1;
     int d = 128;

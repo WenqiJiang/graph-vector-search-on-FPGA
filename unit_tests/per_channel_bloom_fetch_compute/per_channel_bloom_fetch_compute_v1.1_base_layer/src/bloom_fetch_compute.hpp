@@ -28,7 +28,7 @@ void bloom_fetch_compute(
 	hls::stream<int>& s_finish_query_out
 ) {
 
-#pragma HLS dataflow
+#pragma HLS inline
 
 	hls::stream<int> s_num_valid_candidates_burst;
 #pragma HLS stream variable=s_num_valid_candidates_burst depth=16

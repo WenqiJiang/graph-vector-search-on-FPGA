@@ -45,16 +45,16 @@ void vadd(
 //    https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/Controlling-AXI4-Burst-Behavior
 
 // in runtime (from DRAM)
-#pragma HLS INTERFACE m_axi port=entry_point_ids offset=slave bundle=gmem0
-#pragma HLS INTERFACE m_axi port=query_vectors offset=slave bundle=gmem0
-#pragma HLS INTERFACE m_axi port=mem_debug  offset=slave bundle=gmem0 // cannot share gmem with out as they are different PEs
+#pragma HLS INTERFACE m_axi port=entry_point_ids num_read_outstanding=4 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2  offset=slave bundle=gmem0
+#pragma HLS INTERFACE m_axi port=query_vectors num_read_outstanding=4 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2  offset=slave bundle=gmem0
+#pragma HLS INTERFACE m_axi port=mem_debug num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem0 // cannot share gmem with out as they are different PEs
 
-#pragma HLS INTERFACE m_axi port=db_vectors latency=1 num_read_outstanding=32 max_read_burst_length=16 offset=slave bundle=gmem4 
-#pragma HLS INTERFACE m_axi port=links_base offset=slave bundle=gmem2
+#pragma HLS INTERFACE m_axi port=db_vectors latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmem4 
+#pragma HLS INTERFACE m_axi port=links_base num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmem2
 
 // out
-#pragma HLS INTERFACE m_axi port=out_id  offset=slave bundle=gmem9
-#pragma HLS INTERFACE m_axi port=out_dist  offset=slave bundle=gmem9
+#pragma HLS INTERFACE m_axi port=out_id num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem9
+#pragma HLS INTERFACE m_axi port=out_dist num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem9
 
 #pragma HLS dataflow
 
@@ -91,8 +91,8 @@ void vadd(
 	hls::stream<float> s_largest_result_queue_elements;
 #pragma HLS stream variable=s_largest_result_queue_elements depth=512	
 	
-	hls::stream<int> s_debug_num_vec_base_layer;
-#pragma HLS stream variable=s_debug_num_vec_base_layer depth=16
+// 	hls::stream<int> s_debug_num_vec_base_layer;
+// #pragma HLS stream variable=s_debug_num_vec_base_layer depth=16
 
 	// controls the traversal and maintains the candidate queue
 	task_scheduler(
@@ -110,7 +110,7 @@ void vadd(
 		s_num_inserted_candidates,
 		s_inserted_candidates,
 		s_largest_result_queue_elements,
-		s_debug_num_vec_base_layer,
+		// s_debug_num_vec_base_layer,
 		s_finish_query_results_collection,
 		
 		// out streams
@@ -192,7 +192,7 @@ void vadd(
 		s_inserted_candidates,
 		s_num_inserted_candidates,
 		s_largest_result_queue_elements,
-		s_debug_num_vec_base_layer,
+		// s_debug_num_vec_base_layer,
 		s_finish_query_results_collection,
 
 		// out (DRAM)

@@ -8,7 +8,30 @@ void fetch_neighbor_ids(
 	const int query_num,
 	const int max_link_num_base,
 	// in runtime (should from DRAM)
-	const ap_uint<512>* links_base,
+		const ap_uint<512>* links_base_chan_0,
+#if N_CHANNEL >= 2
+		const ap_uint<512>* links_base_chan_1,
+#endif
+#if N_CHANNEL >= 4
+		const ap_uint<512>* links_base_chan_2,
+		const ap_uint<512>* links_base_chan_3,
+#endif
+#if N_CHANNEL >= 8
+		const ap_uint<512>* links_base_chan_4,
+		const ap_uint<512>* links_base_chan_5,
+		const ap_uint<512>* links_base_chan_6,
+		const ap_uint<512>* links_base_chan_7,
+#endif
+#if N_CHANNEL >= 16
+		const ap_uint<512>* links_base_chan_8,
+		const ap_uint<512>* links_base_chan_9,
+		const ap_uint<512>* links_base_chan_10,
+		const ap_uint<512>* links_base_chan_11,
+		const ap_uint<512>* links_base_chan_12,
+		const ap_uint<512>* links_base_chan_13,
+		const ap_uint<512>* links_base_chan_14,
+		const ap_uint<512>* links_base_chan_15,
+#endif
 	// in runtime (stream)
 	hls::stream<cand_t>& s_top_candidates,
 	hls::stream<int>& s_finish_query_in,
@@ -39,19 +62,88 @@ void fetch_neighbor_ids(
 				// receive task
 				cand_t reg_cand = s_top_candidates.read();
 				int node_id = reg_cand.node_id;
+				ap_uint<32> node_id_ap = node_id;
 				int level_id = reg_cand.level_id;
 				bool send_node_itself = false;
+
+#if N_CHANNEL == 1
+				ap_uint<8> channel_id = 0;
+				ap_uint<32> in_channel_node_id = node_id_ap;
+#else
+				ap_uint<8> channel_id = node_id_ap.range(CHANNEL_ADDR_BITS - 1, 0);
+				ap_uint<32> in_channel_node_id = node_id_ap >> CHANNEL_ADDR_BITS;
+#endif
+
+				const ap_uint<512>* links_base_selected_channel;
+				switch (channel_id) {
+					case 0:
+						links_base_selected_channel = links_base_chan_0;
+						break;
+				#if N_CHANNEL >= 2
+					case 1:
+						links_base_selected_channel = links_base_chan_1;
+						break;
+				#endif
+				#if N_CHANNEL >= 4
+					case 2:
+						links_base_selected_channel = links_base_chan_2;
+						break;
+					case 3:
+						links_base_selected_channel = links_base_chan_3;
+						break;
+				#endif
+				#if N_CHANNEL >= 8
+					case 4:
+						links_base_selected_channel = links_base_chan_4;
+						break;
+					case 5:
+						links_base_selected_channel = links_base_chan_5;
+						break;
+					case 6:
+						links_base_selected_channel = links_base_chan_6;
+						break;
+					case 7:
+						links_base_selected_channel = links_base_chan_7;
+						break;
+				#endif
+				#if N_CHANNEL >= 16
+					case 8:
+						links_base_selected_channel = links_base_chan_8;
+						break;
+					case 9:
+						links_base_selected_channel = links_base_chan_9;
+						break;
+					case 10:
+						links_base_selected_channel = links_base_chan_10;
+						break;
+					case 11:
+						links_base_selected_channel = links_base_chan_11;
+						break;
+					case 12:
+						links_base_selected_channel = links_base_chan_12;
+						break;
+					case 13:
+						links_base_selected_channel = links_base_chan_13;
+						break;
+					case 14:
+						links_base_selected_channel = links_base_chan_14;
+						break;
+					case 15:
+						links_base_selected_channel = links_base_chan_15;
+						break;
+				#endif
+				}
 
 				ap_uint<64> start_addr;
 				int read_num;
 				if (level_id == 0) { // base layer
-					start_addr = node_id * AXI_num_per_base_link;
+					start_addr = in_channel_node_id * AXI_num_per_base_link;
 					read_num  = AXI_num_per_base_link;
 					// first 64-byte = header (4 byte num links + 60 byte padding)
 					// then we have the links (4 byte each, total number = max_link_num)
 					for (int i = 0; i < read_num; i++) {
 					#pragma HLS pipeline II=1
-						local_links_buffer[i] = links_base[start_addr + i];
+						local_links_buffer[i] = links_base_selected_channel[start_addr + i];
 					}
 					if (is_entry_point) {
 						send_node_itself = true;
@@ -95,6 +187,7 @@ void fetch_vectors(
 	// in initialization
 	const int query_num,
 	const int d,
+
 	// in runtime (should from DRAM)
 	hls::burst_maxi<ap_uint<512>>& db_vectors,
 	// in runtime (stream)
@@ -139,7 +232,13 @@ void fetch_vectors(
 					// send prefetch request if requests are not enough
 					while (current_request_count < max_prefetch_request && total_request_count < fetch_batch_size) {
 						cand_t reg_cand = s_fetched_neighbor_ids_replicated.read();
-						int start_addr = reg_cand.node_id * AXI_num_per_vector_and_padding;
+						int node_id = reg_cand.node_id;
+#if N_CHANNEL == 1
+						ap_uint<32> in_channel_node_id = node_id;
+#else
+						ap_uint<32> in_channel_node_id = node_id >> CHANNEL_ADDR_BITS;
+#endif
+						int start_addr = in_channel_node_id * AXI_num_per_vector_and_padding;
 						db_vectors.read_request(start_addr, AXI_num_per_vector_only);
 						current_request_count++;
 						total_request_count++;
@@ -164,7 +263,6 @@ void results_collection(
 	const int ef,
 	// in runtime (stream)
 	// hls::stream<result_t>& s_entry_point_base_level,
-	hls::stream<int>& s_cand_batch_size, 
 	hls::stream<int>& s_num_neighbors_base_level,
 	hls::stream<result_t>& s_distances_base_level,
 	hls::stream<int>& s_finish_query_in,
@@ -198,17 +296,14 @@ void results_collection(
 
 		while (true) {
 			// check query finish
-			if (!s_finish_query_in.empty() && s_cand_batch_size.empty() 
-				&& s_num_neighbors_base_level.empty() && s_distances_base_level.empty()) {
+			if (!s_finish_query_in.empty() && s_num_neighbors_base_level.empty() && s_distances_base_level.empty()) {
 				// volatile int reg_finish = s_finish_query_in.read();
 				// s_debug_num_vec_base_layer.write(debug_num_vec_base_layer);
 				s_finish_query_out.write(s_finish_query_in.read());
 				break;
-			} else if (!s_cand_batch_size.empty() && !s_num_neighbors_base_level.empty()) {
+			} else if (!s_num_neighbors_base_level.empty()) {
 
-				int cand_batch_size = s_cand_batch_size.read();
-
-				for (int bid = 0; bid < cand_batch_size; bid++) {
+				for (int bid = 0; bid < N_CHANNEL; bid++) {
 					int num_neighbors = s_num_neighbors_base_level.read();
 					wait_data_fifo_first_iter<result_t>(
 						num_neighbors, s_distances_base_level, first_iter_s_distances_base_level);

@@ -33,6 +33,8 @@ void fetch_neighbor_ids(
 
 	for (int qid = 0; qid < query_num; qid++) {
 
+		bool is_entry_point = true; // first base layer task
+
 		while (true) {
 
 			// check query finish
@@ -44,6 +46,7 @@ void fetch_neighbor_ids(
 				cand_t reg_cand = s_top_candidates.read();
 				int node_id = reg_cand.node_id;
 				int level_id = reg_cand.level_id;
+				bool send_node_itself = false;
 
 				ap_uint<64> start_addr;
 				int read_num;
@@ -55,6 +58,10 @@ void fetch_neighbor_ids(
 					for (int i = 0; i < read_num; i++) {
 					#pragma HLS pipeline II=1
 						local_links_buffer[i] = links_base[start_addr + i];
+					}
+					if (is_entry_point) {
+						send_node_itself = true;
+						is_entry_point = false;
 					}
 				} else { // upper layer
 					ap_uint<64> byte_addr = ptr_to_upper_links[node_id];
@@ -74,7 +81,11 @@ void fetch_neighbor_ids(
 				ap_uint<32> links_num_ap = local_links_buffer[0].range(31, 0);
 				int num_links = links_num_ap;
 				if (level_id == 0) { // base layer
-					s_num_neighbors_base_level.write(num_links);
+					if (send_node_itself) {
+						s_num_neighbors_base_level.write(num_links + 1);
+					} else {
+						s_num_neighbors_base_level.write(num_links);
+					}
 				} else { // upper layer
 					s_num_neighbors_upper_levels.write(num_links);
 				}
@@ -88,6 +99,12 @@ void fetch_neighbor_ids(
 						reg_neighbor.level_id = level_id;
 						s_fetched_neighbor_ids.write(reg_neighbor);
 					}
+				}
+				if (send_node_itself) {
+					cand_t reg_node_itself;
+					reg_node_itself.node_id = node_id;
+					reg_node_itself.level_id = level_id;
+					s_fetched_neighbor_ids.write(reg_node_itself);
 				}
 			}
 		}
@@ -176,7 +193,7 @@ void results_collection(
 	hls::stream<result_t>& s_inserted_candidates,
 	hls::stream<int>& s_num_inserted_candidates,
 	hls::stream<float>& s_largest_result_queue_elements,
-	hls::stream<int>& s_debug_num_vec_base_layer,
+	// hls::stream<int>& s_debug_num_vec_base_layer,
 	hls::stream<int>& s_finish_query_out,
 	
 	// out (DRAM)
@@ -204,7 +221,7 @@ void results_collection(
 			if (!s_finish_query_in.empty() && s_cand_batch_size.empty() 
 				&& s_num_neighbors_base_level.empty() && s_distances_base_level.empty()) {
 				// volatile int reg_finish = s_finish_query_in.read();
-				s_debug_num_vec_base_layer.write(debug_num_vec_base_layer);
+				// s_debug_num_vec_base_layer.write(debug_num_vec_base_layer);
 				s_finish_query_out.write(s_finish_query_in.read());
 				break;
 			} else if (!s_cand_batch_size.empty() && !s_num_neighbors_base_level.empty()) {

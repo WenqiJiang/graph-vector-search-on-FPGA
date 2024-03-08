@@ -430,7 +430,7 @@ public:
 		hls::stream<cand_t>& s_valid_candidates,
 		hls::stream<int>& s_finish_out) {
 
-#pragma HLS dataflow
+#pragma HLS inline
 
 		hls::stream<int> s_num_neighbors_base_level_to_bloom;
 #pragma HLS stream variable=s_num_neighbors_base_level_to_bloom depth=16
