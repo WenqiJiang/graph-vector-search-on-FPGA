@@ -93,7 +93,7 @@ void vadd(
 // in runtime (from DRAM)
 #pragma HLS INTERFACE m_axi port=entry_point_ids num_read_outstanding=4 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2  offset=slave bundle=gmem0
 #pragma HLS INTERFACE m_axi port=query_vectors num_read_outstanding=4 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2  offset=slave bundle=gmem0
-#pragma HLS INTERFACE m_axi port=mem_debug num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem0 // cannot share gmem with out as they are different PEs
+#pragma HLS INTERFACE m_axi port=mem_debug num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem10 // cannot share gmem with out as they are different PEs
 
 // If the port is a read-only port, then set the num_write_outstanding=1 and max_write_burst_length=2 to conserve memory resources. For write-only ports, set the num_read_outstanding=1 and max_read_burst_length=2.
 // https://docs.xilinx.com/r/2022.1-English/ug1399-vitis-hls/pragma-HLS-interface
@@ -305,54 +305,6 @@ void vadd(
 		s_finish_query_split_tasks_to_channels_replicated
 	);
 
-#if N_CHANNEL == 1
-	hls::burst_maxi<ap_uint<512>> input_db_vectors[N_CHANNEL] = {
-		db_vectors_chan_0
-	};
-#elif N_CHANNEL == 2
-	hls::burst_maxi<ap_uint<512>> input_db_vectors[N_CHANNEL] = {
-		db_vectors_chan_0,
-		db_vectors_chan_1
-	};
-#elif N_CHANNEL == 4
-	hls::burst_maxi<ap_uint<512>> input_db_vectors[N_CHANNEL] = {
-		db_vectors_chan_0,
-		db_vectors_chan_1,
-		db_vectors_chan_2,
-		db_vectors_chan_3
-	};
-#elif N_CHANNEL == 8
-	hls::burst_maxi<ap_uint<512>> input_db_vectors[N_CHANNEL] = {
-		db_vectors_chan_0,
-		db_vectors_chan_1,
-		db_vectors_chan_2,
-		db_vectors_chan_3,
-		db_vectors_chan_4,
-		db_vectors_chan_5,
-		db_vectors_chan_6,
-		db_vectors_chan_7
-	};
-#elif N_CHANNEL == 16
-	hls::burst_maxi<ap_uint<512>> input_db_vectors[N_CHANNEL] = {
-		db_vectors_chan_0,
-		db_vectors_chan_1,
-		db_vectors_chan_2,
-		db_vectors_chan_3,
-		db_vectors_chan_4,
-		db_vectors_chan_5,
-		db_vectors_chan_6,
-		db_vectors_chan_7,
-		db_vectors_chan_8,
-		db_vectors_chan_9,
-		db_vectors_chan_10,
-		db_vectors_chan_11,
-		db_vectors_chan_12,
-		db_vectors_chan_13,
-		db_vectors_chan_14,
-		db_vectors_chan_15
-	};
-#endif
-
 	hls::stream<int> s_num_valid_candidates_base_level_total_per_channel[N_CHANNEL];
 #pragma HLS stream variable=s_num_valid_candidates_base_level_total_per_channel depth=16
 
@@ -362,31 +314,363 @@ void vadd(
     hls::stream<int> s_finish_query_bloom_fetch_compute_per_channel[N_CHANNEL]; // finish all queries
 #pragma HLS stream variable=s_finish_query_bloom_fetch_compute_per_channel depth=16
 
-	for (int pe_id = 0; pe_id < N_CHANNEL; pe_id++) {
-#pragma HLS unroll
 
-		bloom_fetch_compute(
-			// in initialization
-			query_num, 
-			runtime_n_bucket_addr_bits,
-			hash_seed,
-			d,
+	// using loop unrolling for bloom_fetch_compute can lead to compilation error
+	//   due to failed dataflow checking in HLS, when using inline pragma for bloom_fetch_compute
 
-			// in runtime (from DRAM)
-			input_db_vectors[pe_id], // need to write visited tag
+	bloom_fetch_compute(
+		// in initialization
+		query_num, 
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		d,
 
-			// in streams
-			s_query_vectors_replicated[pe_id],
-			s_num_neighbors_base_level_per_channel[pe_id],
-			s_fetched_neighbor_ids_per_channel[pe_id],
-			s_finish_query_split_tasks_to_channels_replicated[pe_id],
+		// in runtime (from DRAM)
+		db_vectors_chan_0,
 
-			// out streams
-			s_num_valid_candidates_base_level_total_per_channel[pe_id],
-			s_distances_base_level_per_channel[pe_id],
-			s_finish_query_bloom_fetch_compute_per_channel[pe_id]
-		);
-	}
+		// in streams
+		s_query_vectors_replicated[0],
+		s_num_neighbors_base_level_per_channel[0],
+		s_fetched_neighbor_ids_per_channel[0],
+		s_finish_query_split_tasks_to_channels_replicated[0],
+
+		// out streams
+		s_num_valid_candidates_base_level_total_per_channel[0],
+		s_distances_base_level_per_channel[0],
+		s_finish_query_bloom_fetch_compute_per_channel[0]
+	);
+	#if N_CHANNEL >= 2
+	bloom_fetch_compute(
+		// in initialization
+		query_num, 
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		d,
+
+		// in runtime (from DRAM)
+		db_vectors_chan_1,
+
+		// in streams
+		s_query_vectors_replicated[1],
+		s_num_neighbors_base_level_per_channel[1],
+		s_fetched_neighbor_ids_per_channel[1],
+		s_finish_query_split_tasks_to_channels_replicated[1],
+
+		// out streams
+		s_num_valid_candidates_base_level_total_per_channel[1],
+		s_distances_base_level_per_channel[1],
+		s_finish_query_bloom_fetch_compute_per_channel[1]
+	);
+	#endif
+	#if N_CHANNEL >= 4
+	bloom_fetch_compute(
+		// in initialization
+		query_num, 
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		d,
+
+		// in runtime (from DRAM)
+		db_vectors_chan_2,
+
+		// in streams
+		s_query_vectors_replicated[2],
+		s_num_neighbors_base_level_per_channel[2],
+		s_fetched_neighbor_ids_per_channel[2],
+		s_finish_query_split_tasks_to_channels_replicated[2],
+
+		// out streams
+		s_num_valid_candidates_base_level_total_per_channel[2],
+		s_distances_base_level_per_channel[2],
+		s_finish_query_bloom_fetch_compute_per_channel[2]
+	);
+	bloom_fetch_compute(
+		// in initialization
+		query_num, 
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		d,
+
+		// in runtime (from DRAM)
+		db_vectors_chan_3,
+
+		// in streams
+		s_query_vectors_replicated[3],
+		s_num_neighbors_base_level_per_channel[3],
+		s_fetched_neighbor_ids_per_channel[3],
+		s_finish_query_split_tasks_to_channels_replicated[3],
+
+		// out streams
+		s_num_valid_candidates_base_level_total_per_channel[3],
+		s_distances_base_level_per_channel[3],
+		s_finish_query_bloom_fetch_compute_per_channel[3]
+	);
+	#endif
+	#if N_CHANNEL >= 8
+	bloom_fetch_compute(
+		// in initialization
+		query_num, 
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		d,
+
+		// in runtime (from DRAM)
+		db_vectors_chan_4,
+
+		// in streams
+		s_query_vectors_replicated[4],
+		s_num_neighbors_base_level_per_channel[4],
+		s_fetched_neighbor_ids_per_channel[4],
+		s_finish_query_split_tasks_to_channels_replicated[4],
+
+		// out streams
+		s_num_valid_candidates_base_level_total_per_channel[4],
+		s_distances_base_level_per_channel[4],
+		s_finish_query_bloom_fetch_compute_per_channel[4]
+	);
+
+	bloom_fetch_compute(
+		// in initialization
+		query_num, 
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		d,
+
+		// in runtime (from DRAM)
+		db_vectors_chan_5,
+
+		// in streams
+		s_query_vectors_replicated[5],
+		s_num_neighbors_base_level_per_channel[5],
+		s_fetched_neighbor_ids_per_channel[5],
+		s_finish_query_split_tasks_to_channels_replicated[5],
+
+		// out streams
+		s_num_valid_candidates_base_level_total_per_channel[5],
+		s_distances_base_level_per_channel[5],
+		s_finish_query_bloom_fetch_compute_per_channel[5]
+	);
+
+	bloom_fetch_compute(
+		// in initialization
+		query_num, 
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		d,
+
+		// in runtime (from DRAM)
+		db_vectors_chan_6,
+
+		// in streams
+		s_query_vectors_replicated[6],
+		s_num_neighbors_base_level_per_channel[6],
+		s_fetched_neighbor_ids_per_channel[6],
+		s_finish_query_split_tasks_to_channels_replicated[6],
+
+		// out streams
+		s_num_valid_candidates_base_level_total_per_channel[6],
+		s_distances_base_level_per_channel[6],
+		s_finish_query_bloom_fetch_compute_per_channel[6]
+	);
+	bloom_fetch_compute(
+		// in initialization
+		query_num, 
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		d,
+
+		// in runtime (from DRAM)
+		db_vectors_chan_7,
+
+		// in streams
+		s_query_vectors_replicated[7],
+		s_num_neighbors_base_level_per_channel[7],
+		s_fetched_neighbor_ids_per_channel[7],
+		s_finish_query_split_tasks_to_channels_replicated[7],
+
+		// out streams
+		s_num_valid_candidates_base_level_total_per_channel[7],
+		s_distances_base_level_per_channel[7],
+		s_finish_query_bloom_fetch_compute_per_channel[7]
+	);
+	#endif
+	#if N_CHANNEL >= 16
+	bloom_fetch_compute(
+		// in initialization
+		query_num, 
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		d,
+
+		// in runtime (from DRAM)
+		db_vectors_chan_8,
+
+		// in streams
+		s_query_vectors_replicated[8],
+		s_num_neighbors_base_level_per_channel[8],
+		s_fetched_neighbor_ids_per_channel[8],
+		s_finish_query_split_tasks_to_channels_replicated[8],
+
+		// out streams
+		s_num_valid_candidates_base_level_total_per_channel[8],
+		s_distances_base_level_per_channel[8],
+		s_finish_query_bloom_fetch_compute_per_channel[8]
+	);
+
+	bloom_fetch_compute(
+		// in initialization
+		query_num, 
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		d,
+
+		// in runtime (from DRAM)
+		db_vectors_chan_9,
+
+		// in streams
+		s_query_vectors_replicated[9],
+		s_num_neighbors_base_level_per_channel[9],
+		s_fetched_neighbor_ids_per_channel[9],
+		s_finish_query_split_tasks_to_channels_replicated[9],
+
+		// out streams
+		s_num_valid_candidates_base_level_total_per_channel[9],
+		s_distances_base_level_per_channel[9],
+		s_finish_query_bloom_fetch_compute_per_channel[9]
+	);
+
+	bloom_fetch_compute(
+		// in initialization
+		query_num, 
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		d,
+
+		// in runtime (from DRAM)
+		db_vectors_chan_10,
+
+		// in streams
+		s_query_vectors_replicated[10],
+		s_num_neighbors_base_level_per_channel[10],
+		s_fetched_neighbor_ids_per_channel[10],
+		s_finish_query_split_tasks_to_channels_replicated[10],
+
+		// out streams
+		s_num_valid_candidates_base_level_total_per_channel[10],
+		s_distances_base_level_per_channel[10],
+		s_finish_query_bloom_fetch_compute_per_channel[10]
+	);
+
+	bloom_fetch_compute(
+		// in initialization
+		query_num, 
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		d,
+
+		// in runtime (from DRAM)
+		db_vectors_chan_11,
+
+		// in streams
+		s_query_vectors_replicated[11],
+		s_num_neighbors_base_level_per_channel[11],
+		s_fetched_neighbor_ids_per_channel[11],
+		s_finish_query_split_tasks_to_channels_replicated[11],
+
+		// out streams
+		s_num_valid_candidates_base_level_total_per_channel[11],
+		s_distances_base_level_per_channel[11],
+		s_finish_query_bloom_fetch_compute_per_channel[11]
+	);
+
+	bloom_fetch_compute(
+		// in initialization
+		query_num, 
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		d,
+
+		// in runtime (from DRAM)
+		db_vectors_chan_12,
+
+		// in streams
+		s_query_vectors_replicated[12],
+		s_num_neighbors_base_level_per_channel[12],
+		s_fetched_neighbor_ids_per_channel[12],
+		s_finish_query_split_tasks_to_channels_replicated[12],
+
+		// out streams
+		s_num_valid_candidates_base_level_total_per_channel[12],
+		s_distances_base_level_per_channel[12],
+		s_finish_query_bloom_fetch_compute_per_channel[12]
+	);
+
+	bloom_fetch_compute(
+		// in initialization
+		query_num, 
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		d,
+
+		// in runtime (from DRAM)
+		db_vectors_chan_13,
+
+		// in streams
+		s_query_vectors_replicated[13],
+		s_num_neighbors_base_level_per_channel[13],
+		s_fetched_neighbor_ids_per_channel[13],
+		s_finish_query_split_tasks_to_channels_replicated[13],
+
+		// out streams
+		s_num_valid_candidates_base_level_total_per_channel[13],
+		s_distances_base_level_per_channel[13],
+		s_finish_query_bloom_fetch_compute_per_channel[13]
+	);
+
+	bloom_fetch_compute(
+		// in initialization
+		query_num, 
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		d,
+
+		// in runtime (from DRAM)
+		db_vectors_chan_14,
+
+		// in streams
+		s_query_vectors_replicated[14],
+		s_num_neighbors_base_level_per_channel[14],
+		s_fetched_neighbor_ids_per_channel[14],
+		s_finish_query_split_tasks_to_channels_replicated[14],
+
+		// out streams
+		s_num_valid_candidates_base_level_total_per_channel[14],
+		s_distances_base_level_per_channel[14],
+		s_finish_query_bloom_fetch_compute_per_channel[14]
+	);
+
+	bloom_fetch_compute(
+		// in initialization
+		query_num, 
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		d,
+
+		// in runtime (from DRAM)
+		db_vectors_chan_15,
+
+		// in streams
+		s_query_vectors_replicated[15],
+		s_num_neighbors_base_level_per_channel[15],
+		s_fetched_neighbor_ids_per_channel[15],
+		s_finish_query_split_tasks_to_channels_replicated[15],
+
+		// out streams
+		s_num_valid_candidates_base_level_total_per_channel[15],
+		s_distances_base_level_per_channel[15],
+		s_finish_query_bloom_fetch_compute_per_channel[15]
+	);
+	#endif
 
     hls::stream<int> s_finish_query_bloom_fetch_compute; // finish all queries
 #pragma HLS stream variable=s_finish_query_bloom_fetch_compute depth=16
