@@ -50,7 +50,7 @@ void fetch_neighbor_ids(
 
 	for (int qid = 0; qid < query_num; qid++) {
 
-		bool is_entry_point = true; // first base layer task
+		// bool is_entry_point = true; // first base layer task
 
 		while (true) {
 
@@ -64,7 +64,7 @@ void fetch_neighbor_ids(
 				int node_id = reg_cand.node_id;
 				ap_uint<32> node_id_ap = node_id;
 				int level_id = reg_cand.level_id;
-				bool send_node_itself = false;
+				// bool send_node_itself = false;
 
 #if N_CHANNEL == 1
 				ap_uint<8> channel_id = 0;
@@ -145,21 +145,21 @@ void fetch_neighbor_ids(
 					#pragma HLS pipeline II=1
 						local_links_buffer[i] = links_base_selected_channel[start_addr + i];
 					}
-					if (is_entry_point) {
-						send_node_itself = true;
-						is_entry_point = false;
-					}
+					// if (is_entry_point) {
+					// 	send_node_itself = true;
+					// 	is_entry_point = false;
+					// }
 				} 
 
 				// write out links num & links id
 				ap_uint<32> links_num_ap = local_links_buffer[0].range(31, 0);
 				int num_links = links_num_ap;
 				if (level_id == 0) { // base layer
-					if (send_node_itself) {
-						s_num_neighbors_base_level.write(num_links + 1);
-					} else {
+					// if (send_node_itself) {
+					// 	s_num_neighbors_base_level.write(num_links + 1);
+					// } else {
 						s_num_neighbors_base_level.write(num_links);
-					}
+					// }
 				} 
 				for (int i = 0; i < read_num - 1; i++) { // first one is the num_links
 					for (int j = 0; j < INT_PER_AXI && i * INT_PER_AXI + j < num_links; j++) {
@@ -172,12 +172,12 @@ void fetch_neighbor_ids(
 						s_fetched_neighbor_ids.write(reg_neighbor);
 					}
 				}
-				if (send_node_itself) {
-					cand_t reg_node_itself;
-					reg_node_itself.node_id = node_id;
-					reg_node_itself.level_id = level_id;
-					s_fetched_neighbor_ids.write(reg_node_itself);
-				}
+				// if (send_node_itself) {
+				// 	cand_t reg_node_itself;
+				// 	reg_node_itself.node_id = node_id;
+				// 	reg_node_itself.level_id = level_id;
+				// 	s_fetched_neighbor_ids.write(reg_node_itself);
+				// }
 			}
 		}
 	}

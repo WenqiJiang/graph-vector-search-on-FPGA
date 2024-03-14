@@ -33,7 +33,7 @@ void fetch_neighbor_ids(
 
 	for (int qid = 0; qid < query_num; qid++) {
 
-		bool is_entry_point = true; // first base layer task
+		// bool is_entry_point = true; // first base layer task
 
 		while (true) {
 
@@ -46,7 +46,7 @@ void fetch_neighbor_ids(
 				cand_t reg_cand = s_top_candidates.read();
 				int node_id = reg_cand.node_id;
 				int level_id = reg_cand.level_id;
-				bool send_node_itself = false;
+				// bool send_node_itself = false;
 
 				ap_uint<64> start_addr;
 				int read_num;
@@ -59,10 +59,10 @@ void fetch_neighbor_ids(
 					#pragma HLS pipeline II=1
 						local_links_buffer[i] = links_base[start_addr + i];
 					}
-					if (is_entry_point) {
-						send_node_itself = true;
-						is_entry_point = false;
-					}
+					// if (is_entry_point) {
+					// 	send_node_itself = true;
+					// 	is_entry_point = false;
+					// }
 				} else { // upper layer
 					ap_uint<64> byte_addr = ptr_to_upper_links[node_id];
 					ap_uint<64> axi_addr = byte_addr / BYTE_PER_AXI;
@@ -81,11 +81,11 @@ void fetch_neighbor_ids(
 				ap_uint<32> links_num_ap = local_links_buffer[0].range(31, 0);
 				int num_links = links_num_ap;
 				if (level_id == 0) { // base layer
-					if (send_node_itself) {
-						s_num_neighbors_base_level.write(num_links + 1);
-					} else {
+					// if (send_node_itself) {
+					// 	s_num_neighbors_base_level.write(num_links + 1);
+					// } else {
 						s_num_neighbors_base_level.write(num_links);
-					}
+					// }
 				} else { // upper layer
 					s_num_neighbors_upper_levels.write(num_links);
 				}
@@ -100,12 +100,12 @@ void fetch_neighbor_ids(
 						s_fetched_neighbor_ids.write(reg_neighbor);
 					}
 				}
-				if (send_node_itself) {
-					cand_t reg_node_itself;
-					reg_node_itself.node_id = node_id;
-					reg_node_itself.level_id = level_id;
-					s_fetched_neighbor_ids.write(reg_node_itself);
-				}
+				// if (send_node_itself) {
+				// 	cand_t reg_node_itself;
+				// 	reg_node_itself.node_id = node_id;
+				// 	reg_node_itself.level_id = level_id;
+				// 	s_fetched_neighbor_ids.write(reg_node_itself);
+				// }
 			}
 		}
 	}

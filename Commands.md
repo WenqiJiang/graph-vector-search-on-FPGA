@@ -4,7 +4,11 @@
 Make hardware: 
 
 ```
+# U250:
 time make all TARGET=hw PLATFORM=xilinx_u250_gen3x16_xdma_4_1_202210_1 > out_hw 2>&1
+
+# U55c: 
+time make all TARGET=hw PLATFORM=xilinx_u55c_gen3x16_xdma_3_202210_1 > out_hw 2>&1
 ```
 
 Make host:

@@ -290,21 +290,88 @@ public:
 
 	void split_upper_base_workloads(
 		const int query_num, 
-		const ap_uint<32> hash_seed,
 
 		// in streams: from the fetch neighbor ID PE
 		hls::stream<int>& s_num_neighbors_upper_levels,
 		hls::stream<int>& s_num_neighbors_base_level,
 		hls::stream<cand_t>& s_all_candidates,
-		// in streams: from bloom filter
-		hls::stream<int>& s_num_processed_candidates_burst_in, // one round (s_num_neighbors) can contain multiple bursts
-		hls::stream<int>& s_num_valid_candidates_burst_in, // one round (s_num_neighbors) can contain multiple bursts
-		hls::stream<cand_t>& s_valid_candidates_burst_in,
 		hls::stream<int>& s_finish_in,
 
 		// out streams: to bloom 
 		hls::stream<int>& s_num_neighbors_base_level_to_bloom, 
 		hls::stream<cand_t>& s_base_candidates_to_bloom,
+
+		// out stream: to output
+		hls::stream<int>& s_num_valid_candidates_upper_levels_total_out, // one round can contain multiple bursts
+		hls::stream<cand_t>& s_valid_candidates_upper_levels_out, // contains both burst base layer / or complete upper layer
+		hls::stream<int>& s_finish_out) {
+
+		bool first_iter_s_all_candidates = true;
+
+		// if input number of candidates > FIFO length, with bursting there would be a deadlock
+		const int max_burst_to_bloom_filter = 128; 
+
+		for (int qid = 0; qid < query_num; qid++) {
+			while (true) {
+				if (!s_finish_in.empty() && s_num_neighbors_upper_levels.empty() 
+					&& s_num_neighbors_base_level.empty() && s_all_candidates.empty()) {
+
+					s_finish_out.write(s_finish_in.read());
+					break;
+				} 
+				// forward the upper level neighbors to output, when no other rounds are being processed
+				else if (!s_num_neighbors_upper_levels.empty()) {
+
+					int num_neighbors = s_num_neighbors_upper_levels.read();
+					wait_data_fifo_first_iter<cand_t>(
+						num_neighbors, s_all_candidates, first_iter_s_all_candidates);
+					s_num_valid_candidates_upper_levels_total_out.write(num_neighbors);
+					for (int i = 0; i < num_neighbors; i++) {
+					#pragma HLS pipeline II=1
+						cand_t cand = s_all_candidates.read();
+						s_valid_candidates_upper_levels_out.write(cand);
+					}
+				} 
+				// forward the base level neighbors to bloom filter
+				else if (!s_num_neighbors_base_level.empty()) {
+
+					int num_neighbors = s_num_neighbors_base_level.read();
+					wait_data_fifo_first_iter<cand_t>(
+						num_neighbors, s_all_candidates, first_iter_s_all_candidates);
+					int num_neighbors_to_sent = num_neighbors;
+					while (num_neighbors_to_sent > 0) {
+						int num_cand_to_bloom_this_burst = num_neighbors_to_sent > max_burst_to_bloom_filter?
+							max_burst_to_bloom_filter : num_neighbors_to_sent;
+						s_num_neighbors_base_level_to_bloom.write(num_cand_to_bloom_this_burst);
+						num_neighbors_to_sent -= num_cand_to_bloom_this_burst;
+						for (int i = 0; i < num_cand_to_bloom_this_burst; i++) {
+						#pragma HLS pipeline II=1
+							cand_t cand = s_all_candidates.read();
+							s_base_candidates_to_bloom.write(cand);
+						}
+					}
+				}
+			}
+		}
+	}
+
+
+	void collect_bloom_filter_results(
+		const int query_num, 
+
+		// in streams: from the fetch neighbor ID PE
+		hls::stream<int>& s_num_neighbors_base_level,
+
+		// in stream: from the task splitter
+		hls::stream<int>& s_num_valid_candidates_upper_levels_total_in, // one round = one burst
+		hls::stream<cand_t>& s_valid_candidates_upper_levels_in,
+
+		// in streams: from bloom filter
+		hls::stream<int>& s_num_processed_candidates_burst_in, // one round (s_num_neighbors) can contain multiple bursts
+		hls::stream<int>& s_num_valid_candidates_burst_in, // one round (s_num_neighbors) can contain multiple bursts
+		hls::stream<cand_t>& s_valid_candidates_base_level_burst_in,
+		hls::stream<int>& s_finish_in,
+
 		// out stream: to output
 		hls::stream<int>& s_num_valid_candidates_burst_out, // one round (s_num_neighbors) can contain multiple bursts
 		hls::stream<int>& s_num_valid_candidates_upper_levels_total_out, // one round can contain multiple bursts
@@ -312,76 +379,47 @@ public:
 		hls::stream<cand_t>& s_valid_candidates_out, // contains both burst base layer / or complete upper layer
 		hls::stream<int>& s_finish_out) {
 
-		bool first_iter_s_all_candidates = true;
-		bool first_iter_s_valid_candidates_burst_in = true;
+		bool first_iter_s_valid_candidates_upper_levels_in = true;
+		bool first_iter_s_valid_candidates_base_level_burst_in = true;
 
 		// if input number of candidates > FIFO length, with bursting there would be a deadlock
 		const int max_burst_to_bloom_filter = 128; 
 
 		for (int qid = 0; qid < query_num; qid++) {
 
-			int current_base_nodes_before_filtering = 0; // before bloom filter
-			int current_base_nodes_sent_to_filter = 0; // already sent to bloom filter (burst by burst)
-			int current_base_nodes_filtered = 0; // already processed by bloom filter (burst by burst)
-			int current_base_nodes_valid = 0; // already processed & valid by bloom filter (burst by burst)
-			int burst_to_bloom_to_be_consumed = 0; // sent to bloom, but not yet consumed
+			int current_base_nodes_before_filtering = 0;
+			int current_base_nodes_filtered = 0;
+			int current_base_nodes_valid = 0;
 
 			while (true) {
-				if (!s_finish_in.empty() && s_num_neighbors_upper_levels.empty() 
-					&& s_num_neighbors_base_level.empty() && s_all_candidates.empty()
+				if (!s_finish_in.empty() && s_num_neighbors_base_level.empty() 
+					&& s_num_valid_candidates_upper_levels_total_in.empty() && s_valid_candidates_upper_levels_in.empty() 
 					&& s_num_processed_candidates_burst_in.empty() && s_num_valid_candidates_burst_in.empty()
-					&& s_valid_candidates_burst_in.empty()) {
+					&& s_valid_candidates_base_level_burst_in.empty()) {
 
 					s_finish_out.write(s_finish_in.read());
 					break;
 				} 
 				// forward the upper level neighbors to output, when no other rounds are being processed
-				else if (!s_num_neighbors_upper_levels.empty() && current_base_nodes_before_filtering == 0) {
+				else if (!s_num_valid_candidates_upper_levels_total_in.empty()) {
 
-					int num_neighbors = s_num_neighbors_upper_levels.read();
+					// for upper levels, total and burst are the same
+					int num_neighbors = s_num_valid_candidates_upper_levels_total_in.read();
+
 					wait_data_fifo_first_iter<cand_t>(
-						num_neighbors, s_all_candidates, first_iter_s_all_candidates);
+						num_neighbors, s_valid_candidates_upper_levels_in, first_iter_s_valid_candidates_upper_levels_in);
 					s_num_valid_candidates_burst_out.write(num_neighbors);
 					s_num_valid_candidates_upper_levels_total_out.write(num_neighbors);
 					for (int i = 0; i < num_neighbors; i++) {
 					#pragma HLS pipeline II=1
-						cand_t cand = s_all_candidates.read();
+						cand_t cand = s_valid_candidates_upper_levels_in.read();
 						s_valid_candidates_out.write(cand);
 					}
 				} 
-				// forward the base level neighbors to bloom filter, when no other rounds are being processed
-				// first iteration of forwarding upper levels
-				else if (!s_num_neighbors_base_level.empty() && current_base_nodes_before_filtering == 0 && burst_to_bloom_to_be_consumed == 0) {
-
+				// get the count of base level neighbors to process
+				else if (!s_num_neighbors_base_level.empty() && current_base_nodes_before_filtering == 0) {
 					int num_neighbors = s_num_neighbors_base_level.read();
 					current_base_nodes_before_filtering = num_neighbors;
-					wait_data_fifo_first_iter<cand_t>(
-						num_neighbors, s_all_candidates, first_iter_s_all_candidates);
-					int num_cand_to_bloom_this_burst = num_neighbors > max_burst_to_bloom_filter? max_burst_to_bloom_filter : num_neighbors;
-					current_base_nodes_sent_to_filter = num_cand_to_bloom_this_burst;
-					burst_to_bloom_to_be_consumed = num_cand_to_bloom_this_burst;
-					s_num_neighbors_base_level_to_bloom.write(num_cand_to_bloom_this_burst);
-					for (int i = 0; i < num_cand_to_bloom_this_burst; i++) {
-					#pragma HLS pipeline II=1
-						cand_t cand = s_all_candidates.read();
-						s_base_candidates_to_bloom.write(cand);
-					}
-				}
-				// rest rounds of forwarding upper levels
-				else if (current_base_nodes_before_filtering > 0 && current_base_nodes_sent_to_filter < current_base_nodes_before_filtering
-					&& burst_to_bloom_to_be_consumed < max_burst_to_bloom_filter) {
-
-					int num_cand_to_bloom_this_burst = current_base_nodes_before_filtering - current_base_nodes_sent_to_filter;
-					num_cand_to_bloom_this_burst = num_cand_to_bloom_this_burst > max_burst_to_bloom_filter - burst_to_bloom_to_be_consumed? 
-						max_burst_to_bloom_filter - burst_to_bloom_to_be_consumed : num_cand_to_bloom_this_burst;
-					current_base_nodes_sent_to_filter += num_cand_to_bloom_this_burst;
-					burst_to_bloom_to_be_consumed += num_cand_to_bloom_this_burst;
-					s_num_neighbors_base_level_to_bloom.write(num_cand_to_bloom_this_burst);
-					for (int i = 0; i < num_cand_to_bloom_this_burst; i++) {
-					#pragma HLS pipeline II=1
-						cand_t cand = s_all_candidates.read();
-						s_base_candidates_to_bloom.write(cand);
-					}
 				}
 				// forward the valid candidates & number from bloom to output
 				else if (!s_num_processed_candidates_burst_in.empty() && !s_num_valid_candidates_burst_in.empty()) {
@@ -389,29 +427,27 @@ public:
 					int num_valid = s_num_valid_candidates_burst_in.read();
 					current_base_nodes_valid += num_valid;
 					wait_data_fifo_first_iter<cand_t>(
-						num_valid, s_valid_candidates_burst_in, first_iter_s_valid_candidates_burst_in);
+						num_valid, s_valid_candidates_base_level_burst_in, first_iter_s_valid_candidates_base_level_burst_in);
 					s_num_valid_candidates_burst_out.write(num_valid);
 					for (int i = 0; i < num_valid; i++) {
 					#pragma HLS pipeline II=1
-						cand_t valid_cand = s_valid_candidates_burst_in.read();
+						cand_t valid_cand = s_valid_candidates_base_level_burst_in.read();
 						s_valid_candidates_out.write(valid_cand);
 					}
 					int num_processed = s_num_processed_candidates_burst_in.read();
 					current_base_nodes_filtered += num_processed;
-					burst_to_bloom_to_be_consumed -= num_processed;
 					// whether finished processing all batches in the current round
 					if (current_base_nodes_filtered == current_base_nodes_before_filtering) {
 						s_num_valid_candidates_base_level_total_out.write(current_base_nodes_valid);
 						current_base_nodes_valid = 0;
 						current_base_nodes_filtered = 0;
 						current_base_nodes_before_filtering = 0;
-						current_base_nodes_sent_to_filter = 0;
-						burst_to_bloom_to_be_consumed = 0;
 					}
 				}
 			}
 		}
 	}
+
 
 	// the top-level function that runs the bloom filter & bypassing the upper level
 	void bloom_filter_top_level(
@@ -438,6 +474,12 @@ public:
 		hls::stream<cand_t> s_base_candidates_to_bloom;
 #pragma HLS stream variable=s_base_candidates_to_bloom depth=512
 
+		hls::stream<int> s_num_valid_candidates_upper_levels_total;
+#pragma HLS stream variable=s_num_valid_candidates_upper_levels_total depth=16
+
+		hls::stream<cand_t> s_valid_candidates_upper_levels;
+#pragma HLS stream variable=s_valid_candidates_upper_levels depth=512
+
 		hls::stream<int> s_num_processed_candidates_burst_from_bloom; // one round (s_num_neighbors) can contain multiple bursts
 #pragma HLS stream variable=s_num_processed_candidates_burst_from_bloom depth=16
 
@@ -447,34 +489,50 @@ public:
 		hls::stream<cand_t> s_valid_candidates_burst_from_bloom;
 #pragma HLS stream variable=s_valid_candidates_burst_from_bloom depth=512
 
+		hls::stream<int> s_finish_replicate_s_num_neighbors_base_level;
+#pragma HLS stream variable=s_finish_replicate_s_num_neighbors_base_level depth=16
+
 		hls::stream<int> s_finish_split_upper_base_workloads;
 #pragma HLS stream variable=s_finish_split_upper_base_workloads depth=16
 
+		hls::stream<int> s_finish_bloom;
+#pragma HLS stream variable=s_finish_bloom depth=16
+
+		const int rep_factor = 2;
+
+		hls::stream<int> s_num_neighbors_base_level_replicated[rep_factor];
+#pragma HLS stream variable=s_num_neighbors_base_level_replicated depth=16
+
+		replicate_s_control<rep_factor, int>(
+			// in (initialization)
+			query_num,
+			// in (stream)
+			s_num_neighbors_base_level,
+			s_finish_in,
+			
+			// out (stream)
+			s_num_neighbors_base_level_replicated,
+			s_finish_replicate_s_num_neighbors_base_level
+		);
+
 		split_upper_base_workloads(
 			query_num, 
-			hash_seed,
 
 			// in streams: from the fetch neighbor ID PE
 			s_num_neighbors_upper_levels,
-			s_num_neighbors_base_level,
+			s_num_neighbors_base_level_replicated[0],
 			s_all_candidates,
-			// in streams: from bloom filter
-			s_num_processed_candidates_burst_from_bloom, // one round (s_num_neighbors) can contain multiple bursts
-			s_num_valid_candidates_burst_from_bloom, // one round (s_num_neighbors) can contain multiple bursts
-			s_valid_candidates_burst_from_bloom,
-			s_finish_in,
+			s_finish_replicate_s_num_neighbors_base_level,
 
 			// out streams: to bloom 
 			s_num_neighbors_base_level_to_bloom, 
 			s_base_candidates_to_bloom,
-			// out stream: to output
-			s_num_valid_candidates_burst, // one round (s_num_neighbors) can contain multiple bursts
-			s_num_valid_candidates_upper_levels_total_out, // one round can contain multiple bursts
-			s_num_valid_candidates_base_level_total_out, // one round can contain multiple bursts
-			s_valid_candidates, // contains both burst base layer / or complete upper layer
-			s_finish_split_upper_base_workloads
-		);
 
+			// out stream: to output
+			s_num_valid_candidates_upper_levels_total, // one round can contain multiple bursts
+			s_valid_candidates_upper_levels, // contains both burst base layer / or complete upper layer
+			s_finish_split_upper_base_workloads);
+		
 		run_bloom_filter(
 			query_num, 
 			hash_seed,
@@ -485,7 +543,30 @@ public:
 			s_num_processed_candidates_burst_from_bloom, // number of processed input, no matter whether valid
 			s_num_valid_candidates_burst_from_bloom, // one round (s_num_candidates) can contain multiple bursts
 			s_valid_candidates_burst_from_bloom,
-			s_finish_out
+			s_finish_bloom
 		);
+
+		collect_bloom_filter_results(
+			query_num, 
+
+			// in streams: from the fetch neighbor ID PE
+			s_num_neighbors_base_level_replicated[1],
+
+			// in stream: from the task splitter
+			s_num_valid_candidates_upper_levels_total, // one round = one burst
+			s_valid_candidates_upper_levels,
+
+			// in streams: from bloom filter
+			s_num_processed_candidates_burst_from_bloom, // one round (s_num_neighbors) can contain multiple bursts
+			s_num_valid_candidates_burst_from_bloom, // one round (s_num_neighbors) can contain multiple bursts
+			s_valid_candidates_burst_from_bloom,
+			s_finish_bloom,
+
+			// out stream: to output
+			s_num_valid_candidates_burst, // one round (s_num_neighbors) can contain multiple bursts
+			s_num_valid_candidates_upper_levels_total_out, // one round can contain multiple bursts
+			s_num_valid_candidates_base_level_total_out, // one round can contain multiple bursts
+			s_valid_candidates, // contains both burst base layer / or complete upper layer
+			s_finish_out);
 	}
 };

@@ -12,7 +12,7 @@ const float large_float = 1E+20f; // 1E+20f is large enough for cosine similarit
 
 // max queue sizes
 const int hardware_result_queue_size = 64; // 128;
-const int hardware_candidate_queue_size = 64; // 128;
+const int hardware_candidate_queue_size = 48; // 128;
 
 // bloom filter setting
 const int bloom_num_hash_funs = 4; 
@@ -20,4 +20,4 @@ const int bloom_num_bucket_addr_bits = 8 + 10; // 256 * 1024
 const int bloom_num_buckets = 1 << bloom_num_bucket_addr_bits;
 
 // async batch size tracking
-const int hardware_async_batch_size = 16;
+const int hardware_async_batch_size = 128; // to infer BRAM

@@ -28,6 +28,7 @@ void send_requests(
     ) {
 
 	const int vec_AXI_num = d % FLOAT_PER_AXI == 0? d / FLOAT_PER_AXI : d / FLOAT_PER_AXI + 1; 
+	int max_burst_size = 512; // assumption: bloom-fetch-compute should not be able to yet more than 512 results
 
 	int finish;
 	for (int qid = 0; qid < query_num; qid++) {
@@ -43,22 +44,36 @@ void send_requests(
 
 		if (run_upper_levels) {
 		// write upper level
-			s_num_neighbors_upper_levels.write(iter_per_query);
-			for (int i = 0; i < iter_per_query; i++) {
-			#pragma HLS pipeline II=1
-				int reg_key = mem_keys[i];
-				cand_t reg_cand = {reg_key, 1};
-				s_fetched_neighbor_ids.write(reg_cand);
+			int num_write_left = iter_per_query;
+			int total_writes = 0;
+			while (num_write_left > 0) {
+				int num_write_this_iter = num_write_left > max_burst_size? max_burst_size : num_write_left;
+				num_write_left -= num_write_this_iter;
+				s_num_neighbors_upper_levels.write(num_write_this_iter);
+				for (int i = 0; i < num_write_this_iter; i++) {
+				#pragma HLS pipeline II=1
+					int reg_key = mem_keys[total_writes + i];
+					cand_t reg_cand = {reg_key, 0};
+					s_fetched_neighbor_ids.write(reg_cand);
+				}
+				total_writes += num_write_this_iter;
 			}
 		}
 		if (run_base_level) {
 			// write base level
-			s_num_neighbors_base_level.write(iter_per_query);
-			for (int i = 0; i < iter_per_query; i++) {
-			#pragma HLS pipeline II=1
-				int reg_key = mem_keys[i];
-				cand_t reg_cand = {reg_key, 0};
-				s_fetched_neighbor_ids.write(reg_cand);
+			int num_write_left = iter_per_query;
+			int total_writes = 0;
+			while (num_write_left > 0) {
+				int num_write_this_iter = num_write_left > max_burst_size? max_burst_size : num_write_left;
+				num_write_left -= num_write_this_iter;
+				s_num_neighbors_base_level.write(num_write_this_iter);
+				for (int i = 0; i < num_write_this_iter; i++) {
+				#pragma HLS pipeline II=1
+					int reg_key = mem_keys[total_writes + i];
+					cand_t reg_cand = {reg_key, 0};
+					s_fetched_neighbor_ids.write(reg_cand);
+				}
+				total_writes += num_write_this_iter;
 			}
 		}
 		s_finish_query_send_requests.write(1);

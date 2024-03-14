@@ -12,7 +12,7 @@ const float large_float = 1E+20f; // 1E+20f is large enough for cosine similarit
 
 // max queue sizes
 const int hardware_result_queue_size = 64; // 128;
-const int hardware_candidate_queue_size = 64; // 128;
+const int hardware_candidate_queue_size = 48; // 128;
 
 // bloom filter setting
 const int bloom_num_hash_funs = 4; 

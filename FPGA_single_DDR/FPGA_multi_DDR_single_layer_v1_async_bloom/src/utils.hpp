@@ -123,7 +123,7 @@ void replicate_s_read_iter_and_s_data(
 	for (int qid = 0; qid < query_num; qid++) {
 		while (true) {
 			// check query finish
-			if (!s_finish_query_in.empty() && s_read_iter.empty()) {
+			if (!s_finish_query_in.empty() && s_read_iter.empty() && s_data.empty()) {
 				s_finish_query_out.write(s_finish_query_in.read());
 				break;
 			} else if (!s_read_iter.empty() && !s_data.empty()) {

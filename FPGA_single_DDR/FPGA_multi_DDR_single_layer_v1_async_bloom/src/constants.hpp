@@ -1,6 +1,6 @@
 #pragma once
 
-#define N_CHANNEL 4 // has to be 2^n
+#define N_CHANNEL 1 // has to be 2^n
 
 #define FLOAT_PER_AXI 16 // 512 bit / 32 bit = 16
 #define INT_PER_AXI 16
@@ -14,7 +14,7 @@ const float large_float = 1E+20f; // 1E+20f is large enough for cosine similarit
 
 // max queue sizes
 const int hardware_result_queue_size = 64; // 128;
-const int hardware_candidate_queue_size = 64; // 128;
+const int hardware_candidate_queue_size = 48; // 128;
 
 // bloom filter setting: https://hur.st/bloomfilter/?n=2500&p=&m=64000&k=4
 const int bloom_num_hash_funs = 4; 
