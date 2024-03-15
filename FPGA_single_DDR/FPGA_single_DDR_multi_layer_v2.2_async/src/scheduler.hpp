@@ -59,7 +59,7 @@ void task_scheduler(
 	result_t queue_replication_array[hardware_candidate_queue_size];
 #pragma HLS array_partition variable=queue_replication_array complete
 
-	int async_batch_size_array[hardware_candidate_queue_size];
+	int async_batch_size_array[hardware_async_batch_size];
 
 	// read entry vector
 	for (int i = 0; i < vec_AXI_num; i++) {
@@ -225,4 +225,7 @@ void task_scheduler(
 
 		mem_debug[qid * debug_size + 1] = debug_num_hops;
 	}
+
+	while (s_finish_query_in.empty()) {}
+	int finish_query_in = s_finish_query_in.read();
 }

@@ -203,4 +203,7 @@ void task_scheduler(
 
 		mem_debug[qid * debug_size + 1] = debug_num_hops;
 	}
+
+	while (s_finish_query_in.empty()) {}
+	int finish_query_in = s_finish_query_in.read();
 }

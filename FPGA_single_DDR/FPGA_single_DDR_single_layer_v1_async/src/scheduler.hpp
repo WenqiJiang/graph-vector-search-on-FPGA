@@ -39,9 +39,6 @@ void task_scheduler(
 	bool first_iter_s_largest_result_queue_elements = true;
 	// bool first_iter_s_debug_num_vec_base_layer = true;
 
-	float query_vector_buffer[D_MAX];
-#pragma HLS unroll variable=query_vector_buffer factor=float_per_axi
-
 	Priority_queue<result_t, hardware_candidate_queue_size, Collect_smallest> candidate_queue(candidate_queue_runtime_size);
 	const int sort_swap_round = candidate_queue_runtime_size % 2 == 0? candidate_queue_runtime_size / 2 : candidate_queue_runtime_size / 2 + 1;
 
@@ -49,16 +46,24 @@ void task_scheduler(
 #pragma HLS array_partition variable=queue_replication_array complete
 
 	int async_batch_size_array[hardware_async_batch_size];
-	const int debug_size = 2;
-	int debug_signals[debug_size];
-	int* debug_hops_base_layer = &debug_signals[0];
-	int* debug_num_vec_base_layer = &debug_signals[1];
+
+	const int debug_size = 1;
+	// const int debug_size = 2;
+	// int debug_signals[debug_size];
+	// int* debug_hops_base_layer = &debug_signals[0];
+	// int* debug_num_vec_base_layer = &debug_signals[1];
+	int debug_hops_base_layer;
 
 	for (int qid = 0; qid < query_num; qid++) {
-
-		for (int did = 0; did < debug_size; did++) {
-			debug_signals[did] = 0;
+		// here, make sure do not start the next query before the current query if fully ended,
+		//   because the query termination condition of other PEs is that finish signal arrives && data FIFOs are empty
+		if (qid > 0) {
+			while (s_finish_query_in.empty()) {}
+			int finish_query_in = s_finish_query_in.read();
 		}
+		// for (int did = 0; did < debug_size; did++) {
+		// 	debug_signals[did] = 0;
+		// }
 
 		// send out query vector
 		int start_addr = qid * vec_AXI_num;
@@ -66,13 +71,6 @@ void task_scheduler(
 		#pragma HLS pipeline II=1
 			ap_uint<512> query_vector_AXI = query_vectors[start_addr + i];
 			s_query_vectors.write(query_vector_AXI);
-
-			for (int j = 0; j < FLOAT_PER_AXI; j++) {
-			#pragma HLS unroll
-				ap_uint<32> query_vector_uint32 = query_vector_AXI.range(32 * (j + 1) - 1, 32 * j);
-				float query_vector_float = *((float*) (&query_vector_uint32));
-				query_vector_buffer[i * FLOAT_PER_AXI + j] = query_vector_float;
-			}
 		}
 
 		// search base layer
@@ -92,7 +90,8 @@ void task_scheduler(
 		//   adding entry to the result immediately will lead to visit tag mismatch as entry can be inserted twice into the result queue
 		// s_entry_point_base_level.write({currObj, 0, curdist}); 
 
-		*debug_hops_base_layer = 1;
+		// *debug_hops_base_layer = 1;
+		debug_hops_base_layer = 1;
 
 		bool stop = false;
 		while (!stop) {
@@ -129,7 +128,8 @@ void task_scheduler(
 							if (candidate_queue.queue[smallest_element_position].dist <= threshold &&
 								candidate_queue.queue[smallest_element_position].dist < large_float) {
 								candidate_queue.pop_top(s_top_candidates);
-								(*debug_hops_base_layer)++;
+								// (*debug_hops_base_layer)++;
+								debug_hops_base_layer++;
 								current_cand_batch_size++;
 							} else {
 								break;
@@ -158,14 +158,14 @@ void task_scheduler(
 		// 	1, s_debug_num_vec_base_layer, first_iter_s_debug_num_vec_base_layer);
 		// *debug_num_vec_base_layer = s_debug_num_vec_base_layer.read();
 
-		for (int did = 0; did < debug_size; did++) {
-		#pragma HLS pipeline II=1
-			mem_debug[qid * debug_size + did] = debug_signals[did];
-		}
+		// for (int did = 0; did < debug_size; did++) {
+		// #pragma HLS pipeline II=1
+		// 	mem_debug[qid * debug_size + did] = debug_signals[did];
+		// }
 
-		// here, make sure do not start the next query before the current query if fully ended,
-		//   because the query termination condition of other PEs is that finish signal arrives && data FIFOs are empty
-		while (s_finish_query_in.empty()) {}
-		int finish_query_in = s_finish_query_in.read();
+		mem_debug[qid * debug_size] = debug_hops_base_layer;
 	}
+
+	while (s_finish_query_in.empty()) {}
+	int finish_query_in = s_finish_query_in.read();
 }

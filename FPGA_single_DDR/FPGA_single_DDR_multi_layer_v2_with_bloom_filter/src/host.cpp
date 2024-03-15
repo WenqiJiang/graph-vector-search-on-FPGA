@@ -34,6 +34,8 @@ int main(int argc, char** argv)
 
     // in init
     int query_num = 10000;
+	int query_offset = 0; // starting from query x
+	int query_num_after_offset = query_num + query_offset > 10000? 10000 - query_offset : query_num;
     int ef = 64;
     int candidate_queue_runtime_size = hardware_candidate_queue_size;
     int d = 128;
@@ -41,7 +43,6 @@ int main(int argc, char** argv)
 	int runtime_n_buckets = 1 << runtime_n_bucket_addr_bits;
 	uint32_t hash_seed = 1;
     assert (ef <= hardware_result_queue_size);
-    assert (ef <= hardware_candidate_queue_size);
 
     // initialization values
     int max_level; // = 16;
@@ -163,18 +164,18 @@ int main(int argc, char** argv)
 
     // query vector = 4-byte ID + d * (uint8) vectors
     size_t len_per_query = 4 + d;
-    for (int qid = 0; qid < query_num; qid++) {
+    for (int qid = 0; qid < query_num_after_offset; qid++) {
         for (int i = 0; i < d; i++) {
-            query_vectors[qid * d + i] = (float) raw_query_vectors[qid * len_per_query + 4 + i];
+            query_vectors[qid * d + i] = (float) raw_query_vectors[(qid + query_offset) * len_per_query + 4 + i];
         }
     }
 
     // ground truth = 4-byte ID + 1000 * 4-byte ID + 1000 or 4-byte distances
     size_t len_per_gt = (4 + 1000 * 4) / 4;
-    for (int qid = 0; qid < query_num; qid++) {
+    for (int qid = 0; qid < query_num_after_offset; qid++) {
         for (int i = 0; i < max_topK; i++) {
-            gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[qid * len_per_gt + 1 + i];
-            gt_dist[qid * max_topK + i] = raw_gt_dist[qid * len_per_gt + 1 + i];
+            gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[(qid + query_offset) * len_per_gt + 1 + i];
+            gt_dist[qid * max_topK + i] = raw_gt_dist[(qid + query_offset) * len_per_gt + 1 + i];
         }
     }
 
@@ -308,7 +309,7 @@ int main(int argc, char** argv)
 
     int dist_match_id_mismatch_cnt = 0;
 
-    for (int qid = 0; qid < query_num; qid++) {
+    for (int qid = 0; qid < query_num_after_offset; qid++) {
 
         k = 1;
         for (int i = 0; i < k; i++) {
@@ -342,8 +343,8 @@ int main(int argc, char** argv)
     }
 
     // Print recall
-    std::cout << "Recall@1=" << (float) top1_correct_count / query_num << std::endl;
-    std::cout << "Recall@10=" << (float) top10_correct_count / (query_num * 10) << std::endl;
+    std::cout << "Recall@1=" << (float) top1_correct_count / query_num_after_offset << std::endl;
+    std::cout << "Recall@10=" << (float) top10_correct_count / (query_num_after_offset * 10) << std::endl;
 
     std::cout << "Dist match id mismatch count=" << dist_match_id_mismatch_cnt << std::endl;
 

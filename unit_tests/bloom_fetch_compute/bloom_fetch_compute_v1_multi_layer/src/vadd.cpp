@@ -53,7 +53,7 @@ void send_requests(
 				for (int i = 0; i < num_write_this_iter; i++) {
 				#pragma HLS pipeline II=1
 					int reg_key = mem_keys[total_writes + i];
-					cand_t reg_cand = {reg_key, 0};
+					cand_t reg_cand = {reg_key, 1}; // upper layer
 					s_fetched_neighbor_ids.write(reg_cand);
 				}
 				total_writes += num_write_this_iter;

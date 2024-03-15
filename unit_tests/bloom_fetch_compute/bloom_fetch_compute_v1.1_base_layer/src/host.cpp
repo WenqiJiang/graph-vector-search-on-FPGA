@@ -95,11 +95,11 @@ int main(int argc, char** argv)
 	OCL_CHECK(err, cl::Buffer buffer_mem_keys (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
 			bytes_mem_keys, mem_keys.data(), &err));
     // in & out (db vec is mixed with visited list)
-    OCL_CHECK(err, cl::Buffer buffer_db_vectors (context,CL_MEM_USE_HOST_PTR,	
+    OCL_CHECK(err, cl::Buffer buffer_db_vectors (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,	
             bytes_db_vectors, db_vectors.data(), &err));
 
     // out
-    OCL_CHECK(err, cl::Buffer buffer_out (context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+    OCL_CHECK(err, cl::Buffer buffer_out (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
             bytes_out, out.data(), &err));
 	std::cout << "Finish allocate buffer...\n";
 

@@ -120,15 +120,18 @@ void replicate_s_read_iter_and_s_data(
 	hls::stream<int>& s_finish_query_out
 ) {
 	
+	bool first_iter_s_data = true;
+
 	for (int qid = 0; qid < query_num; qid++) {
 		while (true) {
 			// check query finish
 			if (!s_finish_query_in.empty() && s_read_iter.empty() && s_data.empty()) {
 				s_finish_query_out.write(s_finish_query_in.read());
 				break;
-			} else if (!s_read_iter.empty() && !s_data.empty()) {
+			} else if (!s_read_iter.empty()) {
 				// receive task
 				int read_iter = s_read_iter.read();
+				wait_data_fifo_first_iter<s_data_t>(read_iter, s_data, first_iter_s_data);
 				for (int i = 0; i < rep_factor; i++) {
 				#pragma HLS UNROLL
 					s_read_iter_replicated[i].write(read_iter);

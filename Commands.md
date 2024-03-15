@@ -50,6 +50,13 @@ rm *.log # remove emulation logs
 
 Kill all Xilinx / Vitis process (prevent failure in removing files):
 
+Kill everything:
+
+```
+# careful when using this, don't use during build
+ps aux | grep wejiang | awk '{print $2}' | xargs -i kill -9 {}  
+```
+
 ```
 ps aux | grep -i xilinx | grep wejiang | awk '{print $2}' | xargs -i kill -9 {}  
 ```

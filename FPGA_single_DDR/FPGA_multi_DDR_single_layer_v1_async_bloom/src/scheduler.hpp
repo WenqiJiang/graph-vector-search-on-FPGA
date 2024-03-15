@@ -47,14 +47,16 @@ void task_scheduler(
 
 	int async_batch_size_array[hardware_async_batch_size];
 
-	for (int qid = 0; qid < query_num; qid++) {
+	const int debug_size = 1;
+	int debug_hops_base_layer;
 
-		const int debug_size = 5;
-		int debug_bottom_entry_id = 0;
-		int debug_hops_upper_layers = 0;
-		int debug_num_vec_upper_layers = 0;
-		int debug_hops_base_layer = 0;
-		int debug_num_vec_base_layer = 0;
+	for (int qid = 0; qid < query_num; qid++) {
+		// here, make sure do not start the next query before the current query if fully ended,
+		//   because the query termination condition of other PEs is that finish signal arrives && data FIFOs are empty
+		if (qid > 0) {
+			while (s_finish_query_in.empty()) {}
+			int finish_query_in = s_finish_query_in.read();
+		}
 
 		// send out query vector
 		int start_addr = qid * vec_AXI_num;
@@ -150,18 +152,9 @@ void task_scheduler(
 		// 	1, s_debug_num_vec_base_layer, first_iter_s_debug_num_vec_base_layer);
 		// debug_num_vec_base_layer = s_debug_num_vec_base_layer.read();
 
-		int debug_signals[debug_size];
-		debug_signals[0] = debug_hops_base_layer;
-		debug_signals[1] = debug_num_vec_base_layer;
-
-		for (int did = 0; did < debug_size; did++) {
-		#pragma HLS pipeline II=1
-			mem_debug[qid * debug_size + did] = debug_signals[did];
-		}
-
-		// here, make sure do not start the next query before the current query if fully ended,
-		//   because the query termination condition of other PEs is that finish signal arrives && data FIFOs are empty
-		while (s_finish_query_in.empty()) {}
-		int finish_query_in = s_finish_query_in.read();
+		mem_debug[qid * debug_size] = debug_hops_base_layer;
 	}
+
+	while (s_finish_query_in.empty()) {}
+	int finish_query_in = s_finish_query_in.read();
 }

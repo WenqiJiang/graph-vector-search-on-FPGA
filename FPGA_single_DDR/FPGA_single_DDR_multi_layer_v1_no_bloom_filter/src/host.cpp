@@ -38,7 +38,6 @@ int main(int argc, char** argv)
     int candidate_queue_runtime_size = hardware_candidate_queue_size;
     int d = 128;
     assert (ef <= hardware_result_queue_size);
-    assert (ef <= hardware_candidate_queue_size);
 
     // initialization values
     int max_level; // = 16;

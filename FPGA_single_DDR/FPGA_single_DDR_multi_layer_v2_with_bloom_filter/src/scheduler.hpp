@@ -56,6 +56,8 @@ void task_scheduler(
 	result_t queue_replication_array[hardware_candidate_queue_size];
 #pragma HLS array_partition variable=queue_replication_array complete
 
+	volatile int finish_query_in;
+
 	// read entry vector
 	for (int i = 0; i < vec_AXI_num; i++) {
 	#pragma HLS pipeline II=1
@@ -74,7 +76,7 @@ void task_scheduler(
 		//   because the query termination condition of other PEs is that finish signal arrives && data FIFOs are empty
 		if (qid > 0) {
 			while (s_finish_query_in.empty()) {}
-			int finish_query_in = s_finish_query_in.read();
+			finish_query_in = s_finish_query_in.read();
 		}
 
 		// send out query vector
@@ -184,4 +186,7 @@ void task_scheduler(
 
 		mem_debug[qid * debug_size + 1] = debug_num_hops;
 	}
+
+	while (s_finish_query_in.empty()) {}
+	finish_query_in = s_finish_query_in.read();
 }

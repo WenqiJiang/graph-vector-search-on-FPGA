@@ -42,7 +42,6 @@ int main(int argc, char** argv)
 	int runtime_n_buckets = 1 << runtime_n_bucket_addr_bits;
 	uint32_t hash_seed = 1;
     assert (ef <= hardware_result_queue_size);
-    assert (ef <= hardware_candidate_queue_size);
 
     // initialization values
     int max_level; // = 16;

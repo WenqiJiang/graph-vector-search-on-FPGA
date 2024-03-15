@@ -158,3 +158,16 @@ Developped on V1.2, support cand_t and interface to the base-level-only accelera
 ### (Use this for multi-layer search) V2: +support for upper/lower layer split based on V1.2
 
 Based on V1.2, add higher-level interface to support the split of upper/base layers. Essentially bypassing the bloom filter for the upper layers.
+
+Debug log: the task spliter and results collector before and after the bloom filter has to be 2 different PEs. Otherwise, if we merge them into one, there are feedback signals between the two, and thus the finish sequence cannot be correctly implemented, leading to deadlock in some cases. 
+
+Performance: 
+
+```
+    int query_num = 100;
+    int read_iter_per_query = 10000;
+```
+
+Theoretical performance: 8 cycle per base layer + 1 cycle per upper layer = 9 cycle
+
+Achieved 46.5705 ms @ 200 MHz -> 46.5705 / 1000 * 200 * 1e6 / (100 * 10000) = 9.3 cycle -> very close to optimal.
