@@ -34,6 +34,8 @@ int main(int argc, char** argv)
 
     // in init
     int query_num = 10000;
+	int query_offset = 0; // starting from query x
+	int query_num_after_offset = query_num + query_offset > 10000? 10000 - query_offset : query_num;
     int ef = 64;
     int candidate_queue_runtime_size = hardware_candidate_queue_size;
 	int max_cand_batch_size = 4;
@@ -73,9 +75,9 @@ int main(int argc, char** argv)
     size_t bytes_out_dist = query_num * ef * sizeof(float);	
     size_t bytes_mem_debug = query_num * 2 * sizeof(int);
 
-    const char* fname_ground_links = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links.bin";
+    const char* fname_ground_links = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
     const char* fname_ground_labels = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_labels.bin";
-    const char* fname_ground_vectors = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors.bin";
+    const char* fname_ground_vectors = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
     const char* fname_upper_links = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/upper_links.bin";
     const char* fname_upper_links_pointers = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/upper_links_pointers.bin";
     const char* fname_query_vectors =  "/mnt/scratch/wenqi/Faiss_experiments/bigann/bigann_query.bvecs";
@@ -163,18 +165,18 @@ int main(int argc, char** argv)
 
     // query vector = 4-byte ID + d * (uint8) vectors
     size_t len_per_query = 4 + d;
-    for (int qid = 0; qid < query_num; qid++) {
+    for (int qid = 0; qid < query_num_after_offset; qid++) {
         for (int i = 0; i < d; i++) {
-            query_vectors[qid * d + i] = (float) raw_query_vectors[qid * len_per_query + 4 + i];
+            query_vectors[qid * d + i] = (float) raw_query_vectors[(qid + query_offset) * len_per_query + 4 + i];
         }
     }
 
     // ground truth = 4-byte ID + 1000 * 4-byte ID + 1000 or 4-byte distances
     size_t len_per_gt = (4 + 1000 * 4) / 4;
-    for (int qid = 0; qid < query_num; qid++) {
+    for (int qid = 0; qid < query_num_after_offset; qid++) {
         for (int i = 0; i < max_topK; i++) {
-            gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[qid * len_per_gt + 1 + i];
-            gt_dist[qid * max_topK + i] = raw_gt_dist[qid * len_per_gt + 1 + i];
+            gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[(qid + query_offset) * len_per_gt + 1 + i];
+            gt_dist[qid * max_topK + i] = raw_gt_dist[(qid + query_offset) * len_per_gt + 1 + i];
         }
     }
 
@@ -309,7 +311,7 @@ int main(int argc, char** argv)
 
     int dist_match_id_mismatch_cnt = 0;
 
-    for (int qid = 0; qid < query_num; qid++) {
+    for (int qid = 0; qid < query_num_after_offset; qid++) {
 
         k = 1;
         for (int i = 0; i < k; i++) {
@@ -343,8 +345,8 @@ int main(int argc, char** argv)
     }
 
     // Print recall
-    std::cout << "Recall@1=" << (float) top1_correct_count / query_num << std::endl;
-    std::cout << "Recall@10=" << (float) top10_correct_count / (query_num * 10) << std::endl;
+    std::cout << "Recall@1=" << (float) top1_correct_count / query_num_after_offset << std::endl;
+    std::cout << "Recall@10=" << (float) top10_correct_count / (query_num_after_offset * 10) << std::endl;
 
     std::cout << "Dist match id mismatch count=" << dist_match_id_mismatch_cnt << std::endl;
 

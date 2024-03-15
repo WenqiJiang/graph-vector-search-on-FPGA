@@ -34,14 +34,16 @@ int main(int argc, char** argv)
 
     // in init
     int query_num = 10000;
+    int query_offset = 0; // starting from query x
+    int query_num_after_offset = query_num + query_offset > 10000? 10000 - query_offset : query_num;
     int ef = 64;
     int candidate_queue_runtime_size = hardware_candidate_queue_size;
-	int max_cand_batch_size = 4;
-	int max_async_stage_num = 2;
+    int max_cand_batch_size = 4;
+    int max_async_stage_num = 2;
     int d = 128;
-	int runtime_n_bucket_addr_bits = 8 + 10; // 256K buckets
-	int runtime_n_buckets = 1 << runtime_n_bucket_addr_bits;
-	uint32_t hash_seed = 1;
+    int runtime_n_bucket_addr_bits = 8 + 10; // 256K buckets
+    int runtime_n_buckets = 1 << runtime_n_bucket_addr_bits;
+    uint32_t hash_seed = 1;
     assert (ef <= hardware_result_queue_size);
 
     // initialization values
@@ -69,58 +71,267 @@ int main(int argc, char** argv)
     size_t bytes_per_vec = d * sizeof(float);
     size_t bytes_per_db_vec_plus_padding = d % 16 == 0? d * sizeof(float) + 64 : (d + 16 - d % 16) * sizeof(float) + 64;
     size_t bytes_entry_vector = bytes_per_vec;
-	size_t bytes_entry_point_ids = query_num * sizeof(int);
+    size_t bytes_entry_point_ids = query_num * sizeof(int);
     size_t bytes_query_vectors = query_num * bytes_per_vec;
     size_t bytes_out_id = query_num * ef * sizeof(int);
     size_t bytes_out_dist = query_num * ef * sizeof(float);	
     size_t bytes_mem_debug = query_num * 5 * sizeof(int);
 
-    const char* fname_ground_links = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links.bin";
+#if N_CHANNEL == 1
+    const char* fname_ground_links_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
+#elif N_CHANNEL == 2
+    const char* fname_ground_links_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_2_chan_0.bin";
+    const char* fname_ground_links_chan_1 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_2_chan_1.bin";
+#elif N_CHANNEL == 4
+    const char* fname_ground_links_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_4_chan_0.bin";
+    const char* fname_ground_links_chan_1 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_4_chan_1.bin";
+    const char* fname_ground_links_chan_2 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_4_chan_2.bin";
+    const char* fname_ground_links_chan_3 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_4_chan_3.bin";
+#elif N_CHANNEL == 8
+    const char* fname_ground_links_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_8_chan_0.bin";
+    const char* fname_ground_links_chan_1 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_8_chan_1.bin";
+    const char* fname_ground_links_chan_2 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_8_chan_2.bin";
+    const char* fname_ground_links_chan_3 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_8_chan_3.bin";
+    const char* fname_ground_links_chan_4 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_8_chan_4.bin";
+    const char* fname_ground_links_chan_5 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_8_chan_5.bin";
+    const char* fname_ground_links_chan_6 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_8_chan_6.bin";
+    const char* fname_ground_links_chan_7 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_8_chan_7.bin";
+#elif N_CHANNEL == 16
+    const char* fname_ground_links_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_16_chan_0.bin";#if N_CHANNEL == 1
+    const00
+#elif N_CHANNEL == 2
+    const char* fname_ground_links_chan_7 0 "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_16_c2_chan_n";
+    const char* fname_ground_links_chan_11  "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_16_c2_chan_1";
+#endif
+
     const char* fname_ground_labels = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_labels.bin";
-    const char* fname_ground_vectors = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors.bin";
-    const char* fname_upper_links = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/upper_links.bin";
-    const char* fname_upper_links_pointers = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/upper_links_pointers.bin";
+
+#if N_CHANNEL == 1
+    const char* fname_ground_vectors_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
+#elif N_CHANNEL == 2
+    const char* fname_ground_vectors_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_2_chan_0.bin";
+    const char* fname_ground_vectors_chan_1 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_2_chan_1.bin";
+#elif N_CHANNEL == 4
+    const char* fname_ground_vectors_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_4_chan_0.bin";
+    const char* fname_ground_vectors_chan_1 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_4_chan_1.bin";
+    const char* fname_ground_vectors_chan_2 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_4_chan_2.bin";
+    const char* fname_ground_vectors_chan_3 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_4_chan_3.bin";
+#elif N_CHANNEL == 8
+    const char* fname_ground_vectors_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_8_chan_0.bin";
+    const char* fname_ground_vectors_chan_1 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_8_chan_1.bin";
+    const char* fname_ground_vectors_chan_2 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_8_chan_2.bin";
+    const char* fname_ground_vectors_chan_3 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_8_chan_3.bin";
+    const char* fname_ground_vectors_chan_4 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_8_chan_4.bin";
+    const char* fname_ground_vectors_chan_5 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_8_chan_5.bin";
+    const char* fname_ground_vectors_chan_6 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_8_chan_6.bin";
+    const char* fname_ground_vectors_chan_7 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_8_chan_7.bin";
+#elif N_CHANNEL == 16
+    const char* fname_ground_vectors_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_16_chan_0.bin";
+    const char* fname_ground_vectors_chan_1 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_16_chan_1.bin";
+    const char* fname_ground_vectors_chan_2 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_16_chan_2.bin";
+    const char* fname_ground_vectors_chan_3 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_16_chan_3.bin";
+    const char* fname_ground_vectors_chan_4 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_16_chan_4.bin";
+    const char* fname_ground_vectors_chan_5 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_16_chan_5.bin";
+    const char* fname_ground_vectors_chan_6 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_16_chan_6.bin";
+    const char* fname_ground_vectors_chan_7 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_16_chan_7.bin";
+    const char* fname_ground_vectors_chan_8 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_16_chan_8.bin";
+    const char* fname_ground_vectors_chan_9 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_16_chan_9.bin";
+    const char* fname_ground_vectors_chan_10 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_16_chan_10.bin";
+    const char* fname_ground_vectors_chan_11 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_16_chan_11.bin";
+    const char* fname_ground_vectors_chan_12 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_16_chan_12.bin";
+    const char* fname_ground_vectors_chan_13 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_16_chan_13.bin";
+    const char* fname_ground_vectors_chan_14 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_16_chan_14.bin";
+    const char* fname_ground_vectors_chan_15 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_16_chan_15.bin";
+#endif
+
     const char* fname_query_vectors =  "/mnt/scratch/wenqi/Faiss_experiments/bigann/bigann_query.bvecs";
     const char* fname_gt_vec_ID = "/mnt/scratch/wenqi/Faiss_experiments/bigann/gnd/idx_1M.ivecs";
     const char* fname_gt_dist = "/mnt/scratch/wenqi/Faiss_experiments/bigann/gnd/dis_1M.fvecs";
-    FILE* f_ground_links = fopen(fname_ground_links, "rb");
-	FILE* f_ground_labels = fopen(fname_ground_labels, "rb");
-    FILE* f_ground_vectors = fopen(fname_ground_vectors, "rb");
-    FILE* f_upper_links = fopen(fname_upper_links, "rb");
-    FILE* f_upper_links_pointers = fopen(fname_upper_links_pointers, "rb");
-    FILE* f_query_vectors = fopen(fname_query_vectors, "rb");
-    FILE* f_gt_vec_ID = fopen(fname_gt_vec_ID, "rb");
-    FILE* f_gt_dist = fopen(fname_gt_dist, "rb");
+    FILE* f_ground_links_chan_0 = fopen(fname_ground_links_chan_0, "rb");
+#if N_CHANNEL >= 2
+    FILE* f_ground_links_chan_1 = fopen(fname_ground_links_chan_1, "rb");
+#endif
+#if N_CHANNEL >= 4
+    FILE* f_ground_links_chan_2 = fopen(fname_ground_links_chan_2, "rb");
+    FILE* f_ground_links_chan_3 = fopen(fname_ground_links_chan_3, "rb");
+#endif
+#if N_CHANNEL >= 8
+    FILE* f_ground_links_chan_4 = fopen(fname_ground_links_chan_4, "rb");
+    FILE* f_ground_links_chan_5 = fopen(fname_ground_links_chan_5, "rb");
+    FILE* f_ground_links_chan_6 = fopen(fname_ground_links_chan_6, "rb");
+    FILE* f_ground_links_chan_7 = fopen(fname_ground_links_chan_7, "rb");
+#endif
+#if N_CHANNEL >= 16
+    FILE* f_ground_links_chan_8 = fopen(fname_ground_links_chan_8, "rb");
+    FILE* f_ground_links_chan_9 = fopen(fname_ground_links_chan_9, "rb");
+    FILE* f_ground_links_chan_10 = fopen(fname_ground_links_chan_10, "rb");
+    FILE* f_ground_links_chan_11 = fopen(fname_ground_links_chan_11, "rb");
+    FILE* f_ground_links_chan_12 = fopen(fname_ground_links_chan_12, "rb");
+    FILE* f_ground_links_chan_13 = fopen(fname_ground_links_chan_13, "rb");
+    FILE* f_ground_links_chan_14 = fopen(fname_ground_links_chan_14, "rb");
+    FILE* f_ground_links_chan_15 = fopen(fname_ground_links_chan_15, "rb");
+#endif
 
+    FILE* f_ground_labels = fopen(fname_ground_labels, "rb");
 
-    // get file size
-    size_t bytes_db_vectors = GetFileSize(fname_ground_vectors);
-    size_t bytes_ptr_to_upper_links = GetFileSize(fname_upper_links_pointers); // long = 8 bytes
-    size_t bytes_links_upper = GetFileSize(fname_upper_links);
-    size_t bytes_links_base = GetFileSize(fname_ground_links);
-	size_t bytes_labels_base = GetFileSize(fname_ground_labels); // int = 4 bytes
+    FILE* f_ground_vectors_chan_0 = fopen(fname_ground_vectors_chan_0, "rb");
+#if N_CHANNEL >= 2
+    FILE* f_ground_vectors_chan_1 = fopen(fname_ground_vectors_chan_1, "rb");
+#endif
+#if N_CHANNEL >= 4
+    FILE* f_ground_vectors_chan_2 = fopen(fname_ground_vectors_chan_2, "rb");
+    FILE* f_ground_vectors_chan_3 = fopen(fname_ground_vectors_chan_3, "rb");
+#endif
+#if N_CHANNEL >= 8
+    FILE* f_ground_vectors_chan_4 = fopen(fname_ground_vectors_chan_4, "rb");
+    FILE* f_ground_vectors_chan_5 = fopen(fname_ground_vectors_chan_5, "rb");
+    FILE* f_ground_vectors_chan_6 = fopen(fname_ground_vectors_chan_6, "rb");
+    FILE* f_ground_vectors_chan_7 = fopen(fname_ground_vectors_chan_7, "rb");
+#endif
+#if N_CHANNEL >= 16
+    FILE* f_ground_vectors_chan_8 = fopen(fname_ground_vectors_chan_8, "rb");
+    FILE* f_ground_vectors_chan_9 = fopen(fname_ground_vectors_chan_9, "rb");
+    FILE* f_ground_vectors_chan_10 = fopen(fname_ground_vectors_chan_10, "rb");
+    FILE* f_ground_vectors_chan_11 = fopen(fname_ground_vectors_chan_11, "rb");
+    FILE* f_ground_vectors_chan_12 = fopen(fname_ground_vectors_chan_12, "rb");
+    FILE* f_ground_vectors_chan_13 = fopen(fname_ground_vectors_chan_13, "rb");
+    FILE* f_ground_vectors_chan_14 = fopen(fname_ground_vectors_chan_14, "rb");
+    FILE* f_ground_vectors_chan_15 = fopen(fname_ground_vectors_chan_15, "rb");
+#endif
+
+FILE* f_query_vectors = fopen(fname_query_vectors, "rb");
+FILE* f_gt_vec_ID = fopen(fname_gt_vec_ID, "rb");
+FILE* f_gt_dist = fopen(fname_gt_dist, "rb");
+
+// get file size
+size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
+#if N_CHANNEL >= 2
+    size_t bytes_db_vectors_chan_1 = GetFileSize(fname_ground_vectors_chan_1);
+#endif
+#if N_CHANNEL >= 4
+    size_t bytes_db_vectors_chan_2 = GetFileSize(fname_ground_vectors_chan_2);
+    size_t bytes_db_vectors_chan_3 = GetFileSize(fname_ground_vectors_chan_3);
+#endif
+#if N_CHANNEL >= 8
+    size_t bytes_db_vectors_chan_4 = GetFileSize(fname_ground_vectors_chan_4);
+    size_t bytes_db_vectors_chan_5 = GetFileSize(fname_ground_vectors_chan_5);
+    size_t bytes_db_vectors_chan_6 = GetFileSize(fname_ground_vectors_chan_6);
+    size_t bytes_db_vectors_chan_7 = GetFileSize(fname_ground_vectors_chan_7);
+#endif
+#if N_CHANNEL >= 16
+    size_t bytes_db_vectors_chan_8 = GetFileSize(fname_ground_vectors_chan_8);
+    size_t bytes_db_vectors_chan_9 = GetFileSize(fname_ground_vectors_chan_9);
+    size_t bytes_db_vectors_chan_10 = GetFileSize(fname_ground_vectors_chan_10);
+    size_t bytes_db_vectors_chan_11 = GetFileSize(fname_ground_vectors_chan_11);
+    size_t bytes_db_vectors_chan_12 = GetFileSize(fname_ground_vectors_chan_12);
+    size_t bytes_db_vectors_chan_13 = GetFileSize(fname_ground_vectors_chan_13);
+    size_t bytes_db_vectors_chan_14 = GetFileSize(fname_ground_vectors_chan_14);
+    size_t bytes_db_vectors_chan_15 = GetFileSize(fname_ground_vectors_chan_15);
+#endif
+    
+    size_t bytes_links_base_chan_0 = GetFileSize(fname_ground_links_chan_0);
+#if N_CHANNEL >= 2
+    size_t bytes_links_base_chan_1 = GetFileSize(fname_ground_links_chan_1);
+#endif
+    #if N_CHANNEL >= 4
+    size_t bytes_links_base_chan_2 = GetFileSize(fname_ground_links_chan_2);
+    size_t bytes_links_base_chan_3 = GetFileSize(fname_ground_links_chan_3);
+#endif
+#if N_CHANNEL >= 8
+    size_t bytes_links_base_chan_4 = GetFileSize(fname_ground_links_chan_4);
+    size_t bytes_links_base_chan_5 = GetFileSize(fname_ground_links_chan_5);
+    size_t bytes_links_base_chan_6 = GetFileSize(fname_ground_links_chan_6);
+    size_t bytes_links_base_chan_7 = GetFileSize(fname_ground_links_chan_7);
+#endif
+#if N_CHANNEL >= 16
+    size_t bytes_links_base_chan_8 = GetFileSize(fname_ground_links_chan_8);
+    size_t bytes_links_base_chan_9 = GetFileSize(fname_ground_links_chan_9);
+    size_t bytes_links_base_chan_10 = GetFileSize(fname_ground_links_chan_10);
+    size_t bytes_links_base_chan_11 = GetFileSize(fname_ground_links_chan_11);
+    size_t bytes_links_base_chan_12 = GetFileSize(fname_ground_links_chan_12);
+    size_t bytes_links_base_chan_13 = GetFileSize(fname_ground_links_chan_13);
+    size_t bytes_links_base_chan_14 = GetFileSize(fname_ground_links_chan_14);
+    size_t bytes_links_base_chan_15 = GetFileSize(fname_ground_links_chan_15);
+#endif
+    size_t bytes_labels_base = GetFileSize(fname_ground_labels); // int = 4 bytes
     size_t raw_query_vectors_size = GetFileSize(fname_query_vectors);
     size_t raw_gt_vec_ID_size = GetFileSize(fname_gt_vec_ID);
     size_t raw_gt_dist_size = GetFileSize(fname_gt_dist);
-    std::cout << "bytes_db_vectors=" << bytes_db_vectors << std::endl;
-    std::cout << "bytes_ptr_to_upper_links=" << bytes_ptr_to_upper_links << std::endl;
-    std::cout << "bytes_links_upper=" << bytes_links_upper << std::endl;
-    std::cout << "bytes_links_base=" << bytes_links_base << std::endl;
-	std::cout << "raw_query_vectors_size=" << raw_query_vectors_size << std::endl;
-    assert(bytes_per_db_vec_plus_padding * num_db_vec == bytes_db_vectors);
+    std::cout << "bytes_db_vectors_chan_0=" << bytes_db_vectors_chan_0 << std::endl;
+    std::cout << "bytes_links_base_chan_0=" << bytes_links_base_chan_0 << std::endl;
+    std::cout << "raw_query_vectors_size=" << raw_query_vectors_size << std::endl;
+    size_t bytes_total_db_vectors = bytes_db_vectors_chan_0
+#if N_CHANNEL >= 2
+    + bytes_db_vectors_chan_1
+#endif
+#if N_CHANNEL >= 4
+    + bytes_db_vectors_chan_2 + bytes_db_vectors_chan_3
+#endif
+#if N_CHANNEL >= 8
+    + bytes_db_vectors_chan_4 + bytes_db_vectors_chan_5 + bytes_db_vectors_chan_6 + bytes_db_vectors_chan_7
+#endif
+#if N_CHANNEL >= 16
+    + bytes_db_vectors_chan_8 + bytes_db_vectors_chan_9 + bytes_db_vectors_chan_10 + bytes_db_vectors_chan_11
+    + bytes_db_vectors_chan_12 + bytes_db_vectors_chan_13 + bytes_db_vectors_chan_14 + bytes_db_vectors_chan_15
+#endif
+    ;
+    assert(bytes_per_db_vec_plus_padding * num_db_vec == bytes_total_db_vectors);
 
     // input vecs
-    std::vector<float, aligned_allocator<float>> entry_vector(bytes_entry_vector / sizeof(float));
-	std::vector<int, aligned_allocator<int>> entry_point_ids(bytes_entry_point_ids / sizeof(int));
+    std::vector<int, aligned_allocator<int>> entry_point_ids(bytes_entry_point_ids / sizeof(int));
     std::vector<float, aligned_allocator<float>> query_vectors(bytes_query_vectors / sizeof(float));
 
     // db vec
-    std::vector<float, aligned_allocator<float>> db_vectors(bytes_db_vectors / sizeof(float));
+    std::vector<float, aligned_allocator<float>> db_vectors_chan_0(bytes_db_vectors_chan_0 / sizeof(float));
+#if N_CHANNEL >= 2
+    std::vector<float, aligned_allocator<float>> db_vectors_chan_1(bytes_db_vectors_chan_1 / sizeof(float));
+#endif
+#if N_CHANNEL >= 4
+    std::vector<float, aligned_allocator<float>> db_vectors_chan_2(bytes_db_vectors_chan_2 / sizeof(float));
+    std::vector<float, aligned_allocator<float>> db_vectors_chan_3(bytes_db_vectors_chan_3 / sizeof(float));
+#endif
+#if N_CHANNEL >= 8
+    std::vector<float, aligned_allocator<float>> db_vectors_chan_4(bytes_db_vectors_chan_4 / sizeof(float));
+    std::vector<float, aligned_allocator<float>> db_vectors_chan_5(bytes_db_vectors_chan_5 / sizeof(float));
+    std::vector<float, aligned_allocator<float>> db_vectors_chan_6(bytes_db_vectors_chan_6 / sizeof(float));
+    std::vector<float, aligned_allocator<float>> db_vectors_chan_7(bytes_db_vectors_chan_7 / sizeof(float));
+#endif
+#if N_CHANNEL >= 16
+    std::vector<float, aligned_allocator<float>> db_vectors_chan_8(bytes_db_vectors_chan_8 / sizeof(float));
+    std::vector<float, aligned_allocator<float>> db_vectors_chan_9(bytes_db_vectors_chan_9 / sizeof(float));
+    std::vector<float, aligned_allocator<float>> db_vectors_chan_10(bytes_db_vectors_chan_10 / sizeof(float));
+    std::vector<float, aligned_allocator<float>> db_vectors_chan_11(bytes_db_vectors_chan_11 / sizeof(float));
+    std::vector<float, aligned_allocator<float>> db_vectors_chan_12(bytes_db_vectors_chan_12 / sizeof(float));
+    std::vector<float, aligned_allocator<float>> db_vectors_chan_13(bytes_db_vectors_chan_13 / sizeof(float));
+    std::vector<float, aligned_allocator<float>> db_vectors_chan_14(bytes_db_vectors_chan_14 / sizeof(float));
+    std::vector<float, aligned_allocator<float>> db_vectors_chan_15(bytes_db_vectors_chan_15 / sizeof(float));
+#endif
     
     // links
-    std::vector<long, aligned_allocator<long>> ptr_to_upper_links(bytes_ptr_to_upper_links / sizeof(long));
-    std::vector<int, aligned_allocator<int>> links_upper(bytes_links_upper / sizeof(int));
-    std::vector<int, aligned_allocator<int>> links_base(bytes_links_base / sizeof(int));
+    std::vector<int, aligned_allocator<int>> links_base_chan_0(bytes_links_base_chan_0 / sizeof(int));
+#if N_CHANNEL >= 2
+    std::vector<int, aligned_allocator<int>> links_base_chan_1(bytes_links_base_chan_1 / sizeof(int));
+#endif
+#if N_CHANNEL >= 4
+    std::vector<int, aligned_allocator<int>> links_base_chan_2(bytes_links_base_chan_2 / sizeof(int));
+    std::vector<int, aligned_allocator<int>> links_base_chan_3(bytes_links_base_chan_3 / sizeof(int));
+#endif
+#if N_CHANNEL >= 8
+    std::vector<int, aligned_allocator<int>> links_base_chan_4(bytes_links_base_chan_4 / sizeof(int));
+    std::vector<int, aligned_allocator<int>> links_base_chan_5(bytes_links_base_chan_5 / sizeof(int));
+    std::vector<int, aligned_allocator<int>> links_base_chan_6(bytes_links_base_chan_6 / sizeof(int));
+    std::vector<int, aligned_allocator<int>> links_base_chan_7(bytes_links_base_chan_7 / sizeof(int));
+#endif
+#if N_CHANNEL >= 16
+    std::vector<int, aligned_allocator<int>> links_base_chan_8(bytes_links_base_chan_8 / sizeof(int));
+    std::vector<int, aligned_allocator<int>> links_base_chan_9(bytes_links_base_chan_9 / sizeof(int));
+    std::vector<int, aligned_allocator<int>> links_base_chan_10(bytes_links_base_chan_10 / sizeof(int));
+    std::vector<int, aligned_allocator<int>> links_base_chan_11(bytes_links_base_chan_11 / sizeof(int));
+    std::vector<int, aligned_allocator<int>> links_base_chan_12(bytes_links_base_chan_12 / sizeof(int));
+    std::vector<int, aligned_allocator<int>> links_base_chan_13(bytes_links_base_chan_13 / sizeof(int));
+    std::vector<int, aligned_allocator<int>> links_base_chan_14(bytes_links_base_chan_14 / sizeof(int));
+    std::vector<int, aligned_allocator<int>> links_base_chan_15(bytes_links_base_chan_15 / sizeof(int));
+#endif
     
     // output
     std::vector<int, aligned_allocator<int>> out_id(bytes_out_id / sizeof(int));
@@ -128,7 +339,7 @@ int main(int argc, char** argv)
     std::vector<int, aligned_allocator<int>> mem_debug(bytes_mem_debug / sizeof(int));
 
     // intermediate buffer for queries, and ground truth
-	std::vector<int> labels_base(bytes_labels_base / sizeof(int));
+    std::vector<int> labels_base(bytes_labels_base / sizeof(int));
     std::vector<unsigned char> raw_query_vectors(raw_query_vectors_size / sizeof(unsigned char));
     std::vector<int> raw_gt_vec_ID(raw_gt_vec_ID_size / sizeof(int));
     std::vector<float> raw_gt_dist(raw_gt_dist_size / sizeof(float));
@@ -139,24 +350,93 @@ int main(int argc, char** argv)
 
     // read data from file
     std::cout << "Reading database vectors from file...\n";
-    fread(db_vectors.data(), 1, bytes_db_vectors, f_ground_vectors);
-    fclose(f_ground_vectors);
+    fread(db_vectors_chan_0.data(), 1, bytes_db_vectors_chan_0, f_ground_vectors_chan_0);
+    fclose(f_ground_vectors_chan_0);
+#if N_CHANNEL >= 2
+    fread(db_vectors_chan_1.data(), 1, bytes_db_vectors_chan_1, f_ground_vectors_chan_1);
+    fclose(f_ground_vectors_chan_1);
+#endif
+#if N_CHANNEL >= 4
+    fread(db_vectors_chan_2.data(), 1, bytes_db_vectors_chan_2, f_ground_vectors_chan_2);
+    fclose(f_ground_vectors_chan_2);
+    fread(db_vectors_chan_3.data(), 1, bytes_db_vectors_chan_3, f_ground_vectors_chan_3);
+    fclose(f_ground_vectors_chan_3);
+#endif
+#if N_CHANNEL >= 8
+    fread(db_vectors_chan_4.data(), 1, bytes_db_vectors_chan_4, f_ground_vectors_chan_4);
+    fclose(f_ground_vectors_chan_4);
+    fread(db_vectors_chan_5.data(), 1, bytes_db_vectors_chan_5, f_ground_vectors_chan_5);
+    fclose(f_ground_vectors_chan_5);
+    fread(db_vectors_chan_6.data(), 1, bytes_db_vectors_chan_6, f_ground_vectors_chan_6);
+    fclose(f_ground_vectors_chan_6);
+    fread(db_vectors_chan_7.data(), 1, bytes_db_vectors_chan_7, f_ground_vectors_chan_7);
+    fclose(f_ground_vectors_chan_7);
+#endif
+#if N_CHANNEL >= 16
+    fread(db_vectors_chan_8.data(), 1, bytes_db_vectors_chan_8, f_ground_vectors_chan_8);
+    fclose(f_ground_vectors_chan_8);
+    fread(db_vectors_chan_9.data(), 1, bytes_db_vectors_chan_9, f_ground_vectors_chan_9);
+    fclose(f_ground_vectors_chan_9);
+    fread(db_vectors_chan_10.data(), 1, bytes_db_vectors_chan_10, f_ground_vectors_chan_10);
+    fclose(f_ground_vectors_chan_10);
+    fread(db_vectors_chan_11.data(), 1, bytes_db_vectors_chan_11, f_ground_vectors_chan_11);
+    fclose(f_ground_vectors_chan_11);
+    fread(db_vectors_chan_12.data(), 1, bytes_db_vectors_chan_12, f_ground_vectors_chan_12);
+    fclose(f_ground_vectors_chan_12);
+    fread(db_vectors_chan_13.data(), 1, bytes_db_vectors_chan_13, f_ground_vectors_chan_13);
+    fclose(f_ground_vectors_chan_13);
+    fread(db_vectors_chan_14.data(), 1, bytes_db_vectors_chan_14, f_ground_vectors_chan_14);
+    fclose(f_ground_vectors_chan_14);
+    fread(db_vectors_chan_15.data(), 1, bytes_db_vectors_chan_15, f_ground_vectors_chan_15);
+    fclose(f_ground_vectors_chan_15);
+#endif
 
-    std::cout << "Reading ptr to upper links from file...\n";
-    fread(ptr_to_upper_links.data(), 1, bytes_ptr_to_upper_links, f_upper_links_pointers);
-    fclose(f_upper_links_pointers);
-
-    std::cout << "Reading upper links from file...\n";
-    fread(links_upper.data(), 1, bytes_links_upper, f_upper_links);
-    fclose(f_upper_links);
 
     std::cout << "Reading base links from file...\n";
-    fread(links_base.data(), 1, bytes_links_base, f_ground_links);
-    fclose(f_ground_links);
+    fread(links_base_chan_0.data(), 1, bytes_links_base_chan_0, f_ground_links_chan_0);
+    fclose(f_ground_links_chan_0);
+#if N_CHANNEL >= 2
+    fread(links_base_chan_1.data(), 1, bytes_links_base_chan_1, f_ground_links_chan_1);
+    fclose(f_ground_links_chan_1);
+#endif
+#if N_CHANNEL >= 4
+    fread(links_base_chan_2.data(), 1, bytes_links_base_chan_2, f_ground_links_chan_2);
+    fclose(f_ground_links_chan_2);
+    fread(links_base_chan_3.data(), 1, bytes_links_base_chan_3, f_ground_links_chan_3);
+    fclose(f_ground_links_chan_3);
+#endif
+#if N_CHANNEL >= 8
+    fread(links_base_chan_4.data(), 1, bytes_links_base_chan_4, f_ground_links_chan_4);
+    fclose(f_ground_links_chan_4);
+    fread(links_base_chan_5.data(), 1, bytes_links_base_chan_5, f_ground_links_chan_5);
+    fclose(f_ground_links_chan_5);
+    fread(links_base_chan_6.data(), 1, bytes_links_base_chan_6, f_ground_links_chan_6);
+    fclose(f_ground_links_chan_6);
+    fread(links_base_chan_7.data(), 1, bytes_links_base_chan_7, f_ground_links_chan_7);
+    fclose(f_ground_links_chan_7);
+#endif
+#if N_CHANNEL >= 16
+    fread(links_base_chan_8.data(), 1, bytes_links_base_chan_8, f_ground_links_chan_8);
+    fclose(f_ground_links_chan_8);
+    fread(links_base_chan_9.data(), 1, bytes_links_base_chan_9, f_ground_links_chan_9);
+    fclose(f_ground_links_chan_9);
+    fread(links_base_chan_10.data(), 1, bytes_links_base_chan_10, f_ground_links_chan_10);
+    fclose(f_ground_links_chan_10);
+    fread(links_base_chan_11.data(), 1, bytes_links_base_chan_11, f_ground_links_chan_11);
+    fclose(f_ground_links_chan_11);
+    fread(links_base_chan_12.data(), 1, bytes_links_base_chan_12, f_ground_links_chan_12);
+    fclose(f_ground_links_chan_12);
+    fread(links_base_chan_13.data(), 1, bytes_links_base_chan_13, f_ground_links_chan_13);
+    fclose(f_ground_links_chan_13);
+    fread(links_base_chan_14.data(), 1, bytes_links_base_chan_14, f_ground_links_chan_14);
+    fclose(f_ground_links_chan_14);
+    fread(links_base_chan_15.data(), 1, bytes_links_base_chan_15, f_ground_links_chan_15);
+    fclose(f_ground_links_chan_15);
+#endif
 
     std::cout << "Reading queries and ground truths from file...\n";
-	fread(labels_base.data(), 1, bytes_labels_base, f_ground_labels);
-	fclose(f_ground_labels);
+    fread(labels_base.data(), 1, bytes_labels_base, f_ground_labels);
+    fclose(f_ground_labels);
     fread(raw_query_vectors.data(), 1, raw_query_vectors_size, f_query_vectors);
     fclose(f_query_vectors);
     fread(raw_gt_vec_ID.data(), 1, raw_gt_vec_ID_size, f_gt_vec_ID);
@@ -166,27 +446,24 @@ int main(int argc, char** argv)
 
     // query vector = 4-byte ID + d * (uint8) vectors
     size_t len_per_query = 4 + d;
-    for (int qid = 0; qid < query_num; qid++) {
+    for (int qid = 0; qid < query_num_after_offset; qid++) {
         for (int i = 0; i < d; i++) {
-            query_vectors[qid * d + i] = (float) raw_query_vectors[qid * len_per_query + 4 + i];
+            query_vectors[qid * d + i] = (float) raw_query_vectors[(qid + query_offset) * len_per_query + 4 + i];
         }
     }
 
-	for (int qid = 0; qid < query_num; qid++) {
-		entry_point_ids[qid] = entry_point_id;
-	}
+    for (int qid = 0; qid < query_num_after_offset; qid++) {
+        entry_point_ids[qid] = entry_point_id;
+    }
 
     // ground truth = 4-byte ID + 1000 * 4-byte ID + 1000 or 4-byte distances
     size_t len_per_gt = (4 + 1000 * 4) / 4;
-    for (int qid = 0; qid < query_num; qid++) {
+    for (int qid = 0; qid < query_num_after_offset; qid++) {
         for (int i = 0; i < max_topK; i++) {
-            gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[qid * len_per_gt + 1 + i];
-            gt_dist[qid * max_topK + i] = raw_gt_dist[qid * len_per_gt + 1 + i];
+            gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[(qid + query_offset) * len_per_gt + 1 + i];
+            gt_dist[qid * max_topK + i] = raw_gt_dist[(qid + query_offset) * len_per_gt + 1 + i];
         }
     }
-
-    // copy entry vector
-    memcpy((char*) entry_vector.data(), ((char*) db_vectors.data()) + entry_point_id * bytes_per_db_vec_plus_padding, bytes_entry_vector);
 
 
 // OPENCL HOST CODE AREA START
@@ -211,29 +488,104 @@ int main(int argc, char** argv)
 
     std::cout << "Finish loading bitstream...\n";
     // in 
-    OCL_CHECK(err, cl::Buffer buffer_entry_vector (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY, 
-            bytes_entry_vector, entry_vector.data(), &err));
-	OCL_CHECK(err, cl::Buffer buffer_entry_point_ids (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-			bytes_entry_point_ids, entry_point_ids.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_entry_point_ids (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+            bytes_entry_point_ids, entry_point_ids.data(), &err));
     OCL_CHECK(err, cl::Buffer buffer_query_vectors (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
             bytes_query_vectors, query_vectors.data(), &err));
-    OCL_CHECK(err, cl::Buffer buffer_ptr_to_upper_links (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-            bytes_ptr_to_upper_links, ptr_to_upper_links.data(), &err));
-    OCL_CHECK(err, cl::Buffer buffer_links_upper (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-            bytes_links_upper, links_upper.data(), &err));
-    OCL_CHECK(err, cl::Buffer buffer_links_base (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-            bytes_links_base, links_base.data(), &err));
+            
+    OCL_CHECK(err, cl::Buffer buffer_links_base_chan_0 (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+        bytes_links_base_chan_0, links_base_chan_0.data(), &err));
+
+#if N_CHANNEL >= 2
+    OCL_CHECK(err, cl::Buffer buffer_links_base_chan_1 (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+        bytes_links_base_chan_1, links_base_chan_1.data(), &err));
+#endif
+
+#if N_CHANNEL >= 4
+    OCL_CHECK(err, cl::Buffer buffer_links_base_chan_2 (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+        bytes_links_base_chan_2, links_base_chan_2.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_links_base_chan_3 (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+        bytes_links_base_chan_3, links_base_chan_3.data(), &err));
+#endif
+
+#if N_CHANNEL >= 8
+    OCL_CHECK(err, cl::Buffer buffer_links_base_chan_4 (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+        bytes_links_base_chan_4, links_base_chan_4.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_links_base_chan_5 (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+        bytes_links_base_chan_5, links_base_chan_5.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_links_base_chan_6 (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+        bytes_links_base_chan_6, links_base_chan_6.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_links_base_chan_7 (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+        bytes_links_base_chan_7, links_base_chan_7.data(), &err));
+#endif
+
+#if N_CHANNEL >= 16
+    OCL_CHECK(err, cl::Buffer buffer_links_base_chan_8 (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+        bytes_links_base_chan_8, links_base_chan_8.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_links_base_chan_9 (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+        bytes_links_base_chan_9, links_base_chan_9.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_links_base_chan_10 (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+        bytes_links_base_chan_10, links_base_chan_10.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_links_base_chan_11 (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+        bytes_links_base_chan_11, links_base_chan_11.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_links_base_chan_12 (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+        bytes_links_base_chan_12, links_base_chan_12.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_links_base_chan_13 (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+        bytes_links_base_chan_13, links_base_chan_13.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_links_base_chan_14 (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+        bytes_links_base_chan_14, links_base_chan_14.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_links_base_chan_15 (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+        bytes_links_base_chan_15, links_base_chan_15.data(), &err));
+#endif
 
     // in & out (db vec is mixed with visited list)
-    OCL_CHECK(err, cl::Buffer buffer_db_vectors (context,CL_MEM_USE_HOST_PTR,	
-            bytes_db_vectors, db_vectors.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_db_vectors_chan_0 (context,CL_MEM_USE_HOST_PTR,	
+            bytes_db_vectors_chan_0, db_vectors_chan_0.data(), &err));
+#if N_CHANNEL >= 2
+    OCL_CHECK(err, cl::Buffer buffer_db_vectors_chan_1 (context,CL_MEM_USE_HOST_PTR,	
+            bytes_db_vectors_chan_1, db_vectors_chan_1.data(), &err));
+#endif
+#if N_CHANNEL >= 4
+    OCL_CHECK(err, cl::Buffer buffer_db_vectors_chan_2 (context,CL_MEM_USE_HOST_PTR,	
+            bytes_db_vectors_chan_2, db_vectors_chan_2.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_db_vectors_chan_3 (context,CL_MEM_USE_HOST_PTR,	
+            bytes_db_vectors_chan_3, db_vectors_chan_3.data(), &err));
+#endif
+#if N_CHANNEL >= 8
+    OCL_CHECK(err, cl::Buffer buffer_db_vectors_chan_4 (context,CL_MEM_USE_HOST_PTR,	
+            bytes_db_vectors_chan_4, db_vectors_chan_4.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_db_vectors_chan_5 (context,CL_MEM_USE_HOST_PTR,	
+            bytes_db_vectors_chan_5, db_vectors_chan_5.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_db_vectors_chan_6 (context,CL_MEM_USE_HOST_PTR,	
+            bytes_db_vectors_chan_6, db_vectors_chan_6.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_db_vectors_chan_7 (context,CL_MEM_USE_HOST_PTR,	
+            bytes_db_vectors_chan_7, db_vectors_chan_7.data(), &err));
+#endif
+#if N_CHANNEL >= 16
+    OCL_CHECK(err, cl::Buffer buffer_db_vectors_chan_8 (context,CL_MEM_USE_HOST_PTR,	
+            bytes_db_vectors_chan_8, db_vectors_chan_8.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_db_vectors_chan_9 (context,CL_MEM_USE_HOST_PTR,	
+            bytes_db_vectors_chan_9, db_vectors_chan_9.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_db_vectors_chan_10 (context,CL_MEM_USE_HOST_PTR,	
+            bytes_db_vectors_chan_10, db_vectors_chan_10.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_db_vectors_chan_11 (context,CL_MEM_USE_HOST_PTR,	
+            bytes_db_vectors_chan_11, db_vectors_chan_11.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_db_vectors_chan_12 (context,CL_MEM_USE_HOST_PTR,	
+            bytes_db_vectors_chan_12, db_vectors_chan_12.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_db_vectors_chan_13 (context,CL_MEM_USE_HOST_PTR,	
+            bytes_db_vectors_chan_13, db_vectors_chan_13.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_db_vectors_chan_14 (context,CL_MEM_USE_HOST_PTR,	
+            bytes_db_vectors_chan_14, db_vectors_chan_14.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_db_vectors_chan_15 (context,CL_MEM_USE_HOST_PTR,	
+            bytes_db_vectors_chan_15, db_vectors_chan_15.data(), &err));
+#endif
 
     // out
-    OCL_CHECK(err, cl::Buffer buffer_out_id (context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+    OCL_CHECK(err, cl::Buffer buffer_out_id (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
             bytes_out_id, out_id.data(), &err));
-    OCL_CHECK(err, cl::Buffer buffer_out_dist (context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+    OCL_CHECK(err, cl::Buffer buffer_out_dist (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
             bytes_out_dist, out_dist.data(), &err));
-    OCL_CHECK(err, cl::Buffer buffer_mem_debug (context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+    OCL_CHECK(err, cl::Buffer buffer_mem_debug (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
             bytes_mem_debug, mem_debug.data(), &err));
 
     std::cout << "Finish allocate buffer...\n";
@@ -252,9 +604,56 @@ int main(int argc, char** argv)
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_entry_point_ids));
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_query_vectors));
 
-    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors_chan_0));
+#if N_CHANNEL >= 2
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors_chan_1));
+#endif
+#if N_CHANNEL >= 4
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors_chan_2));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors_chan_3));
+#endif
+#if N_CHANNEL >= 8
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors_chan_4));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors_chan_5));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors_chan_6));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors_chan_7));
+#endif
+#if N_CHANNEL >= 16
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors_chan_8));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors_chan_9));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors_chan_10));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors_chan_11));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors_chan_12));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors_chan_13));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors_chan_14));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors_chan_15));
+#endif
 
-    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base));
+
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_0));
+#if N_CHANNEL >= 2
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_1));
+#endif
+#if N_CHANNEL >= 4
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_2));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_3));
+#endif
+#if N_CHANNEL >= 8
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_4));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_5));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_6));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_7));
+#endif
+#if N_CHANNEL >= 16
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_8));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_9));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_10));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_11));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_12));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_13));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_14));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_15));
+#endif
 
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_out_id));
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_out_dist));
@@ -263,11 +662,58 @@ int main(int argc, char** argv)
     // Copy input data to device global memory
     OCL_CHECK(err, err = q.enqueueMigrateMemObjects({
         // in
-		buffer_entry_point_ids,
+        buffer_entry_point_ids,
         buffer_query_vectors,
-        buffer_links_base,
+        buffer_links_base_chan_0,
+#if N_CHANNEL >= 2
+        buffer_links_base_chan_1,
+#endif
+#if N_CHANNEL >= 4
+        buffer_links_base_chan_2,
+        buffer_links_base_chan_3,
+#endif
+#if N_CHANNEL >= 8
+        buffer_links_base_chan_4,
+        buffer_links_base_chan_5,
+        buffer_links_base_chan_6,
+        buffer_links_base_chan_7,
+#endif
+#if N_CHANNEL >= 16
+        buffer_links_base_chan_8,
+        buffer_links_base_chan_9,
+        buffer_links_base_chan_10,
+        buffer_links_base_chan_11,
+        buffer_links_base_chan_12,
+        buffer_links_base_chan_13,
+        buffer_links_base_chan_14,
+        buffer_links_base_chan_15,
+#endif
         // in & out
-        buffer_db_vectors
+
+        buffer_db_vectors_chan_0
+#if N_CHANNEL >= 2
+        , buffer_db_vectors_chan_1
+#endif
+#if N_CHANNEL >= 4
+        , buffer_db_vectors_chan_2,
+        buffer_db_vectors_chan_3
+#endif
+#if N_CHANNEL >= 8
+        , buffer_db_vectors_chan_4,
+        buffer_db_vectors_chan_5,
+        buffer_db_vectors_chan_6,
+        buffer_db_vectors_chan_7
+#endif
+#if N_CHANNEL >= 16
+        , buffer_db_vectors_chan_8,
+        buffer_db_vectors_chan_9,
+        buffer_db_vectors_chan_10,
+        buffer_db_vectors_chan_11,
+        buffer_db_vectors_chan_12,
+        buffer_db_vectors_chan_13,
+        buffer_db_vectors_chan_14,
+        buffer_db_vectors_chan_15
+#endif
         },0/* 0 means from host*/));
 
     std::cout << "Launching kernel...\n";
@@ -285,28 +731,20 @@ int main(int argc, char** argv)
 
     std::cout << "Duration (including memcpy out): " << duration << " sec" << std::endl; 
 
-	// Translate physical node IDs to real label IDs
-	for (int i = 0; i < query_num * ef; i++) {
-		out_id[i] = labels_base[out_id[i]];
-	}
+    // Translate physical node IDs to real label IDs
+    for (int i = 0; i < query_num * ef; i++) {
+        out_id[i] = labels_base[out_id[i]];
+    }
 
 #ifdef DEBUG
     // print out the debug signals (each 4 byte):
 
-	// debug signals (each 4 byte): 
-	//   0: bottom layer entry node id, 
-	//   1: number of hops in upper layers 
-	//   2: number of read vectors in upper layers
-	//   3: number of hops in base layer (number of pop operations)
-	//   4: number of valid read vectors in base layer
+    // debug signals (each 4 byte): 
+    //   0: number of hops in base layer (number of pop operations)
     int print_qnum = 10 < query_num? 10 : query_num;
-	int debug_size = 5;
+    int debug_size = 1;
     for (int i = 0; i < print_qnum; i++) {
-        std::cout << "query " << i << " bottom layer entry node id=" << mem_debug[i * debug_size] 
-			<< "\t#hops (upper layers) =" << mem_debug[i * debug_size + 1] 
-			<< "\t#read vecs (upper layers) =" << mem_debug[i * debug_size + 2]
-			<< "\t#hops (base layer) =" << mem_debug[i * debug_size + 3]
-			<< "\t#valid read vecs (base layer) =" << mem_debug[i * debug_size + 4] << std::endl;
+        std::cout << "query " << i << "\t#hops (base layer) =" << mem_debug[i * debug_size];
         if (gt_vec_ID[i * max_topK] != out_id[i * ef]) {
                 std::cout << "Mismatch ";
         }    
@@ -322,7 +760,7 @@ int main(int argc, char** argv)
 
     int dist_match_id_mismatch_cnt = 0;
 
-    for (int qid = 0; qid < query_num; qid++) {
+    for (int qid = 0; qid < query_num_after_offset; qid++) {
 
         k = 1;
         for (int i = 0; i < k; i++) {
@@ -356,8 +794,8 @@ int main(int argc, char** argv)
     }
 
     // Print recall
-    std::cout << "Recall@1=" << (float) top1_correct_count / query_num << std::endl;
-    std::cout << "Recall@10=" << (float) top10_correct_count / (query_num * 10) << std::endl;
+    std::cout << "Recall@1=" << (float) top1_correct_count / query_num_after_offset << std::endl;
+    std::cout << "Recall@10=" << (float) top10_correct_count / (query_num_after_offset * 10) << std::endl;
 
     std::cout << "Dist match id mismatch count=" << dist_match_id_mismatch_cnt << std::endl;
 

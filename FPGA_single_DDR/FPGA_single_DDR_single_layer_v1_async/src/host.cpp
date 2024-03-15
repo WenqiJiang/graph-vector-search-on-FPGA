@@ -34,6 +34,8 @@ int main(int argc, char** argv)
 
     // in init
     int query_num = 10000;
+	int query_offset = 0; // starting from query x
+	int query_num_after_offset = query_num + query_offset > 10000? 10000 - query_offset : query_num;
     int ef = 64;
     int candidate_queue_runtime_size = hardware_candidate_queue_size;
 	int max_cand_batch_size = 4;
@@ -75,19 +77,15 @@ int main(int argc, char** argv)
     size_t bytes_out_dist = query_num * ef * sizeof(float);	
     size_t bytes_mem_debug = query_num * 5 * sizeof(int);
 
-    const char* fname_ground_links = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links.bin";
+    const char* fname_ground_links = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
     const char* fname_ground_labels = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_labels.bin";
-    const char* fname_ground_vectors = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors.bin";
-    const char* fname_upper_links = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/upper_links.bin";
-    const char* fname_upper_links_pointers = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/upper_links_pointers.bin";
+    const char* fname_ground_vectors = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
     const char* fname_query_vectors =  "/mnt/scratch/wenqi/Faiss_experiments/bigann/bigann_query.bvecs";
     const char* fname_gt_vec_ID = "/mnt/scratch/wenqi/Faiss_experiments/bigann/gnd/idx_1M.ivecs";
     const char* fname_gt_dist = "/mnt/scratch/wenqi/Faiss_experiments/bigann/gnd/dis_1M.fvecs";
     FILE* f_ground_links = fopen(fname_ground_links, "rb");
 	FILE* f_ground_labels = fopen(fname_ground_labels, "rb");
     FILE* f_ground_vectors = fopen(fname_ground_vectors, "rb");
-    FILE* f_upper_links = fopen(fname_upper_links, "rb");
-    FILE* f_upper_links_pointers = fopen(fname_upper_links_pointers, "rb");
     FILE* f_query_vectors = fopen(fname_query_vectors, "rb");
     FILE* f_gt_vec_ID = fopen(fname_gt_vec_ID, "rb");
     FILE* f_gt_dist = fopen(fname_gt_dist, "rb");
@@ -95,22 +93,17 @@ int main(int argc, char** argv)
 
     // get file size
     size_t bytes_db_vectors = GetFileSize(fname_ground_vectors);
-    size_t bytes_ptr_to_upper_links = GetFileSize(fname_upper_links_pointers); // long = 8 bytes
-    size_t bytes_links_upper = GetFileSize(fname_upper_links);
     size_t bytes_links_base = GetFileSize(fname_ground_links);
 	size_t bytes_labels_base = GetFileSize(fname_ground_labels); // int = 4 bytes
     size_t raw_query_vectors_size = GetFileSize(fname_query_vectors);
     size_t raw_gt_vec_ID_size = GetFileSize(fname_gt_vec_ID);
     size_t raw_gt_dist_size = GetFileSize(fname_gt_dist);
     std::cout << "bytes_db_vectors=" << bytes_db_vectors << std::endl;
-    std::cout << "bytes_ptr_to_upper_links=" << bytes_ptr_to_upper_links << std::endl;
-    std::cout << "bytes_links_upper=" << bytes_links_upper << std::endl;
     std::cout << "bytes_links_base=" << bytes_links_base << std::endl;
 	std::cout << "raw_query_vectors_size=" << raw_query_vectors_size << std::endl;
     assert(bytes_per_db_vec_plus_padding * num_db_vec == bytes_db_vectors);
 
     // input vecs
-    std::vector<float, aligned_allocator<float>> entry_vector(bytes_entry_vector / sizeof(float));
 	std::vector<int, aligned_allocator<int>> entry_point_ids(bytes_entry_point_ids / sizeof(int));
     std::vector<float, aligned_allocator<float>> query_vectors(bytes_query_vectors / sizeof(float));
 
@@ -118,8 +111,6 @@ int main(int argc, char** argv)
     std::vector<float, aligned_allocator<float>> db_vectors(bytes_db_vectors / sizeof(float));
     
     // links
-    std::vector<long, aligned_allocator<long>> ptr_to_upper_links(bytes_ptr_to_upper_links / sizeof(long));
-    std::vector<int, aligned_allocator<int>> links_upper(bytes_links_upper / sizeof(int));
     std::vector<int, aligned_allocator<int>> links_base(bytes_links_base / sizeof(int));
     
     // output
@@ -142,14 +133,6 @@ int main(int argc, char** argv)
     fread(db_vectors.data(), 1, bytes_db_vectors, f_ground_vectors);
     fclose(f_ground_vectors);
 
-    std::cout << "Reading ptr to upper links from file...\n";
-    fread(ptr_to_upper_links.data(), 1, bytes_ptr_to_upper_links, f_upper_links_pointers);
-    fclose(f_upper_links_pointers);
-
-    std::cout << "Reading upper links from file...\n";
-    fread(links_upper.data(), 1, bytes_links_upper, f_upper_links);
-    fclose(f_upper_links);
-
     std::cout << "Reading base links from file...\n";
     fread(links_base.data(), 1, bytes_links_base, f_ground_links);
     fclose(f_ground_links);
@@ -166,27 +149,24 @@ int main(int argc, char** argv)
 
     // query vector = 4-byte ID + d * (uint8) vectors
     size_t len_per_query = 4 + d;
-    for (int qid = 0; qid < query_num; qid++) {
+    for (int qid = 0; qid < query_num_after_offset; qid++) {
         for (int i = 0; i < d; i++) {
-            query_vectors[qid * d + i] = (float) raw_query_vectors[qid * len_per_query + 4 + i];
+            query_vectors[qid * d + i] = (float) raw_query_vectors[(qid + query_offset) * len_per_query + 4 + i];
         }
     }
 
-	for (int qid = 0; qid < query_num; qid++) {
+	for (int qid = 0; qid < query_num_after_offset; qid++) {
 		entry_point_ids[qid] = entry_point_id;
 	}
 
     // ground truth = 4-byte ID + 1000 * 4-byte ID + 1000 or 4-byte distances
     size_t len_per_gt = (4 + 1000 * 4) / 4;
-    for (int qid = 0; qid < query_num; qid++) {
+    for (int qid = 0; qid < query_num_after_offset; qid++) {
         for (int i = 0; i < max_topK; i++) {
-            gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[qid * len_per_gt + 1 + i];
-            gt_dist[qid * max_topK + i] = raw_gt_dist[qid * len_per_gt + 1 + i];
+            gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[(qid + query_offset) * len_per_gt + 1 + i];
+            gt_dist[qid * max_topK + i] = raw_gt_dist[(qid + query_offset) * len_per_gt + 1 + i];
         }
     }
-
-    // copy entry vector
-    memcpy((char*) entry_vector.data(), ((char*) db_vectors.data()) + entry_point_id * bytes_per_db_vec_plus_padding, bytes_entry_vector);
 
 
 // OPENCL HOST CODE AREA START
@@ -211,16 +191,10 @@ int main(int argc, char** argv)
 
     std::cout << "Finish loading bitstream...\n";
     // in 
-    OCL_CHECK(err, cl::Buffer buffer_entry_vector (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY, 
-            bytes_entry_vector, entry_vector.data(), &err));
 	OCL_CHECK(err, cl::Buffer buffer_entry_point_ids (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
 			bytes_entry_point_ids, entry_point_ids.data(), &err));
     OCL_CHECK(err, cl::Buffer buffer_query_vectors (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
             bytes_query_vectors, query_vectors.data(), &err));
-    OCL_CHECK(err, cl::Buffer buffer_ptr_to_upper_links (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-            bytes_ptr_to_upper_links, ptr_to_upper_links.data(), &err));
-    OCL_CHECK(err, cl::Buffer buffer_links_upper (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-            bytes_links_upper, links_upper.data(), &err));
     OCL_CHECK(err, cl::Buffer buffer_links_base (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
             bytes_links_base, links_base.data(), &err));
 
@@ -229,11 +203,11 @@ int main(int argc, char** argv)
             bytes_db_vectors, db_vectors.data(), &err));
 
     // out
-    OCL_CHECK(err, cl::Buffer buffer_out_id (context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+    OCL_CHECK(err, cl::Buffer buffer_out_id (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
             bytes_out_id, out_id.data(), &err));
-    OCL_CHECK(err, cl::Buffer buffer_out_dist (context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+    OCL_CHECK(err, cl::Buffer buffer_out_dist (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
             bytes_out_dist, out_dist.data(), &err));
-    OCL_CHECK(err, cl::Buffer buffer_mem_debug (context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+    OCL_CHECK(err, cl::Buffer buffer_mem_debug (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
             bytes_mem_debug, mem_debug.data(), &err));
 
     std::cout << "Finish allocate buffer...\n";
@@ -294,19 +268,11 @@ int main(int argc, char** argv)
     // print out the debug signals (each 4 byte):
 
 	// debug signals (each 4 byte): 
-	//   0: bottom layer entry node id, 
-	//   1: number of hops in upper layers 
-	//   2: number of read vectors in upper layers
-	//   3: number of hops in base layer (number of pop operations)
-	//   4: number of valid read vectors in base layer
+	//   0: number of hops in base layer (number of pop operations)
     int print_qnum = 10 < query_num? 10 : query_num;
-	int debug_size = 5;
+	int debug_size = 1;
     for (int i = 0; i < print_qnum; i++) {
-        std::cout << "query " << i << " bottom layer entry node id=" << mem_debug[i * debug_size] 
-			<< "\t#hops (upper layers) =" << mem_debug[i * debug_size + 1] 
-			<< "\t#read vecs (upper layers) =" << mem_debug[i * debug_size + 2]
-			<< "\t#hops (base layer) =" << mem_debug[i * debug_size + 3]
-			<< "\t#valid read vecs (base layer) =" << mem_debug[i * debug_size + 4] << std::endl;
+        std::cout << "query " << i << "\t#hops (base layer) =" << mem_debug[i * debug_size];
         if (gt_vec_ID[i * max_topK] != out_id[i * ef]) {
                 std::cout << "Mismatch ";
         }    
@@ -322,7 +288,7 @@ int main(int argc, char** argv)
 
     int dist_match_id_mismatch_cnt = 0;
 
-    for (int qid = 0; qid < query_num; qid++) {
+    for (int qid = 0; qid < query_num_after_offset; qid++) {
 
         k = 1;
         for (int i = 0; i < k; i++) {
@@ -356,8 +322,8 @@ int main(int argc, char** argv)
     }
 
     // Print recall
-    std::cout << "Recall@1=" << (float) top1_correct_count / query_num << std::endl;
-    std::cout << "Recall@10=" << (float) top10_correct_count / (query_num * 10) << std::endl;
+    std::cout << "Recall@1=" << (float) top1_correct_count / query_num_after_offset << std::endl;
+    std::cout << "Recall@10=" << (float) top10_correct_count / (query_num_after_offset * 10) << std::endl;
 
     std::cout << "Dist match id mismatch count=" << dist_match_id_mismatch_cnt << std::endl;
 

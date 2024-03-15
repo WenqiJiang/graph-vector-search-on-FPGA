@@ -26,9 +26,8 @@ void task_scheduler(
 	hls::stream<cand_t>& s_top_candidates,
 	hls::stream<int>& s_finish_query_out,
 
-	// debug signals (each 2 byte): 
+	// debug signals (each 4 byte): 
 	//   0: number of hops in base layer (number of pop operations)
-	//   1: number of valid read vectors in base layer
 	int* mem_debug
 ) {
 

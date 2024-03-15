@@ -111,7 +111,7 @@ class Priority_queue<result_t, hardware_queue_size, Collect_smallest> {
 			s_top_candidates.write(reg_cand);
 
 			// right shift step 1: copy to backup register
-			for (int i = 1; i < hardware_queue_size; i++) {
+			for (int i = 0; i < hardware_queue_size; i++) {
 #pragma HLS UNROLL
 				if (i == 0) {
 					backup_queue_array[i].node_id = -1;

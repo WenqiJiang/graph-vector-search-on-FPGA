@@ -62,9 +62,12 @@ void vadd(
 #pragma HLS INTERFACE m_axi port=links_base num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmem2
 
 // out
-#pragma HLS INTERFACE m_axi port=out_id  num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem9
-#pragma HLS INTERFACE m_axi port=out_dist num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem9
-#pragma HLS INTERFACE m_axi port=mem_debug num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem10 // cannot share gmem with out as they are different PEs
+#pragma HLS INTERFACE m_axi port=out_id offset=slave bundle=gmem9
+#pragma HLS INTERFACE m_axi port=out_dist offset=slave bundle=gmem9
+#pragma HLS INTERFACE m_axi port=mem_debug offset=slave bundle=gmem10 // cannot share gmem with out as they are different PEs
+// #pragma HLS INTERFACE m_axi port=out_id  num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem9
+// #pragma HLS INTERFACE m_axi port=out_dist num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem9
+// #pragma HLS INTERFACE m_axi port=mem_debug num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem10 // cannot share gmem with out as they are different PEs
 
 #pragma HLS dataflow
 

@@ -14,7 +14,7 @@ void bloom_fetch_compute(
 	const int d,
 
     // in runtime (from DRAM)
-    hls::burst_maxi<ap_uint<512>> db_vectors, // need to write visited tag
+    hls::burst_maxi<ap_uint<512>>& db_vectors, // need to write visited tag
 
 	// in streams
 	hls::stream<ap_uint<512>>& s_query_vectors,
