@@ -237,6 +237,8 @@ void split_s_distances(
 
 
 // split bloom-fetch-compute tasks to different channels based on node ids
+//   Merging multiple candidate batches into ONE!
+//   Note: cannot handle case where output per channel of multi-batches > FIFO size
 void split_tasks_to_channels(
 		const int query_num,
 
@@ -298,11 +300,12 @@ void split_tasks_to_channels(
 						s_fetched_neighbor_ids_per_channel[channel_id].write(fetched_neighbor_ids);
 						node_count_per_channel[channel_id]++;
 					}
+				}
 
-					for (int channel_id = 0; channel_id < N_CHANNEL; channel_id++) {
-					#pragma HLS UNROLL
-						s_num_neighbors_base_level_per_channel[channel_id].write(node_count_per_channel[channel_id]);
-					}
+				// merge multiple cand batches into one
+				for (int channel_id = 0; channel_id < N_CHANNEL; channel_id++) {
+				#pragma HLS UNROLL
+					s_num_neighbors_base_level_per_channel[channel_id].write(node_count_per_channel[channel_id]);
 				}
 			}
 		}
@@ -315,12 +318,15 @@ void gather_distances_from_channels(
 		hls::stream<result_t> (&s_distances_base_level_per_channel)[N_CHANNEL],
 		hls::stream<int>& s_finish_query_in,
 
-		hls::stream<int>& s_num_valid_candidates_base_level_total_channel_by_channel, // write once per channel
+		hls::stream<int>& s_num_valid_candidates_base_level_total, // write once per channel
 		hls::stream<result_t>& s_distances_base_level,
 		hls::stream<int>& s_finish_query_out
 	) {
 
 	bool first_iter_s_distances_base_level_per_channel[N_CHANNEL];
+	for (int i = 0; i < N_CHANNEL; i++) {
+		first_iter_s_distances_base_level_per_channel[i] = true;
+	}
 	bool visited_channel[N_CHANNEL];
 
 	for (int qid = 0; qid < query_num; qid++) {
@@ -348,20 +354,20 @@ void gather_distances_from_channels(
 							wait_data_fifo_first_iter<result_t>(
 								num_valid_candidates_base_level_total_per_channel, s_distances_base_level_per_channel[channel_id], 
 								first_iter_s_distances_base_level_per_channel[channel_id]);
-							s_num_valid_candidates_base_level_total_channel_by_channel.write(num_valid_candidates_base_level_total_per_channel);
+							s_num_valid_candidates_base_level_total.write(num_valid_candidates_base_level_total_per_channel);
 							for (int i = 0; i < num_valid_candidates_base_level_total_per_channel; i++) {
 							#pragma HLS pipeline II=1
 								result_t reg = s_distances_base_level_per_channel[channel_id].read();
 								s_distances_base_level.write(reg);
 							}
 						}
+					}
 
-						// stop if all channels are visited
-						stop = true;
-						for (int i = 0; i < N_CHANNEL; i++) {
-							if (!visited_channel[i]) {
-								stop = false;
-							}
+					// stop if all channels are visited
+					stop = true;
+					for (int i = 0; i < N_CHANNEL; i++) {
+						if (!visited_channel[i]) {
+							stop = false;
 						}
 					}
 				}

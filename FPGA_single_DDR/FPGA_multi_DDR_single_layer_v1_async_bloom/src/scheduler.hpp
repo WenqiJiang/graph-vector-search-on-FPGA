@@ -45,8 +45,6 @@ void task_scheduler(
 	result_t queue_replication_array[hardware_candidate_queue_size];
 #pragma HLS array_partition variable=queue_replication_array complete
 
-	int async_batch_size_array[hardware_async_batch_size];
-
 	const int debug_size = 1;
 	int debug_hops_base_layer;
 
@@ -76,7 +74,6 @@ void task_scheduler(
 		s_top_candidates.write({entry_point_ids[qid], 0});
 
 		int last_cand_to_be_recv_batch_size = 1; // the size of the last batch of popped candidates
-		async_batch_size_array[0] = last_cand_to_be_recv_batch_size;
 		s_cand_batch_size.write(last_cand_to_be_recv_batch_size);
 
 		int on_the_fly_async_stage_num = 1;
@@ -88,27 +85,26 @@ void task_scheduler(
 
 		debug_hops_base_layer = 1;
 
+		// regardless of batch size, pull one time from each channel
+		int recv_channels_left = N_CHANNEL;
+
 		bool stop = false;
 		while (!stop) {
-			if (!s_num_inserted_candidates.empty()) {
+			if (!s_num_inserted_candidates.empty()) { // each channel send a number, regardless of per-iter batch size
 
 				int num_insertion = s_num_inserted_candidates.read();
 				wait_data_fifo_first_iter<result_t>(
 					num_insertion, s_inserted_candidates, first_iter_s_inserted_candidates);
 				// insert new values
 				candidate_queue.insert_only(num_insertion, s_inserted_candidates);
-				async_batch_size_array[0]--; // always loading the latest-sent batch 
+				recv_channels_left--; // always loading the latest-sent batch 
 				
 				// if all last batch of candidates are consumed, sort & pop top candidate
-				if (async_batch_size_array[0] == 0) {
+				if (recv_channels_left == 0) {
 					wait_data_fifo_first_iter<float>(
 						1, s_largest_result_queue_elements, first_iter_s_largest_result_queue_elements);
 					// finish a on-the-fly batch, shift the batch_size in the array
 					on_the_fly_async_stage_num--;
-					for (int i = 0; i < on_the_fly_async_stage_num; i++) {
-						async_batch_size_array[i] = async_batch_size_array[i + 1];
-					}
-
 					candidate_queue.sort();
 
 					// two stop condition: 1. smallest candidate distance > largest result queue element; 
@@ -132,11 +128,13 @@ void task_scheduler(
 						if (current_cand_batch_size == 0) {
 							break;
 						} else { // current_cand_batch_size > 0
-							async_batch_size_array[oid] = current_cand_batch_size;
 							s_cand_batch_size.write(current_cand_batch_size);
 							on_the_fly_async_stage_num++;
 						}
 					}
+
+					// reset next num batch to receive
+					recv_channels_left = N_CHANNEL;
 
 					// break condition: nothing in the pipeline even after candidate popping	
 					if (on_the_fly_async_stage_num == 0) {

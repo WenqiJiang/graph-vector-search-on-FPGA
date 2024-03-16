@@ -223,11 +223,11 @@ int main(int argc, char** argv)
             bytes_db_vectors, db_vectors.data(), &err));
 
     // out
-    OCL_CHECK(err, cl::Buffer buffer_out_id (context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+    OCL_CHECK(err, cl::Buffer buffer_out_id (context,CL_MEM_USE_HOST_PTR, // | CL_MEM_WRITE_ONLY,
             bytes_out_id, out_id.data(), &err));
-    OCL_CHECK(err, cl::Buffer buffer_out_dist (context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+    OCL_CHECK(err, cl::Buffer buffer_out_dist (context,CL_MEM_USE_HOST_PTR, // | CL_MEM_WRITE_ONLY,
             bytes_out_dist, out_dist.data(), &err));
-    OCL_CHECK(err, cl::Buffer buffer_mem_debug (context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+    OCL_CHECK(err, cl::Buffer buffer_mem_debug (context,CL_MEM_USE_HOST_PTR, // | CL_MEM_WRITE_ONLY,
             bytes_mem_debug, mem_debug.data(), &err));
 
     std::cout << "Finish allocate buffer...\n";

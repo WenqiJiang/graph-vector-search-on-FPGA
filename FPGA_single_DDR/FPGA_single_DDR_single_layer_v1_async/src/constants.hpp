@@ -20,4 +20,4 @@ const int bloom_num_bucket_addr_bits = 8 + 10; // 256 * 1024
 const int bloom_num_buckets = 1 << bloom_num_bucket_addr_bits;
 
 // async batch size tracking
-const int hardware_async_batch_size = 16;
+const int hardware_async_batch_size = 64; // to infer BRAM
