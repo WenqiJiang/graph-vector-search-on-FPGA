@@ -28,7 +28,8 @@ void fetch_neighbor_ids(
 		1 + max_link_num_base / INT_PER_AXI : 2 + max_link_num_base / INT_PER_AXI; // 4 = int size, 64 = 512 bit
 
 	const int max_buffer_size = 32 + 1; // supporting max of 32 * INT_PER_AXI (16) = 512 edges per node
-	ap_uint<512> local_links_buffer[max_buffer_size]; 
+			ap_uint<512> local_links_buffer[max_buffer_size]; 
+#pragma HLS bind_storage variable=local_links_buffer type=RAM_2P impl=BRAM
 
 	for (int qid = 0; qid < query_num; qid++) {
 

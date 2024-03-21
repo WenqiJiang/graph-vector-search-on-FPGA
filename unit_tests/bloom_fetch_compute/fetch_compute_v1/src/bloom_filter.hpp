@@ -23,6 +23,7 @@ public:
 		num_512b_buckets = num_512b_buckets_int;
 
 		ap_uint<512> hash_buckets[num_512b_buckets_int];
+#pragma HLS bind_storage variable=hash_buckets type=RAM_2P impl=BRAM
 		this->buckets = hash_buckets;
 
 		this->runtime_num_buckets = 1 << runtime_n_bucket_addr_bits;

@@ -53,9 +53,11 @@ void task_scheduler(
 
 	float entry_vector_buffer[D_MAX];
 #pragma HLS unroll variable=entry_vector_buffer factor=float_per_axi
+#pragma HLS bind_storage variable=entry_vector_buffer type=RAM_2P impl=BRAM
 
 	float query_vector_buffer[D_MAX];
 #pragma HLS unroll variable=query_vector_buffer factor=float_per_axi
+#pragma HLS bind_storage variable=query_vector_buffer type=RAM_2P impl=BRAM
 
 	Priority_queue<result_t, hardware_candidate_queue_size, Collect_smallest> candidate_queue(candidate_queue_runtime_size);
 	const int sort_swap_round = candidate_queue_runtime_size % 2 == 0? candidate_queue_runtime_size / 2 : candidate_queue_runtime_size / 2 + 1;
@@ -63,7 +65,8 @@ void task_scheduler(
 	result_t queue_replication_array[hardware_candidate_queue_size];
 #pragma HLS array_partition variable=queue_replication_array complete
 
-	int async_batch_size_array[hardware_async_batch_size];
+			int async_batch_size_array[hardware_async_batch_size];
+#pragma HLS bind_storage variable=async_batch_size_array type=RAM_2P impl=BRAM
 
 	const int debug_size = 1;
 	// const int debug_size = 5;

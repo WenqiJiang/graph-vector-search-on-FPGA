@@ -189,6 +189,8 @@ void gather_s_finish(
 	for (int qid = 0; qid < query_num; qid++) {
 		// wait for all finish signals arrive, read them
 		int finish[rep_factor];
+#pragma HLS bind_storage variable=finish type=RAM_2P impl=BRAM
+
 		for (int i = 0; i < rep_factor; i++) {
 			while (true) {
 				if (!s_finish_query_in_replicated[i].empty()) {

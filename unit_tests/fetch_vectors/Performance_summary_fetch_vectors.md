@@ -85,3 +85,46 @@ Medium read batches (100):
 Small read batches (10):
 
 1.8214 @200 MHz -> 182 ns per read (length of 8) -> 1.46x time compared to maximal batch sizes. 
+
+
+### V1.3 (Use this!) Using implicit prefetching - by referring to Vitis Tutorial
+
+Refer to Vitis tutorial: 
+
+https://github.com/Xilinx/Vitis-Tutorials/blob/2022.1/Hardware_Acceleration/Feature_Tutorials/07-using-hbm/3_BW_Explorations.md
+
+Two keys in inferring high-performance fetching:
+
+Large read batches (1000): 
+
+```
+    int query_num = 1000;
+	int read_iter_per_query = 1000;
+	int d = 128;
+```
+
+42.600 ms @200 MHz -> 42.6 ns per read (length of 8) == 8.5 cycles (given lenght = 8, this almost achieved the theoretical bandwidth)
+
+Achieved bandwidth: 12.151 GB/s
+
+Medium read batches (100): 
+
+49.6373 ms @200 MHz -> 49.63 ns per read (length of 8) -> ~10 cycles
+
+Small read batches (10), latency=64:
+
+120.002 ms @200 MHz -> 120 ns per read -> 24 cycles/vec
+
+theoretically, 64 + 10 * 8 = 144 cycles to fetch 10 vectors
+
+Small read batches (10), latency=300:
+
+234.84 ms @200 MHz -> 234 ns per read -> 47 cycles/vec
+
+theoretically, 300 + 10 * 8 = 380 cycles to fetch 10 vectors
+
+## Unused
+
+### failed_test_simple_fetch
+
+I wanted to test bandwidth using a simple function, but it seems that the compiler automatically optimized away most of the code for data reading. 

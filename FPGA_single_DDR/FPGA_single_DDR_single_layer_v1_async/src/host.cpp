@@ -327,7 +327,12 @@ int main(int argc, char** argv)
 
     std::cout << "Dist match id mismatch count=" << dist_match_id_mismatch_cnt << std::endl;
 
-    // std::cout << "TEST FINISHED (NO RESULT CHECK)" << std::endl; 
+	// count avg #hops on base layer
+	int total_hops = 0;
+	for (int i = 0; i < query_num_after_offset; i++) {
+		total_hops += mem_debug[i];
+	}
+	std::cout << "Average #hops on base layer=" << (float) total_hops / query_num_after_offset << std::endl;
 
     return  0;
 }

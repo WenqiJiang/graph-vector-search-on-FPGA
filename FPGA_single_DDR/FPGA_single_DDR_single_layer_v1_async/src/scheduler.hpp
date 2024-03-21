@@ -45,6 +45,7 @@ void task_scheduler(
 #pragma HLS array_partition variable=queue_replication_array complete
 
 	int async_batch_size_array[hardware_async_batch_size];
+#pragma HLS bind_storage variable=async_batch_size_array type=RAM_2P impl=BRAM
 
 	const int debug_size = 1;
 	// const int debug_size = 2;
