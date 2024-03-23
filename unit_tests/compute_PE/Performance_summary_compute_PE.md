@@ -119,3 +119,19 @@ batch_size = 1024: 883.002 ms -> 1.50 cycles
 ```
 
 Not sure why it cannot achieve closer performance to 1 cycle / AXI, but is acceptable given the memory access itself can be even a bigger issue than compute.
+
+### (Use this) V3.1 achieve line rate / support bloom filter
+
+Compared to v2.2, here we support bloom filter before compute so all data are valid. Also, we allow the next batch size to be added before current batch finished - so we keep pipeline busy rather than restart the pipeline. 
+
+Besides, we improve the performance of compute to saturate memory bandwidth. The trick is to use fixed D instead of variable, then put pipeline in the outer loop (which automatically unrolls in the inner loops that involved D).
+
+Achieved performance: 
+
+batch size = 1:
+
+50.7916 ms @ 200MHz for 1M inputs -> 10 cycles per vec (size = 8 AXI)
+
+batch size = 32
+
+40.7111 ms @ 200MHz for 1M inputs -> 8 cycles per vec (size = 8 AXI) -> achieved theoretical throughput

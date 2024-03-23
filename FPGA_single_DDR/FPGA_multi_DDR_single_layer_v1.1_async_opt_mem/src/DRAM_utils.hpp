@@ -220,6 +220,10 @@ void fetch_vectors(
 				
 				for (int bid = 0; bid < fetch_batch_size; bid++) {
 				#pragma HLS pipeline // put the pipeline here so hopefully Vitis can handle prefetching automatically
+					if (s_finish_query_in.empty() && !s_fetch_batch_size.empty()) {
+						// no need to check wait_data_fifo_first_iter, because if this loop is executed, then first iter already passed
+						fetch_batch_size += s_fetch_batch_size.read();
+					}
 					// receive task & read vectors
 					cand_t reg_cand = s_fetched_neighbor_ids_replicated.read();
 					int node_id = reg_cand.node_id;

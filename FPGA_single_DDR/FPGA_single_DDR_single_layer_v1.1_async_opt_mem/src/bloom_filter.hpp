@@ -105,6 +105,8 @@ public:
 	// the bloom filter's RAM part, check whether the input candidate is visited & update RAM
 	void check_update(
 		const int query_num, 
+		const int max_bloom_out_burst_size, // break num valid to smaller units, otherwise the pipeline can be deadlocked
+
 		// input streams
 		hls::stream<int>& s_num_candidates,
 		hls::stream<cand_t>& s_all_candidates,
@@ -121,8 +123,6 @@ public:
 		bool first_iter_s_hash_values_per_pe = true;
 		this->reset(); // reset before the first query
 
-		// break num valid to smaller units, otherwise the pipeline can be deadlocked
-		const int max_burst_size = 64; 
 
 		for (int qid = 0; qid < query_num; qid++) {
 
@@ -166,7 +166,7 @@ public:
 							num_valid_total++;
 						}
 						// if already some data in data fifo, write num acount
-						if (num_valid_burst == max_burst_size) {
+						if (num_valid_burst == max_bloom_out_burst_size) {
 							s_num_valid_candidates_burst.write(num_valid_burst);
 							num_valid_burst = 0;
 							sent_out_s_num_valid_candidates_burst = true;
@@ -185,6 +185,7 @@ public:
 	void run_bloom_filter(
 		const int query_num, 
 		const ap_uint<32> hash_seed,
+		const int max_bloom_out_burst_size,
 
 		// in streams
 		hls::stream<int>& s_num_candidates,
@@ -271,6 +272,8 @@ public:
 
 		check_update(
 			query_num, 
+			max_bloom_out_burst_size,
+
 			s_num_candidates_replicated[num_hash_funs],
 			s_all_candidates_replicated[num_hash_funs],
 			s_hash_values_per_pe,

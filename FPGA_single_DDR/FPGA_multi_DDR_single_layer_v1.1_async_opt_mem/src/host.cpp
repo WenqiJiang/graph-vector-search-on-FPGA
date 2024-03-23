@@ -40,7 +40,8 @@ int main(int argc, char** argv)
     int candidate_queue_runtime_size = hardware_candidate_queue_size;
     int max_cand_batch_size = 4;
     int max_async_stage_num = 2;
-    int D = 128;
+    int d = D;
+	int max_bloom_out_burst_size = 16; // according to mem & compute speed test
     int runtime_n_bucket_addr_bits = 8 + 10; // 256K buckets
     int runtime_n_buckets = 1 << runtime_n_bucket_addr_bits;
     uint32_t hash_seed = 1;
@@ -609,6 +610,7 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(max_async_stage_num)));
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(runtime_n_bucket_addr_bits)));
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(hash_seed)));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(max_bloom_out_burst_size)));
     // OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(d)));
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(max_link_num_base)));
 

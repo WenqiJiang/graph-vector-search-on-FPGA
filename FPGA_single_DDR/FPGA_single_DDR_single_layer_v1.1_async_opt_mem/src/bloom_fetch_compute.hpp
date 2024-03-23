@@ -11,6 +11,7 @@ void bloom_fetch_compute(
 	const int query_num, 
 	const int runtime_n_bucket_addr_bits,
 	const ap_uint<32> hash_seed,
+	const int max_bloom_out_burst_size,
 
     // in runtime (from DRAM)
     ap_uint<512>* db_vectors,
@@ -44,6 +45,7 @@ void bloom_fetch_compute(
 	bloom_filter.run_bloom_filter(
 		query_num, 
 		hash_seed,
+		max_bloom_out_burst_size,
 		// in streams
 		s_num_neighbors_base_level,
 		s_fetched_neighbor_ids,

@@ -18,34 +18,35 @@ void vadd(
 	const int max_async_stage_num,
 	const int runtime_n_bucket_addr_bits,
 	const ap_uint<32> hash_seed,
+	const int max_bloom_out_burst_size,
 	const int max_link_num_base,
 
     // in runtime (from DRAM)
 	const int* entry_point_ids,
 	const ap_uint<512>* query_vectors,
-    hls::burst_maxi<ap_uint<512>> db_vectors_chan_0, 
+    ap_uint<512>* db_vectors_chan_0, 
 #if N_CHANNEL >= 2
-	hls::burst_maxi<ap_uint<512>> db_vectors_chan_1,
+	ap_uint<512>* db_vectors_chan_1,
 #endif
 #if N_CHANNEL >= 4
-	hls::burst_maxi<ap_uint<512>> db_vectors_chan_2,
-	hls::burst_maxi<ap_uint<512>> db_vectors_chan_3,
+	ap_uint<512>* db_vectors_chan_2,
+	ap_uint<512>* db_vectors_chan_3,
 #endif
 #if N_CHANNEL >= 8
-	hls::burst_maxi<ap_uint<512>> db_vectors_chan_4,
-	hls::burst_maxi<ap_uint<512>> db_vectors_chan_5,
-	hls::burst_maxi<ap_uint<512>> db_vectors_chan_6,
-	hls::burst_maxi<ap_uint<512>> db_vectors_chan_7,
+	ap_uint<512>* db_vectors_chan_4,
+	ap_uint<512>* db_vectors_chan_5,
+	ap_uint<512>* db_vectors_chan_6,
+	ap_uint<512>* db_vectors_chan_7,
 #endif
 #if N_CHANNEL >= 16
-	hls::burst_maxi<ap_uint<512>> db_vectors_chan_8,
-	hls::burst_maxi<ap_uint<512>> db_vectors_chan_9,
-	hls::burst_maxi<ap_uint<512>> db_vectors_chan_10,
-	hls::burst_maxi<ap_uint<512>> db_vectors_chan_11,
-	hls::burst_maxi<ap_uint<512>> db_vectors_chan_12,
-	hls::burst_maxi<ap_uint<512>> db_vectors_chan_13,
-	hls::burst_maxi<ap_uint<512>> db_vectors_chan_14,
-	hls::burst_maxi<ap_uint<512>> db_vectors_chan_15,
+	ap_uint<512>* db_vectors_chan_8,
+	ap_uint<512>* db_vectors_chan_9,
+	ap_uint<512>* db_vectors_chan_10,
+	ap_uint<512>* db_vectors_chan_11,
+	ap_uint<512>* db_vectors_chan_12,
+	ap_uint<512>* db_vectors_chan_13,
+	ap_uint<512>* db_vectors_chan_14,
+	ap_uint<512>* db_vectors_chan_15,
 #endif
 
     const ap_uint<512>* links_base_chan_0,
@@ -90,67 +91,67 @@ void vadd(
 //    https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/Controlling-AXI4-Burst-Behavior
 
 // in runtime (from DRAM)
-#pragma HLS INTERFACE m_axi port=entry_point_ids num_read_outstanding=4 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2  offset=slave bundle=gmem0
-#pragma HLS INTERFACE m_axi port=query_vectors num_read_outstanding=4 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2  offset=slave bundle=gmem0
-#pragma HLS INTERFACE m_axi port=mem_debug num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem10 // cannot share gmem with out as they are different PEs
+#pragma HLS INTERFACE m_axi port=entry_point_ids latency=32 num_read_outstanding=4 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2  offset=slave bundle=gmem0
+#pragma HLS INTERFACE m_axi port=query_vectors latency=32 num_read_outstanding=4 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2  offset=slave bundle=gmem0
+#pragma HLS INTERFACE m_axi port=mem_debug latency=32 num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem10 // cannot share gmem with out as they are different PEs
 
 // If the port is a read-only port, then set the num_write_outstanding=1 and max_write_burst_length=2 to conserve memory resources. For write-only ports, set the num_read_outstanding=1 and max_read_burst_length=2.
 // https://docs.xilinx.com/r/2022.1-English/ug1399-vitis-hls/pragma-HLS-interface
 
-#pragma HLS INTERFACE m_axi port=db_vectors_chan_0 latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors0
+#pragma HLS INTERFACE m_axi port=db_vectors_chan_0 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors0
 #if N_CHANNEL >= 2
-#pragma HLS INTERFACE m_axi port=db_vectors_chan_1 latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors1
+#pragma HLS INTERFACE m_axi port=db_vectors_chan_1 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors1
 #endif
 #if N_CHANNEL >= 4
-#pragma HLS INTERFACE m_axi port=db_vectors_chan_2 latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors2
-#pragma HLS INTERFACE m_axi port=db_vectors_chan_3 latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors3
+#pragma HLS INTERFACE m_axi port=db_vectors_chan_2 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors2
+#pragma HLS INTERFACE m_axi port=db_vectors_chan_3 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors3
 #endif
 #if N_CHANNEL >= 8
-#pragma HLS INTERFACE m_axi port=db_vectors_chan_4 latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors4
-#pragma HLS INTERFACE m_axi port=db_vectors_chan_5 latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors5
-#pragma HLS INTERFACE m_axi port=db_vectors_chan_6 latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors6
-#pragma HLS INTERFACE m_axi port=db_vectors_chan_7 latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors7
+#pragma HLS INTERFACE m_axi port=db_vectors_chan_4 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors4
+#pragma HLS INTERFACE m_axi port=db_vectors_chan_5 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors5
+#pragma HLS INTERFACE m_axi port=db_vectors_chan_6 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors6
+#pragma HLS INTERFACE m_axi port=db_vectors_chan_7 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors7
 #endif
 #if N_CHANNEL >= 16
-#pragma HLS INTERFACE m_axi port=db_vectors_chan_8 latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors8
-#pragma HLS INTERFACE m_axi port=db_vectors_chan_9 latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors9
-#pragma HLS INTERFACE m_axi port=db_vectors_chan_10 latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors10
-#pragma HLS INTERFACE m_axi port=db_vectors_chan_11 latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors11
-#pragma HLS INTERFACE m_axi port=db_vectors_chan_12 latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors12
-#pragma HLS INTERFACE m_axi port=db_vectors_chan_13 latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors13
-#pragma HLS INTERFACE m_axi port=db_vectors_chan_14 latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors14
-#pragma HLS INTERFACE m_axi port=db_vectors_chan_15 latency=1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors15
+#pragma HLS INTERFACE m_axi port=db_vectors_chan_8 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors8
+#pragma HLS INTERFACE m_axi port=db_vectors_chan_9 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors9
+#pragma HLS INTERFACE m_axi port=db_vectors_chan_10 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors10
+#pragma HLS INTERFACE m_axi port=db_vectors_chan_11 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors11
+#pragma HLS INTERFACE m_axi port=db_vectors_chan_12 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors12
+#pragma HLS INTERFACE m_axi port=db_vectors_chan_13 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors13
+#pragma HLS INTERFACE m_axi port=db_vectors_chan_14 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors14
+#pragma HLS INTERFACE m_axi port=db_vectors_chan_15 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors15
 #endif
 
-#pragma HLS INTERFACE m_axi port=links_base_chan_0 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base0
+#pragma HLS INTERFACE m_axi port=links_base_chan_0 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base0
 #if N_CHANNEL >= 2
-#pragma HLS INTERFACE m_axi port=links_base_chan_1 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base1
+#pragma HLS INTERFACE m_axi port=links_base_chan_1 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base1
 #endif
 #if N_CHANNEL >= 4
-#pragma HLS INTERFACE m_axi port=links_base_chan_2 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base2
-#pragma HLS INTERFACE m_axi port=links_base_chan_3 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base3
+#pragma HLS INTERFACE m_axi port=links_base_chan_2 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base2
+#pragma HLS INTERFACE m_axi port=links_base_chan_3 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base3
 #endif
 #if N_CHANNEL >= 8
-#pragma HLS INTERFACE m_axi port=links_base_chan_4 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base4
-#pragma HLS INTERFACE m_axi port=links_base_chan_5 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base5
-#pragma HLS INTERFACE m_axi port=links_base_chan_6 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base6
-#pragma HLS INTERFACE m_axi port=links_base_chan_7 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base7
+#pragma HLS INTERFACE m_axi port=links_base_chan_4 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base4
+#pragma HLS INTERFACE m_axi port=links_base_chan_5 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base5
+#pragma HLS INTERFACE m_axi port=links_base_chan_6 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base6
+#pragma HLS INTERFACE m_axi port=links_base_chan_7 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base7
 #endif
 #if N_CHANNEL >= 16
-#pragma HLS INTERFACE m_axi port=links_base_chan_8 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base8
-#pragma HLS INTERFACE m_axi port=links_base_chan_9 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base9
-#pragma HLS INTERFACE m_axi port=links_base_chan_10 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base10
-#pragma HLS INTERFACE m_axi port=links_base_chan_11 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base11
-#pragma HLS INTERFACE m_axi port=links_base_chan_12 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base12
-#pragma HLS INTERFACE m_axi port=links_base_chan_13 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base13
-#pragma HLS INTERFACE m_axi port=links_base_chan_14 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base14
-#pragma HLS INTERFACE m_axi port=links_base_chan_15 num_read_outstanding=16 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base15
+#pragma HLS INTERFACE m_axi port=links_base_chan_8 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base8
+#pragma HLS INTERFACE m_axi port=links_base_chan_9 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base9
+#pragma HLS INTERFACE m_axi port=links_base_chan_10 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base10
+#pragma HLS INTERFACE m_axi port=links_base_chan_11 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base11
+#pragma HLS INTERFACE m_axi port=links_base_chan_12 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base12
+#pragma HLS INTERFACE m_axi port=links_base_chan_13 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base13
+#pragma HLS INTERFACE m_axi port=links_base_chan_14 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base14
+#pragma HLS INTERFACE m_axi port=links_base_chan_15 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemlinks_base15
 #endif
 
 
 // out
-#pragma HLS INTERFACE m_axi port=out_id num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem9
-#pragma HLS INTERFACE m_axi port=out_dist num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem9
+#pragma HLS INTERFACE m_axi port=out_id latency=32 num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem9
+#pragma HLS INTERFACE m_axi port=out_dist latency=32 num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem9
 
 #pragma HLS dataflow
 
@@ -321,6 +322,7 @@ void vadd(
 		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
+		max_bloom_out_burst_size,
 
 		// in runtime (from DRAM)
 		db_vectors_chan_0,
@@ -342,6 +344,7 @@ void vadd(
 		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
+		max_bloom_out_burst_size,
 
 		// in runtime (from DRAM)
 		db_vectors_chan_1,
@@ -364,6 +367,7 @@ void vadd(
 		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
+		max_bloom_out_burst_size,
 
 		// in runtime (from DRAM)
 		db_vectors_chan_2,
@@ -384,6 +388,7 @@ void vadd(
 		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
+		max_bloom_out_burst_size,
 
 		// in runtime (from DRAM)
 		db_vectors_chan_3,
@@ -406,6 +411,7 @@ void vadd(
 		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
+		max_bloom_out_burst_size,
 		
 		// in runtime (from DRAM)
 		db_vectors_chan_4,
@@ -427,6 +433,7 @@ void vadd(
 		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
+		max_bloom_out_burst_size,
 
 		// in runtime (from DRAM)
 		db_vectors_chan_5,
@@ -448,6 +455,7 @@ void vadd(
 		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
+		max_bloom_out_burst_size,
 
 		// in runtime (from DRAM)
 		db_vectors_chan_6,
@@ -468,6 +476,7 @@ void vadd(
 		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
+		max_bloom_out_burst_size,
 
 		// in runtime (from DRAM)
 		db_vectors_chan_7,
@@ -490,6 +499,7 @@ void vadd(
 		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
+		max_bloom_out_burst_size,
 
 		// in runtime (from DRAM)
 		db_vectors_chan_8,
@@ -511,6 +521,7 @@ void vadd(
 		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
+		max_bloom_out_burst_size,
 
 		// in runtime (from DRAM)
 		db_vectors_chan_9,
@@ -532,6 +543,7 @@ void vadd(
 		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
+		max_bloom_out_burst_size,
 		
 		// in runtime (from DRAM)
 		db_vectors_chan_10,
@@ -553,6 +565,7 @@ void vadd(
 		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
+		max_bloom_out_burst_size,
 
 		// in runtime (from DRAM)
 		db_vectors_chan_11,
@@ -574,6 +587,7 @@ void vadd(
 		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
+		max_bloom_out_burst_size,
 
 		// in runtime (from DRAM)
 		db_vectors_chan_12,
@@ -595,6 +609,7 @@ void vadd(
 		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
+		max_bloom_out_burst_size,
 
 		// in runtime (from DRAM)
 		db_vectors_chan_13,
@@ -616,6 +631,7 @@ void vadd(
 		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
+		max_bloom_out_burst_size,
 
 		// in runtime (from DRAM)
 		db_vectors_chan_14,
@@ -637,6 +653,7 @@ void vadd(
 		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
+		max_bloom_out_burst_size,
 
 		// in runtime (from DRAM)
 		db_vectors_chan_15,

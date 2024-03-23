@@ -18,6 +18,7 @@ void vadd(
 	const int max_async_stage_num,
 	const int runtime_n_bucket_addr_bits,
 	const ap_uint<32> hash_seed,
+	const int max_bloom_out_burst_size,
 	const int max_link_num_base,
 
     // in runtime (from DRAM)
@@ -44,16 +45,16 @@ void vadd(
 //    https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/Controlling-AXI4-Burst-Behavior
 
 // in runtime (from DRAM)
-#pragma HLS INTERFACE m_axi port=entry_point_ids latency=1 num_read_outstanding=4 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2  offset=slave bundle=gmem0
-#pragma HLS INTERFACE m_axi port=query_vectors latency=1 num_read_outstanding=4 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2  offset=slave bundle=gmem0
-#pragma HLS INTERFACE m_axi port=mem_debug latency=1 num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem10 // cannot share gmem with out as they are different PEs
+#pragma HLS INTERFACE m_axi port=entry_point_ids latency=32 num_read_outstanding=4 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2  offset=slave bundle=gmem0
+#pragma HLS INTERFACE m_axi port=query_vectors latency=32 num_read_outstanding=4 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2  offset=slave bundle=gmem0
+#pragma HLS INTERFACE m_axi port=mem_debug latency=32 num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem10 // cannot share gmem with out as they are different PEs
 
-#pragma HLS INTERFACE m_axi port=db_vectors latency=1 num_read_outstanding=64 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmem4 
-#pragma HLS INTERFACE m_axi port=links_base latency=1 num_read_outstanding=64 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmem2
+#pragma HLS INTERFACE m_axi port=db_vectors latency=64 num_read_outstanding=64 num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmem4 
+#pragma HLS INTERFACE m_axi port=links_base latency=32 num_read_outstanding=16 num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmem2
 
 // out
-#pragma HLS INTERFACE m_axi port=out_id latency=1 num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem9
-#pragma HLS INTERFACE m_axi port=out_dist latency=1 num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem9
+#pragma HLS INTERFACE m_axi port=out_id latency=32 num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem9
+#pragma HLS INTERFACE m_axi port=out_dist latency=32 num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem9
 
 #pragma HLS dataflow
 
@@ -158,6 +159,7 @@ void vadd(
 		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
+		max_bloom_out_burst_size,
 
 		// in runtime (from DRAM)
 		db_vectors, // need to write visited tag

@@ -86,8 +86,11 @@ void compute_distances_sub_PE_A(
 					fetch_batch_size, s_fetched_vectors, first_iter_s_fetched_vectors);
 
                 for (int b = 0; b < fetch_batch_size; b++) {
+                #pragma HLS pipeline
+					if (s_finish_query_in.empty() && !s_fetch_batch_size_replicated.empty()) {
+						fetch_batch_size += s_fetch_batch_size_replicated.read();
+					}
                     for (int i = 0; i < vec_AXI_num; i++) {
-                    #pragma HLS pipeline II=1
 
                         // read dist vector
                         ap_uint<512> db_vec_reg = s_fetched_vectors.read();
@@ -143,9 +146,13 @@ void compute_distances_sub_PE_pack_partial_distances(
 					fetch_batch_size, s_partial_distances, first_iter_s_partial_distances);
 
                 for (int b = 0; b < fetch_batch_size; b++) {
+#pragma HLS pipeline
+					if (s_finish_query_in.empty() && !s_fetch_batch_size_replicated.empty()) {
+						fetch_batch_size += s_fetch_batch_size_replicated.read();
+					}
+
                     for (int j = 0; j < packed_partial_dist_num; j++) {
                         for (int i = 0; i < FLOAT_PER_AXI && j * FLOAT_PER_AXI + i < vec_AXI_num; i++) {
-                        #pragma HLS pipeline II=1
                             if (i == 0) {
                                 reg_packed_dist.float_data[0] = s_partial_distances.read();
                                 for (int k = 1; k < FLOAT_PER_AXI; k++) {
@@ -214,8 +221,13 @@ void compute_distances_sub_PE_B(
 				// }
 
                 for (int b = 0; b < fetch_batch_size; b++) {
+#pragma HLS pipeline
+
+					if (s_finish_query_in.empty() && !s_fetch_batch_size_replicated.empty()) {
+						fetch_batch_size += s_fetch_batch_size_replicated.read();
+					}
+
                     for (int i = 0; i < packed_partial_dist_num; i++) {
-                    #pragma HLS pipeline II=1 
 						float old_dist = final_dist;
                         // read dist vector
                         float_pack_t reg_part_dist_packed = s_partial_distances_packed.read();

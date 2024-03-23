@@ -31,29 +31,36 @@ int main(int argc, char** argv)
 
     // in init
     int query_num = 1000;
-	int read_iter_per_query = 1000;
-	int read_batch_size = 10;
-
+	int num_fetched_vectors_per_query = 1000;
+	int read_batch_size = 32;
 	int d = D;
-	int total_node_num = 1000 * 1000; // 1 M nodes
+	bool valid = true;
 
-	const int AXI_num_per_vector = d % FLOAT_PER_AXI == 0? 
-		d / FLOAT_PER_AXI + 1 : d / FLOAT_PER_AXI + 2; // 16 for d = 512 + visited padding
-
-	size_t bytes_mem_read_node_id = read_iter_per_query * sizeof(int);
-	size_t bytes_db_vectors = AXI_num_per_vector * total_node_num * 64;
-	size_t bytes_out_dist = 1024;
+	size_t bytes_query_vectors = d * sizeof(float);
+	size_t bytes_fetched_vectors = d * sizeof(float);
+	size_t bytes_out_dist = num_fetched_vectors_per_query * sizeof(float);
 
 	// input vecs
-	std::vector<int, aligned_allocator<int>> mem_read_node_id(bytes_mem_read_node_id / sizeof(int));
-	std::vector<float, aligned_allocator<float>> db_vectors(bytes_db_vectors / sizeof(float));
+	std::vector<float, aligned_allocator<float>> query_vectors(bytes_query_vectors / sizeof(float));
+	std::vector<float, aligned_allocator<float>> fetched_vectors(bytes_fetched_vectors / sizeof(float));
 
 	// output
 	std::vector<float, aligned_allocator<float>> out_dist(bytes_out_dist / sizeof(float));
+	std::vector<float, aligned_allocator<float>> sw_out_dist(bytes_out_dist / sizeof(float));
 
 	// generate random query and fetched vectors
-	for (int i = 0; i < read_iter_per_query; i++) {
-		mem_read_node_id[i] = 1000 * i % total_node_num; // make sure every time the memory addresses are very far from each other
+	for (int i = 0; i < d; i++) {
+		query_vectors[i] = (float)rand();
+		fetched_vectors[i] = (float)rand();
+	}
+	// compute software results: L2 distance square
+	float dist = 0;
+	for (int j = 0; j < d; j++) {
+		float diff = query_vectors[j] - fetched_vectors[j];
+		dist += diff * diff;
+	}
+	for (int i = 0; i < num_fetched_vectors_per_query; i++) {
+		sw_out_dist[i] = dist;
 	}
 
 // OPENCL HOST CODE AREA START
@@ -78,25 +85,24 @@ int main(int argc, char** argv)
 
     std::cout << "Finish loading bitstream...\n";
     // in 
-	OCL_CHECK(err, cl::Buffer buffer_mem_read_node_id (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-			bytes_mem_read_node_id, mem_read_node_id.data(), &err));
-	OCL_CHECK(err, cl::Buffer buffer_db_vectors (context,CL_MEM_USE_HOST_PTR,
-			bytes_db_vectors, db_vectors.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_query_vectors (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+			bytes_query_vectors, query_vectors.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_fetched_vectors (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+			bytes_fetched_vectors, fetched_vectors.data(), &err));
 
 	// out
-	OCL_CHECK(err, cl::Buffer buffer_out_dist (context,CL_MEM_USE_HOST_PTR,
+	OCL_CHECK(err, cl::Buffer buffer_out_dist (context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
 			bytes_out_dist, out_dist.data(), &err));
 
 	std::cout << "Finish allocate buffer...\n";
 
 	int arg_counter = 0;    
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(query_num)));
-	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(read_iter_per_query)));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(num_fetched_vectors_per_query)));
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(read_batch_size)));
-	// OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(d)));
 
-	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_mem_read_node_id));
-	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_db_vectors));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_query_vectors));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_fetched_vectors));
 	
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_out_dist));
 
@@ -104,8 +110,8 @@ int main(int argc, char** argv)
     // Copy input data to device global memory
     OCL_CHECK(err, err = q.enqueueMigrateMemObjects({
         // in
-		buffer_mem_read_node_id,
-		buffer_db_vectors
+		buffer_query_vectors,
+		buffer_fetched_vectors
         },0/* 0 means from host*/));
 
     std::cout << "Launching kernel...\n";
@@ -123,7 +129,21 @@ int main(int argc, char** argv)
     std::cout << "Duration (including memcpy out): " << duration << " sec" << std::endl; 
 
 	// compare software and hardware results
-	std::cout << "No result checking." << std::endl;
+	std::cout << "Comparing the results of the Device to the CPU...\n";
+	bool overall_result = true;
+	for (int i = 0; i < num_fetched_vectors_per_query; i++) {
+		if (out_dist[i] == sw_out_dist[i]) {
+			std::cout << "Match: " << out_dist[i] << " (hw) = " << sw_out_dist[i] << " (sw)" << std::endl;
+		} else {
+			std::cout << "Mismatch: " << out_dist[i] << " (hw) != " << sw_out_dist[i] << " (sw)" << std::endl;
+			overall_result = false;
+		}
+	}
+	if (overall_result) {
+		std::cout << "Overall: Match" << std::endl;
+	} else {
+		std::cout << "Overall: Mismatch" << std::endl;
+	}
 
-	return  0;
+    return  0;
 }

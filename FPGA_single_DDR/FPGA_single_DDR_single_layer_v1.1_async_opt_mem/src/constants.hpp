@@ -16,7 +16,7 @@ const int hardware_result_queue_size = 64; // 128;
 const int hardware_candidate_queue_size = 32; // 128;
 
 // bloom filter setting
-const int bloom_num_hash_funs = 4; 
+const int bloom_num_hash_funs = 3; 
 const int bloom_num_bucket_addr_bits = 8 + 10; // 256 * 1024
 const int bloom_num_buckets = 1 << bloom_num_bucket_addr_bits;
 
