@@ -34,6 +34,7 @@ int main(int argc, char** argv)
 
     // in init
     int query_num = 10000;
+	int query_batch_size = 10000;
 	int query_offset = 0; // starting from query x
 	int query_num_after_offset = query_num + query_offset > 10000? 10000 - query_offset : query_num;
     int ef = 64;
@@ -215,6 +216,7 @@ int main(int argc, char** argv)
 
     int arg_counter = 0;    
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(query_num)));
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(query_batch_size)));
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(ef)));
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(candidate_queue_runtime_size)));
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(max_cand_batch_size)));

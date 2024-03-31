@@ -43,34 +43,28 @@ void fetch_neighbor_ids(
 				int level_id = reg_cand.level_id;
 				bool send_node_itself = false;
 
-				ap_uint<64> start_addr;
-				int read_num;
-				if (level_id == 0) { // base layer
-					start_addr = node_id * AXI_num_per_base_link;
-					read_num  = AXI_num_per_base_link;
-					// first 64-byte = header (4 byte num links + 60 byte padding)
-					// then we have the links (4 byte each, total number = max_link_num)
-					for (int i = 0; i < read_num; i++) {
-					#pragma HLS pipeline II=1
-						local_links_buffer[i] = links_base[start_addr + i];
-					}
-					// if (is_entry_point) {
-					// 	send_node_itself = true;
-					// 	is_entry_point = false;
-					// }
-				} 
+				ap_uint<64> start_addr = start_addr = node_id * AXI_num_per_base_link;
+				// first 64-byte = header (4 byte num links + 60 byte padding)
+				// then we have the links (4 byte each, total number = max_link_num)
+				for (int i = 0; i < AXI_num_per_base_link; i++) {
+				#pragma HLS pipeline II=1
+					local_links_buffer[i] = links_base[start_addr + i];
+				}
+				// if (is_entry_point) {
+				// 	send_node_itself = true;
+				// 	is_entry_point = false;
+				// }
 
 				// write out links num & links id
 				ap_uint<32> links_num_ap = local_links_buffer[0].range(31, 0);
 				int num_links = links_num_ap;
-				if (level_id == 0) { // base layer
-					// if (send_node_itself) {
-					// 	s_num_neighbors_base_level.write(num_links + 1);
-					// } else {
-						s_num_neighbors_base_level.write(num_links);
-					// }
-				} 
-				for (int i = 0; i < read_num - 1; i++) { // first one is the num_links
+				// if (send_node_itself) {
+				// 	s_num_neighbors_base_level.write(num_links + 1);
+				// } else {
+					s_num_neighbors_base_level.write(num_links);
+				// }
+					
+				for (int i = 0; i < AXI_num_per_base_link - 1; i++) { // first one is the num_links
 					for (int j = 0; j < INT_PER_AXI && i * INT_PER_AXI + j < num_links; j++) {
 					#pragma HLS pipeline II=1
 						ap_uint<32> link_ap = local_links_buffer[i + 1].range(32 * (j + 1) - 1, 32 * j);
@@ -160,7 +154,7 @@ void results_collection(
 	hls::stream<result_t>& s_inserted_candidates,
 	hls::stream<int>& s_num_inserted_candidates,
 	hls::stream<float>& s_largest_result_queue_elements,
-	// hls::stream<int>& s_debug_num_vec_base_layer,
+	hls::stream<int>& s_debug_num_vec_base_layer,
 	hls::stream<int>& s_finish_query_out,
 	
 	// out (DRAM)
@@ -188,7 +182,7 @@ void results_collection(
 			if (!s_finish_query_in.empty() && s_cand_batch_size.empty() 
 				&& s_num_neighbors_base_level.empty() && s_distances_base_level.empty()) {
 				// volatile int reg_finish = s_finish_query_in.read();
-				// s_debug_num_vec_base_layer.write(debug_num_vec_base_layer);
+				s_debug_num_vec_base_layer.write(debug_num_vec_base_layer);
 				s_finish_query_out.write(s_finish_query_in.read());
 				break;
 			} else if (!s_cand_batch_size.empty() && !s_num_neighbors_base_level.empty()) {

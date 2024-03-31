@@ -15,7 +15,7 @@ void task_scheduler(
 	hls::stream<int>& s_num_inserted_candidates,
 	hls::stream<result_t>& s_inserted_candidates,
 	hls::stream<float>& s_largest_result_queue_elements,
-	// hls::stream<int>& s_debug_num_vec_base_layer,
+	hls::stream<int>& s_debug_num_vec_base_layer,
 	hls::stream<int>& s_finish_query_in,
 
 	// out streams
@@ -35,7 +35,7 @@ void task_scheduler(
 	const int vec_AXI_num = D % FLOAT_PER_AXI == 0? D / FLOAT_PER_AXI : D / FLOAT_PER_AXI + 1; 
 	bool first_iter_s_inserted_candidates = true;
 	bool first_iter_s_largest_result_queue_elements = true;
-	// bool first_iter_s_debug_num_vec_base_layer = true;
+	bool first_iter_s_debug_num_vec_base_layer = true;
 
 	Priority_queue<result_t, hardware_candidate_queue_size, Collect_smallest> candidate_queue(candidate_queue_runtime_size);
 	const int sort_swap_round = candidate_queue_runtime_size % 2 == 0? candidate_queue_runtime_size / 2 : candidate_queue_runtime_size / 2 + 1;
@@ -46,7 +46,7 @@ void task_scheduler(
 	int async_batch_size_array[hardware_async_batch_size];
 #pragma HLS bind_storage variable=async_batch_size_array type=RAM_2P impl=BRAM
 
-	const int debug_size = 1;
+	const int debug_size = 2;
 	// const int debug_size = 2;
 	// int debug_signals[debug_size];
 	// int* debug_hops_base_layer = &debug_signals[0];
@@ -153,9 +153,9 @@ void task_scheduler(
 
 		s_finish_query_out.write(qid);
 
-		// wait_data_fifo_first_iter<int>(
-		// 	1, s_debug_num_vec_base_layer, first_iter_s_debug_num_vec_base_layer);
-		// *debug_num_vec_base_layer = s_debug_num_vec_base_layer.read();
+		wait_data_fifo_first_iter<int>(
+			1, s_debug_num_vec_base_layer, first_iter_s_debug_num_vec_base_layer);
+		int debug_num_vec_base_layer = s_debug_num_vec_base_layer.read();
 
 		// for (int did = 0; did < debug_size; did++) {
 		// #pragma HLS pipeline II=1
@@ -163,6 +163,7 @@ void task_scheduler(
 		// }
 
 		mem_debug[qid * debug_size] = debug_hops_base_layer;
+		mem_debug[qid * debug_size + 1] = debug_num_vec_base_layer;
 	}
 
 	while (s_finish_query_in.empty()) {}

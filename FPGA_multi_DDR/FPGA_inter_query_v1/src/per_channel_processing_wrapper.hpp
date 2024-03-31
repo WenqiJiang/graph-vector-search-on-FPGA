@@ -7,11 +7,9 @@
 #include "types.hpp"
 #include "utils.hpp"
 
-extern "C" {
-
-void vadd(  
+// Wrapping the processing logic for each channel
+void per_channel_processing_wrapper(
 	// in initialization
-	const int query_num, 
 	const int ef, // size of the result priority queue
 	const int candidate_queue_runtime_size, 
 	const int max_cand_batch_size, 
@@ -22,41 +20,21 @@ void vadd(
 	const int max_link_num_base,
 
     // in runtime (from DRAM)
-	const int* entry_point_ids,
-	const ap_uint<512>* query_vectors,
     ap_uint<512>* db_vectors,
+    const ap_uint<512>* links_base,	
 
-    const ap_uint<512>* links_base,
-	   
-    // out
-    int* out_id,
-	float* out_dist,
+	// in streams
+	hls::stream<int>& s_query_batch_size, // -1: stop
+	hls::stream<ap_uint<512>>& s_query_vectors_in,	
+	hls::stream<int>& s_entry_point_ids, 
 
-	// debug signals (each 4 byte): 
-	//   0: bottom layer entry node id, 
-	//   1: number of hops in upper layers 
-	//   2: number of read vectors in upper layers
-	//   3: number of hops in base layer (number of pop operations)
-	//   4: number of valid read vectors in base layer
-	int* mem_debug
-    )
-{
-// Share the same AXI interface with several control signals (but they are not allowed in same dataflow)
-//    https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/Controlling-AXI4-Burst-Behavior
+	// out streams
+	hls::stream<int>& s_out_ids,
+	hls::stream<float>& s_out_dists,
+	hls::stream<int>& s_debug_signals
+) {
 
-// in runtime (from DRAM)
-#pragma HLS INTERFACE m_axi port=entry_point_ids latency=32 num_read_outstanding=4 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2  offset=slave bundle=gmem0
-#pragma HLS INTERFACE m_axi port=query_vectors latency=32 num_read_outstanding=4 max_read_burst_length=16  num_write_outstanding=1 max_write_burst_length=2  offset=slave bundle=gmem0
-#pragma HLS INTERFACE m_axi port=mem_debug latency=32 num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem10 // cannot share gmem with out as they are different PEs
-
-#pragma HLS INTERFACE m_axi port=db_vectors latency=64 num_read_outstanding=64 num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmem4 
-#pragma HLS INTERFACE m_axi port=links_base latency=32 num_read_outstanding=16 num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmem2
-
-// out
-#pragma HLS INTERFACE m_axi port=out_id latency=32 num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem9
-#pragma HLS INTERFACE m_axi port=out_dist latency=32 num_read_outstanding=1 max_read_burst_length=2  num_write_outstanding=8 max_write_burst_length=16 offset=slave bundle=gmem9
-
-#pragma HLS dataflow
+#pragma HLS inline
 
     hls::stream<int> s_finish_query_task_scheduler; // finish the current query
 #pragma HLS stream variable=s_finish_query_task_scheduler depth=16
@@ -94,18 +72,26 @@ void vadd(
 	hls::stream<int> s_debug_num_vec_base_layer;
 #pragma HLS stream variable=s_debug_num_vec_base_layer depth=16
 
+	// replicate s_query_batch_size to multiple streams
+	const int replicate_factor_s_query_batch_size = 4;
+	hls::stream<int> s_query_batch_size_replicated[replicate_factor_s_query_batch_size];
+#pragma HLS stream variable=s_query_batch_size_replicated depth=16
+
+	replicate_s_query_batch_size<replicate_factor_s_query_batch_size>(
+		s_query_batch_size,
+		s_query_batch_size_replicated
+	);
+
 	// controls the traversal and maintains the candidate queue
 	task_scheduler(
-		query_num, 
 		candidate_queue_runtime_size,
 		max_cand_batch_size,
 		max_async_stage_num,
 
-    	// in runtime (should from DRAM)
-		entry_point_ids,
-		query_vectors,
-
 		// in streams
+		s_query_batch_size_replicated[0], // -1: stop
+		s_query_vectors_in,
+		s_entry_point_ids,
 		s_num_inserted_candidates,
 		s_inserted_candidates,
 		s_largest_result_queue_elements,
@@ -117,9 +103,8 @@ void vadd(
 		// s_entry_point_base_level,
 		s_cand_batch_size,
 		s_top_candidates,
-		s_finish_query_task_scheduler,
-
-		mem_debug
+		s_debug_signals,
+		s_finish_query_task_scheduler
 	);
 
 	hls::stream<int> s_fetch_batch_size;
@@ -136,11 +121,11 @@ void vadd(
 
 	fetch_neighbor_ids(
 		// in initialization
-		query_num,
 		max_link_num_base,
 		// in runtime (should from DRAM)
     	links_base,
 		// in runtime (stream)
+		s_query_batch_size_replicated[1],
 		s_top_candidates,
 		s_finish_query_task_scheduler,
 
@@ -156,7 +141,6 @@ void vadd(
 
 	bloom_fetch_compute(
 		// in initialization
-		query_num, 
 		runtime_n_bucket_addr_bits,
 		hash_seed,
 		max_bloom_out_burst_size,
@@ -165,6 +149,7 @@ void vadd(
 		db_vectors, // need to write visited tag
 
 		// in streams
+		s_query_batch_size_replicated[2], // -1: stop
 		s_query_vectors,
 		s_num_neighbors_base_level,
 		s_fetched_neighbor_ids,
@@ -178,9 +163,9 @@ void vadd(
 
 	results_collection(
 		// in (initialization)
-		query_num,
 		ef,
 		// in runtime (stream)
+		s_query_batch_size_replicated[3],
 		// s_entry_point_base_level,
 		s_cand_batch_size,
 		s_num_valid_candidates_base_level_total,
@@ -193,12 +178,8 @@ void vadd(
 		s_largest_result_queue_elements,
 		s_debug_num_vec_base_layer,
 		s_finish_query_results_collection,
-
-		// out (DRAM)
-		out_id,
-		out_dist
+		s_out_ids,
+		s_out_dists
 	);
-
-}
 
 }
