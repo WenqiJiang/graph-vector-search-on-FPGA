@@ -163,12 +163,18 @@ void vadd(
 	hls::stream<int> s_entry_point_ids;
 #pragma HLS stream variable=s_entry_point_ids depth=16
 
+	hls::stream<int> s_finish_batch;
+#pragma HLS stream variable=s_finish_batch depth=16
+
 	read_queries(
-		// in streams
+		// in initialization
 		query_num,
 		query_batch_size,
+		// in DRAM
 		entry_point_ids,
 		query_vectors,
+		// in stream
+		s_finish_batch,
 
 		// out streams
 		s_query_batch_size,
@@ -220,489 +226,424 @@ void vadd(
 
 	// using an array to represent different DRAM channels would lead to fail to find the per_channel_processing_wrapper
 	// thus manually unrolling
-// 	const ap_uint<512>* db_vectors_chan[N_CHANNEL] = {
-// 		db_vectors_chan_0
-// #if N_CHANNEL >= 2
-// 		, db_vectors_chan_1
-// #endif
-// #if N_CHANNEL >= 4
-// 		, db_vectors_chan_2, db_vectors_chan_3
-// #endif
-// #if N_CHANNEL >= 8
-// 		, db_vectors_chan_4, db_vectors_chan_5, db_vectors_chan_6, db_vectors_chan_7
-// #endif
-// #if N_CHANNEL >= 16
-// 		, db_vectors_chan_8, db_vectors_chan_9, db_vectors_chan_10, db_vectors_chan_11, 
-// 		db_vectors_chan_12, db_vectors_chan_13, db_vectors_chan_14, db_vectors_chan_15
-// #endif
-// 	};
+	per_channel_processing_wrapper(
+		// in initialization
+		ef, // size of the result priority queue
+		candidate_queue_runtime_size, 
+		max_cand_batch_size, 
+		max_async_stage_num,
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		max_bloom_out_burst_size,
+		max_link_num_base,
+	
+		// in runtime (from DRAM)
+		db_vectors_chan_0,
+		links_base_chan_0,	
 
-// 	const ap_uint<512>* links_base_chan[N_CHANNEL] = {
-// 		links_base_chan_0
-// #if N_CHANNEL >= 2
-// 		, links_base_chan_1
-// #endif
-// #if N_CHANNEL >= 4
-// 		, links_base_chan_2, links_base_chan_3
-// #endif
-// #if N_CHANNEL >= 8
-// 		, links_base_chan_4, links_base_chan_5, links_base_chan_6, links_base_chan_7
-// #endif
-// #if N_CHANNEL >= 16
-// 		, links_base_chan_8, links_base_chan_9, links_base_chan_10, links_base_chan_11, 
-// 		links_base_chan_12, links_base_chan_13, links_base_chan_14, links_base_chan_15
-// #endif
-// 	};
+		// in streams
+		s_query_batch_size_in_per_channel[0], // -1: stop
+		s_query_vectors_in_per_channel[0],	
+		s_entry_point_ids_per_channel[0], 
 
-// 	for (int pe_id = 0; pe_id < N_CHANNEL; pe_id++) {
-// #pragma HLS UNROLL
-
-// 		per_channel_processing_wrapper(
-// 			// in initialization
-// 			ef, // size of the result priority queue
-// 			candidate_queue_runtime_size, 
-// 			max_cand_batch_size, 
-// 			max_async_stage_num,
-// 			runtime_n_bucket_addr_bits,
-// 			hash_seed,
-// 			max_bloom_out_burst_size,
-// 			max_link_num_base,
-		
-// 			// in runtime (from DRAM)
-// 			db_vectors_chan[pe_id],
-// 			links_base_chan[pe_id],		
-
-// 			// in streams
-// 			s_query_batch_size_in_per_channel[pe_id], // -1: stop
-// 			s_query_vectors_in_per_channel[pe_id],	
-// 			s_entry_point_ids_per_channel[pe_id], 
-
-// 			// out streams
-// 			s_out_ids_per_channel[pe_id],
-// 			s_out_dists_per_channel[pe_id],
-// 			s_debug_signals_per_channel[pe_id]
-// 		);
-// 	}
-
-
-		per_channel_processing_wrapper(
-			// in initialization
-			ef, // size of the result priority queue
-			candidate_queue_runtime_size, 
-			max_cand_batch_size, 
-			max_async_stage_num,
-			runtime_n_bucket_addr_bits,
-			hash_seed,
-			max_bloom_out_burst_size,
-			max_link_num_base,
-		
-			// in runtime (from DRAM)
-			db_vectors_chan_0,
-			links_base_chan_0,	
-
-			// in streams
-			s_query_batch_size_in_per_channel[0], // -1: stop
-			s_query_vectors_in_per_channel[0],	
-			s_entry_point_ids_per_channel[0], 
-
-			// out streams
-			s_out_ids_per_channel[0],
-			s_out_dists_per_channel[0],
-			s_debug_signals_per_channel[0]
-		);
+		// out streams
+		s_out_ids_per_channel[0],
+		s_out_dists_per_channel[0],
+		s_debug_signals_per_channel[0]
+	);
 #if N_CHANNEL >= 2
-		per_channel_processing_wrapper(
-			// in initialization
-			ef, // size of the result priority queue
-			candidate_queue_runtime_size, 
-			max_cand_batch_size, 
-			max_async_stage_num,
-			runtime_n_bucket_addr_bits,
-			hash_seed,
-			max_bloom_out_burst_size,
-			max_link_num_base,
-		
-			// in runtime (from DRAM)
-			db_vectors_chan_1,
-			links_base_chan_1,	
+	per_channel_processing_wrapper(
+		// in initialization
+		ef, // size of the result priority queue
+		candidate_queue_runtime_size, 
+		max_cand_batch_size, 
+		max_async_stage_num,
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		max_bloom_out_burst_size,
+		max_link_num_base,
+	
+		// in runtime (from DRAM)
+		db_vectors_chan_1,
+		links_base_chan_1,	
 
-			// in streams
-			s_query_batch_size_in_per_channel[1], // -1: stop
-			s_query_vectors_in_per_channel[1],	
-			s_entry_point_ids_per_channel[1], 
+		// in streams
+		s_query_batch_size_in_per_channel[1], // -1: stop
+		s_query_vectors_in_per_channel[1],	
+		s_entry_point_ids_per_channel[1], 
 
-			// out streams
-			s_out_ids_per_channel[1],
-			s_out_dists_per_channel[1],
-			s_debug_signals_per_channel[1]
-		);
+		// out streams
+		s_out_ids_per_channel[1],
+		s_out_dists_per_channel[1],
+		s_debug_signals_per_channel[1]
+	);
 #endif
 #if N_CHANNEL >= 4
-		per_channel_processing_wrapper(
-			// in initialization
-			ef, // size of the result priority queue
-			candidate_queue_runtime_size, 
-			max_cand_batch_size, 
-			max_async_stage_num,
-			runtime_n_bucket_addr_bits,
-			hash_seed,
-			max_bloom_out_burst_size,
-			max_link_num_base,
-		
-			// in runtime (from DRAM)
-			db_vectors_chan_2,
-			links_base_chan_2,	
+	per_channel_processing_wrapper(
+		// in initialization
+		ef, // size of the result priority queue
+		candidate_queue_runtime_size, 
+		max_cand_batch_size, 
+		max_async_stage_num,
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		max_bloom_out_burst_size,
+		max_link_num_base,
+	
+		// in runtime (from DRAM)
+		db_vectors_chan_2,
+		links_base_chan_2,	
 
-			// in streams
-			s_query_batch_size_in_per_channel[2], // -1: stop
-			s_query_vectors_in_per_channel[2],	
-			s_entry_point_ids_per_channel[2], 
+		// in streams
+		s_query_batch_size_in_per_channel[2], // -1: stop
+		s_query_vectors_in_per_channel[2],	
+		s_entry_point_ids_per_channel[2], 
 
-			// out streams
-			s_out_ids_per_channel[2],
-			s_out_dists_per_channel[2],
-			s_debug_signals_per_channel[2]
-		);
+		// out streams
+		s_out_ids_per_channel[2],
+		s_out_dists_per_channel[2],
+		s_debug_signals_per_channel[2]
+	);
 
-		per_channel_processing_wrapper(
-			// in initialization
-			ef, // size of the result priority queue
-			candidate_queue_runtime_size, 
-			max_cand_batch_size, 
-			max_async_stage_num,
-			runtime_n_bucket_addr_bits,
-			hash_seed,
-			max_bloom_out_burst_size,
-			max_link_num_base,
-		
-			// in runtime (from DRAM)
-			db_vectors_chan_3,
-			links_base_chan_3,	
+	per_channel_processing_wrapper(
+		// in initialization
+		ef, // size of the result priority queue
+		candidate_queue_runtime_size, 
+		max_cand_batch_size, 
+		max_async_stage_num,
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		max_bloom_out_burst_size,
+		max_link_num_base,
+	
+		// in runtime (from DRAM)
+		db_vectors_chan_3,
+		links_base_chan_3,	
 
-			// in streams
-			s_query_batch_size_in_per_channel[3], // -1: stop
-			s_query_vectors_in_per_channel[3],	
-			s_entry_point_ids_per_channel[3], 
+		// in streams
+		s_query_batch_size_in_per_channel[3], // -1: stop
+		s_query_vectors_in_per_channel[3],	
+		s_entry_point_ids_per_channel[3], 
 
-			// out streams
-			s_out_ids_per_channel[3],
-			s_out_dists_per_channel[3],
-			s_debug_signals_per_channel[3]
-		);
+		// out streams
+		s_out_ids_per_channel[3],
+		s_out_dists_per_channel[3],
+		s_debug_signals_per_channel[3]
+	);
 #endif
 #if N_CHANNEL >=8 
-		per_channel_processing_wrapper(
-			// in initialization
-			ef, // size of the result priority queue
-			candidate_queue_runtime_size, 
-			max_cand_batch_size, 
-			max_async_stage_num,
-			runtime_n_bucket_addr_bits,
-			hash_seed,
-			max_bloom_out_burst_size,
-			max_link_num_base,
-		
-			// in runtime (from DRAM)
-			db_vectors_chan_4,
-			links_base_chan_4,	
+	per_channel_processing_wrapper(
+		// in initialization
+		ef, // size of the result priority queue
+		candidate_queue_runtime_size, 
+		max_cand_batch_size, 
+		max_async_stage_num,
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		max_bloom_out_burst_size,
+		max_link_num_base,
+	
+		// in runtime (from DRAM)
+		db_vectors_chan_4,
+		links_base_chan_4,	
 
-			// in streams
-			s_query_batch_size_in_per_channel[4], // -1: stop
-			s_query_vectors_in_per_channel[4],	
-			s_entry_point_ids_per_channel[4], 
+		// in streams
+		s_query_batch_size_in_per_channel[4], // -1: stop
+		s_query_vectors_in_per_channel[4],	
+		s_entry_point_ids_per_channel[4], 
 
-			// out streams
-			s_out_ids_per_channel[4],
-			s_out_dists_per_channel[4],
-			s_debug_signals_per_channel[4]
-		);
+		// out streams
+		s_out_ids_per_channel[4],
+		s_out_dists_per_channel[4],
+		s_debug_signals_per_channel[4]
+	);
 
-		per_channel_processing_wrapper(
-			// in initialization
-			ef, // size of the result priority queue
-			candidate_queue_runtime_size, 
-			max_cand_batch_size, 
-			max_async_stage_num,
-			runtime_n_bucket_addr_bits,
-			hash_seed,
-			max_bloom_out_burst_size,
-			max_link_num_base,
-		
-			// in runtime (from DRAM)
-			db_vectors_chan_5,
-			links_base_chan_5,	
+	per_channel_processing_wrapper(
+		// in initialization
+		ef, // size of the result priority queue
+		candidate_queue_runtime_size, 
+		max_cand_batch_size, 
+		max_async_stage_num,
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		max_bloom_out_burst_size,
+		max_link_num_base,
+	
+		// in runtime (from DRAM)
+		db_vectors_chan_5,
+		links_base_chan_5,	
 
-			// in streams
-			s_query_batch_size_in_per_channel[5], // -1: stop
-			s_query_vectors_in_per_channel[5],	
-			s_entry_point_ids_per_channel[5], 
+		// in streams
+		s_query_batch_size_in_per_channel[5], // -1: stop
+		s_query_vectors_in_per_channel[5],	
+		s_entry_point_ids_per_channel[5], 
 
-			// out streams
-			s_out_ids_per_channel[5],
-			s_out_dists_per_channel[5],
-			s_debug_signals_per_channel[5]
-		);
+		// out streams
+		s_out_ids_per_channel[5],
+		s_out_dists_per_channel[5],
+		s_debug_signals_per_channel[5]
+	);
 
-		per_channel_processing_wrapper(
-			// in initialization
-			ef, // size of the result priority queue
-			candidate_queue_runtime_size, 
-			max_cand_batch_size, 
-			max_async_stage_num,
-			runtime_n_bucket_addr_bits,
-			hash_seed,
-			max_bloom_out_burst_size,
-			max_link_num_base,
-		
-			// in runtime (from DRAM)
-			db_vectors_chan_6,
-			links_base_chan_6,	
+	per_channel_processing_wrapper(
+		// in initialization
+		ef, // size of the result priority queue
+		candidate_queue_runtime_size, 
+		max_cand_batch_size, 
+		max_async_stage_num,
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		max_bloom_out_burst_size,
+		max_link_num_base,
+	
+		// in runtime (from DRAM)
+		db_vectors_chan_6,
+		links_base_chan_6,	
 
-			// in streams
-			s_query_batch_size_in_per_channel[6], // -1: stop
-			s_query_vectors_in_per_channel[6],
-			s_entry_point_ids_per_channel[6],
+		// in streams
+		s_query_batch_size_in_per_channel[6], // -1: stop
+		s_query_vectors_in_per_channel[6],
+		s_entry_point_ids_per_channel[6],
 
-			// out streams
-			s_out_ids_per_channel[6],
-			s_out_dists_per_channel[6],
-			s_debug_signals_per_channel[6]
-		);
+		// out streams
+		s_out_ids_per_channel[6],
+		s_out_dists_per_channel[6],
+		s_debug_signals_per_channel[6]
+	);
 
-		per_channel_processing_wrapper(
-			// in initialization
-			ef, // size of the result priority queue
-			candidate_queue_runtime_size, 
-			max_cand_batch_size, 
-			max_async_stage_num,
-			runtime_n_bucket_addr_bits,
-			hash_seed,
-			max_bloom_out_burst_size,
-			max_link_num_base,
-		
-			// in runtime (from DRAM)
-			db_vectors_chan_7,
-			links_base_chan_7,	
+	per_channel_processing_wrapper(
+		// in initialization
+		ef, // size of the result priority queue
+		candidate_queue_runtime_size, 
+		max_cand_batch_size, 
+		max_async_stage_num,
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		max_bloom_out_burst_size,
+		max_link_num_base,
+	
+		// in runtime (from DRAM)
+		db_vectors_chan_7,
+		links_base_chan_7,	
 
-			// in streams
-			s_query_batch_size_in_per_channel[7], // -1: stop
-			s_query_vectors_in_per_channel[7],
-			s_entry_point_ids_per_channel[7],
+		// in streams
+		s_query_batch_size_in_per_channel[7], // -1: stop
+		s_query_vectors_in_per_channel[7],
+		s_entry_point_ids_per_channel[7],
 
-			// out streams
-			s_out_ids_per_channel[7],
-			s_out_dists_per_channel[7],
-			s_debug_signals_per_channel[7]
-		);
+		// out streams
+		s_out_ids_per_channel[7],
+		s_out_dists_per_channel[7],
+		s_debug_signals_per_channel[7]
+	);
 #endif
 #if N_CHANNEL >= 16
-		per_channel_processing_wrapper(
-			// in initialization
-			ef, // size of the result priority queue
-			candidate_queue_runtime_size, 
-			max_cand_batch_size, 
-			max_async_stage_num,
-			runtime_n_bucket_addr_bits,
-			hash_seed,
-			max_bloom_out_burst_size,
-			max_link_num_base,
-		
-			// in runtime (from DRAM)
-			db_vectors_chan_8,
-			links_base_chan_8,	
+	per_channel_processing_wrapper(
+		// in initialization
+		ef, // size of the result priority queue
+		candidate_queue_runtime_size, 
+		max_cand_batch_size, 
+		max_async_stage_num,
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		max_bloom_out_burst_size,
+		max_link_num_base,
+	
+		// in runtime (from DRAM)
+		db_vectors_chan_8,
+		links_base_chan_8,	
 
-			// in streams
-			s_query_batch_size_in_per_channel[8], // -1: stop
-			s_query_vectors_in_per_channel[8],
-			s_entry_point_ids_per_channel[8],
+		// in streams
+		s_query_batch_size_in_per_channel[8], // -1: stop
+		s_query_vectors_in_per_channel[8],
+		s_entry_point_ids_per_channel[8],
 
-			// out streams
-			s_out_ids_per_channel[8],
-			s_out_dists_per_channel[8],
-			s_debug_signals_per_channel[8]
-		);
+		// out streams
+		s_out_ids_per_channel[8],
+		s_out_dists_per_channel[8],
+		s_debug_signals_per_channel[8]
+	);
 
-		per_channel_processing_wrapper(
-			// in initialization
-			ef, // size of the result priority queue
-			candidate_queue_runtime_size, 
-			max_cand_batch_size, 
-			max_async_stage_num,
-			runtime_n_bucket_addr_bits,
-			hash_seed,
-			max_bloom_out_burst_size,
-			max_link_num_base,
-		
-			// in runtime (from DRAM)
-			db_vectors_chan_9,
-			links_base_chan_9,	
+	per_channel_processing_wrapper(
+		// in initialization
+		ef, // size of the result priority queue
+		candidate_queue_runtime_size, 
+		max_cand_batch_size, 
+		max_async_stage_num,
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		max_bloom_out_burst_size,
+		max_link_num_base,
+	
+		// in runtime (from DRAM)
+		db_vectors_chan_9,
+		links_base_chan_9,	
 
-			// in streams
-			s_query_batch_size_in_per_channel[9], // -1: stop
-			s_query_vectors_in_per_channel[9],
-			s_entry_point_ids_per_channel[9],
+		// in streams
+		s_query_batch_size_in_per_channel[9], // -1: stop
+		s_query_vectors_in_per_channel[9],
+		s_entry_point_ids_per_channel[9],
 
-			// out streams
-			s_out_ids_per_channel[9],
-			s_out_dists_per_channel[9],
-			s_debug_signals_per_channel[9]
-		);
+		// out streams
+		s_out_ids_per_channel[9],
+		s_out_dists_per_channel[9],
+		s_debug_signals_per_channel[9]
+	);
 
-		per_channel_processing_wrapper(
-			// in initialization
-			ef, // size of the result priority queue
-			candidate_queue_runtime_size, 
-			max_cand_batch_size, 
-			max_async_stage_num,
-			runtime_n_bucket_addr_bits,
-			hash_seed,
-			max_bloom_out_burst_size,
-			max_link_num_base,
-		
-			// in runtime (from DRAM)
-			db_vectors_chan_10,
-			links_base_chan_10,	
+	per_channel_processing_wrapper(
+		// in initialization
+		ef, // size of the result priority queue
+		candidate_queue_runtime_size, 
+		max_cand_batch_size, 
+		max_async_stage_num,
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		max_bloom_out_burst_size,
+		max_link_num_base,
+	
+		// in runtime (from DRAM)
+		db_vectors_chan_10,
+		links_base_chan_10,	
 
-			// in streams
-			s_query_batch_size_in_per_channel[10], // -1: stop
-			s_query_vectors_in_per_channel[10],
-			s_entry_point_ids_per_channel[10],
+		// in streams
+		s_query_batch_size_in_per_channel[10], // -1: stop
+		s_query_vectors_in_per_channel[10],
+		s_entry_point_ids_per_channel[10],
 
-			// out streams
-			s_out_ids_per_channel[10],
-			s_out_dists_per_channel[10],
-			s_debug_signals_per_channel[10]
-		);
+		// out streams
+		s_out_ids_per_channel[10],
+		s_out_dists_per_channel[10],
+		s_debug_signals_per_channel[10]
+	);
 
-		per_channel_processing_wrapper(
-			// in initialization
-			ef, // size of the result priority queue
-			candidate_queue_runtime_size, 
-			max_cand_batch_size, 
-			max_async_stage_num,
-			runtime_n_bucket_addr_bits,
-			hash_seed,
-			max_bloom_out_burst_size,
-			max_link_num_base,
-		
-			// in runtime (from DRAM)
-			db_vectors_chan_11,
-			links_base_chan_11,	
+	per_channel_processing_wrapper(
+		// in initialization
+		ef, // size of the result priority queue
+		candidate_queue_runtime_size, 
+		max_cand_batch_size, 
+		max_async_stage_num,
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		max_bloom_out_burst_size,
+		max_link_num_base,
+	
+		// in runtime (from DRAM)
+		db_vectors_chan_11,
+		links_base_chan_11,	
 
-			// in streams
-			s_query_batch_size_in_per_channel[11], // -1: stop
-			s_query_vectors_in_per_channel[11],
-			s_entry_point_ids_per_channel[11],
+		// in streams
+		s_query_batch_size_in_per_channel[11], // -1: stop
+		s_query_vectors_in_per_channel[11],
+		s_entry_point_ids_per_channel[11],
 
-			// out streams
-			s_out_ids_per_channel[11],
-			s_out_dists_per_channel[11],
-			s_debug_signals_per_channel[11]
-		);
+		// out streams
+		s_out_ids_per_channel[11],
+		s_out_dists_per_channel[11],
+		s_debug_signals_per_channel[11]
+	);
 
-		per_channel_processing_wrapper(
-			// in initialization
-			ef, // size of the result priority queue
-			candidate_queue_runtime_size, 
-			max_cand_batch_size, 
-			max_async_stage_num,
-			runtime_n_bucket_addr_bits,
-			hash_seed,
-			max_bloom_out_burst_size,
-			max_link_num_base,
-		
-			// in runtime (from DRAM)
-			db_vectors_chan_12,
-			links_base_chan_12,	
+	per_channel_processing_wrapper(
+		// in initialization
+		ef, // size of the result priority queue
+		candidate_queue_runtime_size, 
+		max_cand_batch_size, 
+		max_async_stage_num,
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		max_bloom_out_burst_size,
+		max_link_num_base,
+	
+		// in runtime (from DRAM)
+		db_vectors_chan_12,
+		links_base_chan_12,	
 
-			// in streams
-			s_query_batch_size_in_per_channel[12], // -1: stop
-			s_query_vectors_in_per_channel[12],
-			s_entry_point_ids_per_channel[12],
+		// in streams
+		s_query_batch_size_in_per_channel[12], // -1: stop
+		s_query_vectors_in_per_channel[12],
+		s_entry_point_ids_per_channel[12],
 
-			// out streams
-			s_out_ids_per_channel[12],
-			s_out_dists_per_channel[12],
-			s_debug_signals_per_channel[12]
-		);
+		// out streams
+		s_out_ids_per_channel[12],
+		s_out_dists_per_channel[12],
+		s_debug_signals_per_channel[12]
+	);
 
-		per_channel_processing_wrapper(
-			// in initialization
-			ef, // size of the result priority queue
-			candidate_queue_runtime_size, 
-			max_cand_batch_size, 
-			max_async_stage_num,
-			runtime_n_bucket_addr_bits,
-			hash_seed,
-			max_bloom_out_burst_size,
-			max_link_num_base,
-		
-			// in runtime (from DRAM)
-			db_vectors_chan_13,
-			links_base_chan_13,	
+	per_channel_processing_wrapper(
+		// in initialization
+		ef, // size of the result priority queue
+		candidate_queue_runtime_size, 
+		max_cand_batch_size, 
+		max_async_stage_num,
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		max_bloom_out_burst_size,
+		max_link_num_base,
+	
+		// in runtime (from DRAM)
+		db_vectors_chan_13,
+		links_base_chan_13,	
 
-			// in streams
-			s_query_batch_size_in_per_channel[13], // -1: stop
-			s_query_vectors_in_per_channel[13],
-			s_entry_point_ids_per_channel[13],
+		// in streams
+		s_query_batch_size_in_per_channel[13], // -1: stop
+		s_query_vectors_in_per_channel[13],
+		s_entry_point_ids_per_channel[13],
 
-			// out streams
-			s_out_ids_per_channel[13],
-			s_out_dists_per_channel[13],
-			s_debug_signals_per_channel[13]
-		);
+		// out streams
+		s_out_ids_per_channel[13],
+		s_out_dists_per_channel[13],
+		s_debug_signals_per_channel[13]
+	);
 
-		per_channel_processing_wrapper(
-			// in initialization
-			ef, // size of the result priority queue
-			candidate_queue_runtime_size, 
-			max_cand_batch_size, 
-			max_async_stage_num,
-			runtime_n_bucket_addr_bits,
-			hash_seed,
-			max_bloom_out_burst_size,
-			max_link_num_base,
-		
-			// in runtime (from DRAM)
-			db_vectors_chan_14,
-			links_base_chan_14,	
+	per_channel_processing_wrapper(
+		// in initialization
+		ef, // size of the result priority queue
+		candidate_queue_runtime_size, 
+		max_cand_batch_size, 
+		max_async_stage_num,
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		max_bloom_out_burst_size,
+		max_link_num_base,
+	
+		// in runtime (from DRAM)
+		db_vectors_chan_14,
+		links_base_chan_14,	
 
-			// in streams
-			s_query_batch_size_in_per_channel[14], // -1: stop
-			s_query_vectors_in_per_channel[14],
-			s_entry_point_ids_per_channel[14],
+		// in streams
+		s_query_batch_size_in_per_channel[14], // -1: stop
+		s_query_vectors_in_per_channel[14],
+		s_entry_point_ids_per_channel[14],
 
-			// out streams
-			s_out_ids_per_channel[14],
-			s_out_dists_per_channel[14],
-			s_debug_signals_per_channel[14]
-		);
+		// out streams
+		s_out_ids_per_channel[14],
+		s_out_dists_per_channel[14],
+		s_debug_signals_per_channel[14]
+	);
 
-		per_channel_processing_wrapper(
-			// in initialization
-			ef, // size of the result priority queue
-			candidate_queue_runtime_size, 
-			max_cand_batch_size, 
-			max_async_stage_num,
-			runtime_n_bucket_addr_bits,
-			hash_seed,
-			max_bloom_out_burst_size,
-			max_link_num_base,
-		
-			// in runtime (from DRAM)
-			db_vectors_chan_15,
-			links_base_chan_15,	
+	per_channel_processing_wrapper(
+		// in initialization
+		ef, // size of the result priority queue
+		candidate_queue_runtime_size, 
+		max_cand_batch_size, 
+		max_async_stage_num,
+		runtime_n_bucket_addr_bits,
+		hash_seed,
+		max_bloom_out_burst_size,
+		max_link_num_base,
+	
+		// in runtime (from DRAM)
+		db_vectors_chan_15,
+		links_base_chan_15,	
 
-			// in streams
-			s_query_batch_size_in_per_channel[15], // -1: stop
-			s_query_vectors_in_per_channel[15],
-			s_entry_point_ids_per_channel[15],
+		// in streams
+		s_query_batch_size_in_per_channel[15], // -1: stop
+		s_query_vectors_in_per_channel[15],
+		s_entry_point_ids_per_channel[15],
 
-			// out streams
-			s_out_ids_per_channel[15],
-			s_out_dists_per_channel[15],
-			s_debug_signals_per_channel[15]
-		);
+		// out streams
+		s_out_ids_per_channel[15],
+		s_out_dists_per_channel[15],
+		s_debug_signals_per_channel[15]
+	);
 #endif
 
 	// write in round robine same as split_queries
@@ -714,6 +655,9 @@ void vadd(
 		s_out_ids_per_channel,
 		s_out_dists_per_channel,
 		s_debug_signals_per_channel,
+
+		// out streams
+		s_finish_batch,
 
 		// out
 		out_id,

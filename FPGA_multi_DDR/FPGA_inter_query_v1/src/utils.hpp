@@ -84,7 +84,8 @@ void replicate_s_query_batch_size(
 
 	bool first_s_query_batch_size = true;
 
-	while (true) {
+	bool stop_all = false;
+	while (!stop_all) {
 		wait_data_fifo_first_iter<int>(
 			1, s_query_batch_size_in, first_s_query_batch_size);
 		int query_num = s_query_batch_size_in.read();
@@ -96,7 +97,7 @@ void replicate_s_query_batch_size(
 		}
 
 		if (query_num == -1) {
-			break;
+			stop_all = true;
 		}
 	}
 }
@@ -272,6 +273,43 @@ void gather_s_finish(
 		}
 	}
 }
+
+// unused
+template <const int rep_factor>
+void gather_s_finish_batch_per_channel(
+	// in (stream)
+	hls::stream<int>& s_query_batch_size, // -1: stop
+	hls::stream<int> (&s_finish_batch_per_channel)[rep_factor],
+	
+	// out (stream)
+	hls::stream<int>& s_finish_batch_all_channels
+) {
+
+	bool first_s_query_batch_size = true;
+	bool first_iter_s_finish_batch_per_channel[rep_factor];
+	for (int i = 0; i < rep_factor; i++) {
+		first_iter_s_finish_batch_per_channel[i] = true;
+	}
+
+	while (true) {
+
+		wait_data_fifo_first_iter<int>(
+			1, s_query_batch_size, first_s_query_batch_size);
+		int query_num = s_query_batch_size.read();
+		if (query_num == -1) {
+			break;
+		}
+
+		int finish;
+		for (int cid = 0; cid < rep_factor; cid++) {
+			wait_data_fifo_first_iter<int>(
+				1, s_finish_batch_per_channel[cid], first_iter_s_finish_batch_per_channel[cid]);
+			finish = s_finish_batch_per_channel[cid].read();
+		}
+		s_finish_batch_all_channels.write(finish);
+	}
+}
+
 
 // Send only upper-level results to results collection; replicate to other levels
 void split_s_distances(

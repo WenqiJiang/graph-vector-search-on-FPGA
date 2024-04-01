@@ -84,7 +84,8 @@ void replicate_s_query_batch_size(
 
 	bool first_s_query_batch_size = true;
 
-	while (true) {
+	bool stop_all = false;
+	while (!stop_all) {
 		wait_data_fifo_first_iter<int>(
 			1, s_query_batch_size_in, first_s_query_batch_size);
 		int query_num = s_query_batch_size_in.read();
@@ -96,7 +97,7 @@ void replicate_s_query_batch_size(
 		}
 
 		if (query_num == -1) {
-			break;
+			stop_all = true;
 		}
 	}
 }

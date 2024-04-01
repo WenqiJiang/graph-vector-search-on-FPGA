@@ -68,12 +68,18 @@ void vadd(
 	hls::stream<int> s_entry_point_ids;
 #pragma HLS stream variable=s_entry_point_ids depth=16
 
+	hls::stream<int> s_finish_batch;
+#pragma HLS stream variable=s_finish_batch depth=16
+
 	read_queries(
-		// in streams
+		// in initialization
 		query_num,
 		query_batch_size,
+		// in DRAM
 		entry_point_ids,
 		query_vectors,
+		// in stream
+		s_finish_batch,
 
 		// out streams
 		s_query_batch_size,
@@ -136,6 +142,9 @@ void vadd(
 		s_out_dists,
 		s_debug_signals,
 
+		// out streams
+		s_finish_batch,
+		
 		// out
 		out_id,
 		out_dist,

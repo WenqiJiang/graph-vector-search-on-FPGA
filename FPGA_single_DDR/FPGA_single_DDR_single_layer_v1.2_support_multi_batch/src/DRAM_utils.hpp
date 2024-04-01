@@ -13,6 +13,9 @@ void read_queries(
 	const int* entry_point_ids,
 	const ap_uint<512>* query_vectors,
 
+	// in streams
+	hls::stream<int>& s_finish_batch,
+
 	// out streams
 	hls::stream<int>& s_query_batch_size,
 	hls::stream<ap_uint<512>>& s_query_vectors_in,
@@ -38,6 +41,9 @@ void read_queries(
 		}
 		remained_query_num -= query_batch_size;
 		processed_query_num += query_batch_size;
+
+		while (s_finish_batch.empty()) {}
+		int finish_batch = s_finish_batch.read();
 	}
 
 	// write finish all 
@@ -52,6 +58,9 @@ void write_results(
 	hls::stream<int>& s_out_ids,
 	hls::stream<float>& s_out_dists,
 	hls::stream<int>& s_debug_signals,
+
+	// out streams
+	hls::stream<int>& s_finish_batch,
 
 	// out (DRAM)
     int* out_id,
@@ -104,8 +113,10 @@ void write_results(
 				mem_debug[start_addr] = s_debug_signals.read();
 			}
 		}
-
 		processed_query_num += query_num;
+		
+		// finish processing this entire batch
+		s_finish_batch.write(1);
 	}
 }
 

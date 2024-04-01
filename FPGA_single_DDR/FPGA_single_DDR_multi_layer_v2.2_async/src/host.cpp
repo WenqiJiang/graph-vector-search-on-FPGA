@@ -38,8 +38,18 @@ int main(int argc, char** argv)
 	int query_num_after_offset = query_num + query_offset > 10000? 10000 - query_offset : query_num;
     int ef = 64;
     int candidate_queue_runtime_size = hardware_candidate_queue_size;
-	int max_cand_batch_size = 4;
-	int max_async_stage_num = 2;
+    int max_cand_batch_size;
+    int max_async_stage_num;
+	if (argc > 2) {
+		max_cand_batch_size = atoi(argv[2]);
+	} else {
+		max_cand_batch_size = 1;
+	}
+	if (argc > 3) {
+		max_async_stage_num = atoi(argv[3]);
+	} else {
+		max_async_stage_num = 4;
+	}
     int d = 128;
 	int runtime_n_bucket_addr_bits = 8 + 10; // 256K buckets
 	int runtime_n_buckets = 1 << runtime_n_bucket_addr_bits;
