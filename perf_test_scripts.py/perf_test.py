@@ -9,9 +9,8 @@ This script invoke the C++ sync traversal program first to get the built trees
 Example Usage:
 
 python perf_test.py \
---FPGA_project_dir /mnt/scratch/wenqi/tmp_bitstreams/FPGA_single_DDR_single_layer_v1.1_async_more_debug \
---max_cand_batch_size 3 --max_async_stage_num 6
---save_df perf_df.pickle
+--max_cand_batch_size 3 --max_async_stage_num 6 --save_df perf_df.pickle \
+--FPGA_project_dir /mnt/scratch/wenqi/tmp_bitstreams/FPGA_multi_DDR_single_layer_v1.1_async_opt_4_chan_250MHz
 """
 
 import os

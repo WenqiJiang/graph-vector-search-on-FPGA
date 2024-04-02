@@ -75,6 +75,10 @@ void split_queries(
 			1, s_query_batch_size, first_s_query_batch_size);
 		int query_num = s_query_batch_size.read();
 		if (query_num == -1) {
+			for (int i = 0; i < N_CHANNEL; i++) {
+			#pragma HLS UNROLL
+				s_query_batch_size_per_channel[i].write(-1);
+			}
 			break;
 		}
 
