@@ -31,8 +31,10 @@ void vadd(
 #if N_CHANNEL >= 2
 	ap_uint<512>* db_vectors_chan_1,
 #endif
-#if N_CHANNEL >= 4
+#if N_CHANNEL >= 3
 	ap_uint<512>* db_vectors_chan_2,
+#if N_CHANNEL >= 4
+#endif
 	ap_uint<512>* db_vectors_chan_3,
 #endif
 #if N_CHANNEL >= 8
@@ -56,8 +58,10 @@ void vadd(
 #if N_CHANNEL >= 2
 	const ap_uint<512>* links_base_chan_1,
 #endif
-#if N_CHANNEL >= 4
+#if N_CHANNEL >= 3
 	const ap_uint<512>* links_base_chan_2,
+#endif
+#if N_CHANNEL >= 4
 	const ap_uint<512>* links_base_chan_3,
 #endif
 #if N_CHANNEL >= 8
@@ -102,8 +106,10 @@ void vadd(
 #if N_CHANNEL >= 2
 #pragma HLS INTERFACE m_axi port=db_vectors_chan_1 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors1
 #endif
-#if N_CHANNEL >= 4
+#if N_CHANNEL >= 3
 #pragma HLS INTERFACE m_axi port=db_vectors_chan_2 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors2
+#endif
+#if N_CHANNEL >= 4
 #pragma HLS INTERFACE m_axi port=db_vectors_chan_3 latency=64 num_read_outstanding=64  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdb_vectors3
 #endif
 #if N_CHANNEL >= 8
@@ -278,7 +284,7 @@ void vadd(
 		s_debug_signals_per_channel[1]
 	);
 #endif
-#if N_CHANNEL >= 4
+#if N_CHANNEL >= 3
 	per_channel_processing_wrapper(
 		// in initialization
 		ef, // size of the result priority queue
@@ -304,7 +310,8 @@ void vadd(
 		s_out_dists_per_channel[2],
 		s_debug_signals_per_channel[2]
 	);
-
+#endif
+#if N_CHANNEL >= 4
 	per_channel_processing_wrapper(
 		// in initialization
 		ef, // size of the result priority queue

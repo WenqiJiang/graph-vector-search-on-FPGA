@@ -1,7 +1,5 @@
 #pragma once
 
-#define N_CHANNEL 1 // support 1, 2, 3, 4, 8, 16
-
 #define FLOAT_PER_AXI 16 // 512 bit / 32 bit = 16
 #define INT_PER_AXI 16
 #define BYTE_PER_AXI 64
@@ -19,25 +17,7 @@ const int hardware_candidate_queue_size = 32; // 128;
 
 // bloom filter setting
 const int bloom_num_hash_funs = 3; 
-#if N_CHANNEL == 1
 const int bloom_num_bucket_addr_bits = 8 + 10; // 256 * 1024
-#define CHANNEL_ADDR_BITS 0
-#elif N_CHANNEL == 2
-const int bloom_num_bucket_addr_bits = 7 + 10; // 128 * 1024
-#define CHANNEL_ADDR_BITS 1
-#elif N_CHANNEL == 3 // set conservative to be same as 2
-const int bloom_num_bucket_addr_bits = 7 + 10; // 128 * 1024
-#define CHANNEL_ADDR_BITS 1
-#elif N_CHANNEL == 4
-const int bloom_num_bucket_addr_bits = 6 + 10; // 64 * 1024
-#define CHANNEL_ADDR_BITS 2
-#elif N_CHANNEL == 8
-const int bloom_num_bucket_addr_bits = 5 + 10; // 32 * 1024
-#define CHANNEL_ADDR_BITS 3
-#elif N_CHANNEL == 16
-const int bloom_num_bucket_addr_bits = 4 + 10; // 16 * 1024
-#define CHANNEL_ADDR_BITS 4
-#endif
 const int bloom_num_buckets = 1 << bloom_num_bucket_addr_bits;
 
 // async batch size tracking

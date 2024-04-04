@@ -22,3 +22,13 @@ Based on single-channel V1 : FPGA_single_DDR_single_layer_v1_async
 Based on single-channel V1.1 : FPGA_single_DDR_single_layer_v1.1_async_opt_mem
 
 Instead of manual burst with variable length, here we use fixed length (D), and also reduce bloom filter number to 3. This is because the burst memory access of this version is very fast (close to 40 ns per D=128 vector given 200 MHz, i.e., 8 cycles), we would like reduce blooom II to (3 * 2 = 6 cycles), otherwise it can become the bottleneck.
+
+## V1.2 : FPGA_intra_query_v1.2_opt_queue : optimize queue insertion
+
+Compared to V1.1, this version: 
+* Reduces the number of insertions by filtering out the computed distance that is larger than the bound.
+  * change in utils.hpp by adding function `filter_computed_distances`
+  * change in vadd.cpp by adding the function, changing the FIFO connections, etc.
+* Update queue insertion: only if sucessfully inserted would we trigger the two-cycle compare-swap
+  * update `results_collection` in DRAM_utils.hpp
+  * update `insert_only` in priority_queue.hpp
