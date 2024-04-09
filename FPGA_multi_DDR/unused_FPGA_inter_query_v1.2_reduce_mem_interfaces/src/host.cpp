@@ -745,7 +745,8 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
 		, buffer_db_vectors_chan_2
 #endif
 #if N_CHANNEL >= 4
-        , buffer_db_vectors_chan_3
+        , buffer_db_vectors_chan_2,
+        buffer_db_vectors_chan_3
 #endif
 #if N_CHANNEL >= 8
         , buffer_db_vectors_chan_4,

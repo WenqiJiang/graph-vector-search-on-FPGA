@@ -68,30 +68,14 @@ void per_channel_processing_wrapper(
 
 	hls::stream<float> s_largest_result_queue_elements;
 #pragma HLS stream variable=s_largest_result_queue_elements depth=512	
-
-	const int rep_factor_s_largest_result_queue_elements = 2;
-	hls::stream<float> s_largest_result_queue_elements_replicated[rep_factor_s_largest_result_queue_elements];
-#pragma HLS stream variable=s_largest_result_queue_elements_replicated depth=512	
 	
 	hls::stream<int> s_debug_num_vec_base_layer;
 #pragma HLS stream variable=s_debug_num_vec_base_layer depth=16
 
-	hls::stream<int> s_finish_query_replicate_s_largest_result_queue_elements;
-#pragma HLS stream variable=s_finish_query_replicate_s_largest_result_queue_elements depth=16
-
 	// replicate s_query_batch_size to multiple streams
-	const int replicate_factor_s_query_batch_size = 7;
+	const int replicate_factor_s_query_batch_size = 4;
 	hls::stream<int> s_query_batch_size_replicated[replicate_factor_s_query_batch_size];
 #pragma HLS stream variable=s_query_batch_size_replicated depth=16
-
-
-	const int rep_factor_s_cand_batch_size = 2;
-	hls::stream<int> s_cand_batch_size_replicated[rep_factor_s_cand_batch_size];
-#pragma HLS stream variable=s_cand_batch_size_replicated depth=16
-
-	hls::stream<int> s_finish_query_replicate_s_cand_batch_size;
-#pragma HLS stream variable=s_finish_query_replicate_s_cand_batch_size depth=16
-
 
 	replicate_s_query_batch_size<replicate_factor_s_query_batch_size>(
 		s_query_batch_size,
@@ -110,9 +94,9 @@ void per_channel_processing_wrapper(
 		s_entry_point_ids,
 		s_num_inserted_candidates,
 		s_inserted_candidates,
-		s_largest_result_queue_elements_replicated[0],
+		s_largest_result_queue_elements,
 		s_debug_num_vec_base_layer,
-		s_finish_query_replicate_s_cand_batch_size,
+		s_finish_query_results_collection,
 		
 		// out streams
 		s_query_vectors,
@@ -177,40 +161,16 @@ void per_channel_processing_wrapper(
 		s_finish_query_bloom_fetch_compute
 	);
 
-	hls::stream<int> s_num_valid_candidates_base_level_filtered;
-#pragma HLS stream variable=s_num_valid_candidates_base_level_filtered depth=16
-
-	hls::stream<result_t> s_distances_base_filtered;
-#pragma HLS stream variable=s_distances_base_filtered depth=512
-
-    hls::stream<int> s_finish_filter_computed_distances; // finish all queries
-#pragma HLS stream variable=s_finish_filter_computed_distances depth=16	
-
-	filter_computed_distances(
-		// in stream
-		s_query_batch_size_replicated[3], // -1: stop
-		s_cand_batch_size_replicated[0],
-		s_num_valid_candidates_base_level_total, 
-		s_largest_result_queue_elements_replicated[1], 
-		s_distances_base_level,
-		s_finish_query_bloom_fetch_compute,
-
-		// out stream
-		s_num_valid_candidates_base_level_filtered, 
-		s_distances_base_filtered,
-		s_finish_filter_computed_distances
-	);
-
 	results_collection(
 		// in (initialization)
 		ef,
 		// in runtime (stream)
-		s_query_batch_size_replicated[4],
+		s_query_batch_size_replicated[3],
 		// s_entry_point_base_level,
-		s_cand_batch_size_replicated[1],
-		s_num_valid_candidates_base_level_filtered,
-		s_distances_base_filtered,
-		s_finish_filter_computed_distances,
+		s_cand_batch_size,
+		s_num_valid_candidates_base_level_total,
+		s_distances_base_level,
+		s_finish_query_bloom_fetch_compute,
 
 		// out (stream)
 		s_inserted_candidates,
@@ -220,30 +180,6 @@ void per_channel_processing_wrapper(
 		s_finish_query_results_collection,
 		s_out_ids,
 		s_out_dists
-	);
-
-	replicate_s_control<rep_factor_s_largest_result_queue_elements, float>(
-		// in (stream)
-		s_query_batch_size_replicated[5], // -1: stop
-		s_largest_result_queue_elements,
-		s_finish_query_results_collection,
-		
-		// out (stream)
-		s_largest_result_queue_elements_replicated,
-		s_finish_query_replicate_s_largest_result_queue_elements
-	);
-
-
-
-	replicate_s_control<rep_factor_s_cand_batch_size, int>(
-		// in (stream)
-		s_query_batch_size_replicated[6], // -1: stop
-		s_cand_batch_size,
-		s_finish_query_replicate_s_largest_result_queue_elements,
-		
-		// out (stream)
-		s_cand_batch_size_replicated,
-		s_finish_query_replicate_s_cand_batch_size
 	);
 
 }

@@ -46,15 +46,17 @@ This is the base for inter-query parallel version, so I wrapped the per-channel 
 
 Also, we support breaking down all queries to batches, so we prepare for measuring performance with smaller batches, as well as preparing for the networked version.
 
-## V1.3 : FPGA_single_DDR_single_layer_v1.3_opt_queue : optimize queue insertion
+## V1.3 (Don't use) : FPGA_single_DDR_single_layer_v1.3_opt_queue : optimize queue insertion
 
 Compared to V1.2, this version: 
 * Reduces the number of insertions by filtering out the computed distance that is larger than the bound.
   * change in utils.hpp by adding function `filter_computed_distances`
   * change in per_channel_processing_wrapper.cpp by adding the function, changing the FIFO connections, etc.
 * Update queue insertion: only if sucessfully inserted would we trigger the two-cycle compare-swap
-  * update `results_collection` in DRAM_utils.hpp
-  * update `insert_only` in priority_queue.hpp
+  * update `results_collection` in DRAM_utils.hpp; also only sort if there is any insertion
+  * update `insert_only` in priority_queue.hpp; also move wait to after sort
+
+The performance is actually lower than V1.2 -> the overhead of adding filtering means there are more stages. (V1.3 optimal requires 5 stages while V1.2 requires only 4, perf when setting batch and stage both as 1 is 2474 ms, slower than V1.2 which requires 2391 ms).
 
 # Others
 

@@ -37,8 +37,7 @@ void fetch_neighbor_ids(
 	hls::stream<int>& s_finish_query_in,
 
 	// out (stream)
-	hls::stream<int>& s_num_neighbors_base_level,
-	hls::stream<cand_t>& s_fetched_neighbor_ids,
+	hls::stream<ap_uint<512>>& s_neighbor_ids_raw,
 	hls::stream<int>& s_finish_query_out
 ) {
 
@@ -136,49 +135,20 @@ void fetch_neighbor_ids(
 				}
 
 				ap_uint<64> start_addr;
-				int read_num;
 				if (level_id == 0) { // base layer
 					start_addr = in_channel_node_id * AXI_num_per_base_link;
-					read_num  = AXI_num_per_base_link;
 					// first 64-byte = header (4 byte num links + 60 byte padding)
 					// then we have the links (4 byte each, total number = max_link_num)
-					for (int i = 0; i < read_num; i++) {
+					for (int i = 0; i < AXI_num_per_base_link; i++) {
 					#pragma HLS pipeline II=1
-						local_links_buffer[i] = links_base_selected_channel[start_addr + i];
+						ap_uint<512> reg = links_base_selected_channel[start_addr + i];
+						s_neighbor_ids_raw.write(reg);
 					}
 					// if (is_entry_point) {
 					// 	send_node_itself = true;
 					// 	is_entry_point = false;
 					// }
 				} 
-
-				// write out links num & links id
-				ap_uint<32> links_num_ap = local_links_buffer[0].range(31, 0);
-				int num_links = links_num_ap;
-				if (level_id == 0) { // base layer
-					// if (send_node_itself) {
-					// 	s_num_neighbors_base_level.write(num_links + 1);
-					// } else {
-						s_num_neighbors_base_level.write(num_links);
-					// }
-				} 
-				for (int i = 0; i < read_num - 1; i++) { // first one is the num_links
-					for (int j = 0; j < INT_PER_AXI && i * INT_PER_AXI + j < num_links; j++) {
-					#pragma HLS pipeline II=1
-						ap_uint<32> link_ap = local_links_buffer[i + 1].range(32 * (j + 1) - 1, 32 * j);
-						int link = link_ap;
-						cand_t reg_neighbor;
-						reg_neighbor.node_id = link;
-						reg_neighbor.level_id = level_id;
-						s_fetched_neighbor_ids.write(reg_neighbor);
-					}
-				}
-				// if (send_node_itself) {
-				// 	cand_t reg_node_itself;
-				// 	reg_node_itself.node_id = node_id;
-				// 	reg_node_itself.level_id = level_id;
-				// 	s_fetched_neighbor_ids.write(reg_node_itself);
-				// }
 			}
 		}
 	}

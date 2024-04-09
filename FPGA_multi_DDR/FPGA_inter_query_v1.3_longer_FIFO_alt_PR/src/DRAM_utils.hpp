@@ -27,6 +27,7 @@ void read_queries(
 	int remained_query_num = query_num;
 	int processed_query_num = 0;
 
+	// send out queries batch by batch
 	while (remained_query_num > 0) {
 		int current_query_batch_size = remained_query_num > query_batch_size? query_batch_size : remained_query_num;
 		s_query_batch_size.write(current_query_batch_size);
@@ -50,14 +51,78 @@ void read_queries(
 	s_query_batch_size.write(-1);
 }
 
+void split_queries(
+	// in streams
+	hls::stream<int>& s_query_batch_size,
+	hls::stream<ap_uint<512>>& s_query_vectors_in,
+	hls::stream<int>& s_entry_point_ids,
+
+	// out streams
+	hls::stream<int> (&s_query_batch_size_per_channel)[N_CHANNEL],
+	hls::stream<ap_uint<512>> (&s_query_vectors_in_per_channel)[N_CHANNEL],
+	hls::stream<int> (&s_entry_point_ids_per_channel)[N_CHANNEL]
+) {
+
+	const int vec_AXI_num = D % FLOAT_PER_AXI == 0? D / FLOAT_PER_AXI : D / FLOAT_PER_AXI + 1; 
+
+	bool first_s_query_batch_size = true;
+	bool first_iter_s_query_vectors_in = true;
+	bool first_iter_s_entry_point_ids = true;
+
+	while (true) {
+
+		wait_data_fifo_first_iter<int>(
+			1, s_query_batch_size, first_s_query_batch_size);
+		int query_num = s_query_batch_size.read();
+		if (query_num == -1) {
+			for (int i = 0; i < N_CHANNEL; i++) {
+			#pragma HLS UNROLL
+				s_query_batch_size_per_channel[i].write(-1);
+			}
+			break;
+		}
+
+		// send queries to different PEs in round robin manner
+		int query_batch_size_per_channel[N_CHANNEL];
+		int base_batch_size_per_channel = query_num / N_CHANNEL;
+		int remainder_batch_size_per_channel = query_num % N_CHANNEL;
+		for (int i = 0; i < N_CHANNEL; i++) {
+			query_batch_size_per_channel[i] = i < remainder_batch_size_per_channel? 
+				base_batch_size_per_channel + 1 : base_batch_size_per_channel;
+			s_query_batch_size_per_channel[i].write(query_batch_size_per_channel[i]);
+		}
+
+		// send queries to different PEs in round robin manner
+		int remained_query_num = query_num;
+		int this_channel = 0;
+
+		while (remained_query_num > 0) {
+			wait_data_fifo_first_iter<ap_uint<512>>(
+				vec_AXI_num, s_query_vectors_in, first_iter_s_query_vectors_in);
+			wait_data_fifo_first_iter<int>(
+				1, s_entry_point_ids, first_iter_s_entry_point_ids);
+
+			for (int j = 0; j < vec_AXI_num; j++) {
+			#pragma HLS pipeline II=1
+				ap_uint<512> query_vector_AXI = s_query_vectors_in.read();
+				s_query_vectors_in_per_channel[this_channel].write(query_vector_AXI);
+			}
+			s_entry_point_ids_per_channel[this_channel].write(s_entry_point_ids.read());
+				
+			this_channel = this_channel + 1 < N_CHANNEL? this_channel + 1 : 0;
+			remained_query_num--;
+		}
+	}
+}
+
 void write_results(
 	// in initialization
 	const int ef,
 	// in runtime (stream)
 	hls::stream<int>& s_query_batch_size, // -1: stop
-	hls::stream<int>& s_out_ids,
-	hls::stream<float>& s_out_dists,
-	hls::stream<int>& s_debug_signals,
+	hls::stream<int> (&s_out_ids_per_channel)[N_CHANNEL],
+	hls::stream<float> (&s_out_dists_per_channel)[N_CHANNEL],
+	hls::stream<int> (&s_debug_signals_per_channel)[N_CHANNEL],
 
 	// out streams
 	hls::stream<int>& s_finish_batch,
@@ -69,9 +134,14 @@ void write_results(
 ) {
 
 	bool first_s_query_batch_size = true;
-	bool first_iter_s_out_ids = true;
-	bool first_iter_s_out_dists = true;
-	bool first_iter_s_debug_signals = true;
+	bool first_iter_s_out_ids_per_channel[N_CHANNEL];
+	bool first_iter_s_out_dists_per_channel[N_CHANNEL];
+	bool first_iter_s_debug_signals_per_channel[N_CHANNEL];
+	for (int i = 0; i < N_CHANNEL; i++) {
+		first_iter_s_out_ids_per_channel[i] = true;
+		first_iter_s_out_dists_per_channel[i] = true;
+		first_iter_s_debug_signals_per_channel[i] = true;
+	}
 
 	int processed_query_num = 0;
 
@@ -84,37 +154,41 @@ void write_results(
 			break;
 		}
 
-		for (int qid = 0; qid < query_num; qid++) {
+		int remained_query_num = query_num;
+		int this_channel = 0;
+
+		while (remained_query_num > 0) {
 
 			wait_data_fifo_first_iter<int>(
-				ef, s_out_ids, first_iter_s_out_ids);
+				ef, s_out_ids_per_channel[this_channel], first_iter_s_out_ids_per_channel[this_channel]);
 			wait_data_fifo_first_iter<float>(
-				ef, s_out_dists, first_iter_s_out_dists);
+				ef, s_out_dists_per_channel[this_channel], first_iter_s_out_dists_per_channel[this_channel]);
 
 			// use two loops to infer burst per loop
 			for (int i = 0; i < ef; i++) {
 			#pragma HLS pipeline II=1
-				int start_addr = (processed_query_num + qid) * ef + i;
-				out_id[start_addr] = s_out_ids.read();
+				int start_addr = processed_query_num * ef + i;
+				out_id[start_addr] = s_out_ids_per_channel[this_channel].read();
 			}
 
 			for (int i = 0; i < ef; i++) {
 			#pragma HLS pipeline II=1
-				int start_addr = (processed_query_num + qid) * ef + i;
-				out_dist[start_addr] = s_out_dists.read();
+				int start_addr = processed_query_num * ef + i;
+				out_dist[start_addr] = s_out_dists_per_channel[this_channel].read();
 			}
 
 			wait_data_fifo_first_iter<int>(
-				debug_size, s_debug_signals, first_iter_s_debug_signals);
+				debug_size, s_debug_signals_per_channel[this_channel], first_iter_s_debug_signals_per_channel[this_channel]);
 
 			for (int i = 0; i < debug_size; i++) {
 			#pragma HLS pipeline II=1
-				int start_addr = (processed_query_num + qid) * debug_size + i;
-				mem_debug[start_addr] = s_debug_signals.read();
+				int start_addr = processed_query_num * debug_size + i;
+				mem_debug[start_addr] = s_debug_signals_per_channel[this_channel].read();
 			}
+			this_channel = this_channel + 1 < N_CHANNEL? this_channel + 1 : 0;
+			remained_query_num--;
+			processed_query_num++;
 		}
-		processed_query_num += query_num;
-		
 		// finish processing this entire batch
 		s_finish_batch.write(1);
 	}
@@ -336,8 +410,6 @@ void results_collection(
 
 					int cand_batch_size = s_cand_batch_size.read();
 
-					bool contain_insertion_this_iter = false;
-
 					for (int bid = 0; bid < cand_batch_size; bid++) {
 						int num_neighbors = s_num_neighbors_base_level.read();
 						wait_data_fifo_first_iter<result_t>(
@@ -355,11 +427,10 @@ void results_collection(
 								if (reg.dist < result_queue.queue[0].dist) {
 									result_queue.queue[0] = reg;
 									s_inserted_candidates.write(reg);
-									contain_insertion_this_iter = true;
 									inserted_num_this_iter++;
-									result_queue.compare_swap_array_step_A();
-									result_queue.compare_swap_array_step_B();
 								}
+								result_queue.compare_swap_array_step_A();
+								result_queue.compare_swap_array_step_B();
 							}
 							s_num_inserted_candidates.write(inserted_num_this_iter);
 						} else { // num_neighbors == 0
@@ -368,12 +439,10 @@ void results_collection(
 					}
 
 					// sorting
-					if (contain_insertion_this_iter) {
-						for (int i = 0; i < sort_swap_round; i++) {
-#pragma HLS pipeline II=1
-							result_queue.compare_swap_array_step_A();
-							result_queue.compare_swap_array_step_B();
-						}
+					for (int i = 0; i < sort_swap_round; i++) {
+	#pragma HLS pipeline II=1
+						result_queue.compare_swap_array_step_A();
+						result_queue.compare_swap_array_step_B();
 					}
 
 					// send out largest dist in the queue:

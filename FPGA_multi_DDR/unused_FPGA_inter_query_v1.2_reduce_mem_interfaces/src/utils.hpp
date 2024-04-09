@@ -274,25 +274,22 @@ void gather_s_finish(
 	}
 }
 
-void filter_computed_distances(
-	// in stream
+// unused
+template <const int rep_factor>
+void gather_s_finish_batch_per_channel(
+	// in (stream)
 	hls::stream<int>& s_query_batch_size, // -1: stop
-	hls::stream<int>& s_cand_batch_size,
-	hls::stream<int>& s_num_valid_candidates_base_level_total, 
-	hls::stream<float>& s_largest_result_queue_elements, 
-	hls::stream<result_t>& s_distances_base_level,
-	hls::stream<int>& s_finish_query_in,
-
-	// out stream
-	hls::stream<int>& s_num_valid_candidates_base_level_filtered, 
-	hls::stream<result_t> &s_distances_base_filtered,
-	hls::stream<int>& s_finish_query_out
-) {
+	hls::stream<int> (&s_finish_batch_per_channel)[rep_factor],
 	
+	// out (stream)
+	hls::stream<int>& s_finish_batch_all_channels
+) {
+
 	bool first_s_query_batch_size = true;
-	bool first_s_largest_result_queue_elements = true;
-	bool first_s_num_valid_candidates_base_level_total = true;
-	bool first_s_distances_base_level = true;
+	bool first_iter_s_finish_batch_per_channel[rep_factor];
+	for (int i = 0; i < rep_factor; i++) {
+		first_iter_s_finish_batch_per_channel[i] = true;
+	}
 
 	while (true) {
 
@@ -303,53 +300,13 @@ void filter_computed_distances(
 			break;
 		}
 
-		for (int qid = 0; qid < query_num; qid++) {
-
-			bool query_first_iter = true; // first iteration has no s_largest_result_queue_elements input
-
-			while (true) {
-				if (!s_finish_query_in.empty() && s_cand_batch_size.empty() 
-					&& s_num_valid_candidates_base_level_total.empty() && s_distances_base_level.empty()) {
-					// Note: here the last iteration of s_largest_result_queue_elements must be consumed
-					s_largest_result_queue_elements.read();
-					s_finish_query_out.write(s_finish_query_in.read());
-					break;
-				} else if (!s_cand_batch_size.empty()) {
-
-					int cand_batch_size = s_cand_batch_size.read();
-
-					// get largest_result_queue_elements every candidate batch
-					float largest_result_queue_elements;
-					if (query_first_iter) { // first iteration has no s_largest_result_queue_elements input
-						largest_result_queue_elements = large_float;
-						query_first_iter = false;
-					} else {
-						wait_data_fifo_first_iter<float>(
-							1, s_largest_result_queue_elements, first_s_largest_result_queue_elements);
-						largest_result_queue_elements = s_largest_result_queue_elements.read();
-					}
-
-					for (int bid = 0; bid < cand_batch_size; bid++) {
-						wait_data_fifo_first_iter<int>(
-							cand_batch_size, s_num_valid_candidates_base_level_total, first_s_num_valid_candidates_base_level_total);
-						int num_valid_candidates_base_level_total = s_num_valid_candidates_base_level_total.read();
-
-						wait_data_fifo_first_iter<result_t>(
-							num_valid_candidates_base_level_total, s_distances_base_level, first_s_distances_base_level);
-
-						int valid_cnt = 0;
-						for (int i = 0; i < num_valid_candidates_base_level_total; i++) {
-							result_t reg_out = s_distances_base_level.read();
-							if (reg_out.dist < largest_result_queue_elements) {
-								s_distances_base_filtered.write(reg_out);
-								valid_cnt++;
-							}
-						}
-						s_num_valid_candidates_base_level_filtered.write(valid_cnt);
-					}
-				}
-			}
+		int finish;
+		for (int cid = 0; cid < rep_factor; cid++) {
+			wait_data_fifo_first_iter<int>(
+				1, s_finish_batch_per_channel[cid], first_iter_s_finish_batch_per_channel[cid]);
+			finish = s_finish_batch_per_channel[cid].read();
 		}
+		s_finish_batch_all_channels.write(finish);
 	}
 }
 

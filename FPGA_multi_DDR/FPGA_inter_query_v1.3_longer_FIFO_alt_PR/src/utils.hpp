@@ -84,8 +84,7 @@ void replicate_s_query_batch_size(
 
 	bool first_s_query_batch_size = true;
 
-	bool stop_all = false;
-	while (!stop_all) {
+	while (true) {
 		wait_data_fifo_first_iter<int>(
 			1, s_query_batch_size_in, first_s_query_batch_size);
 		int query_num = s_query_batch_size_in.read();
@@ -97,7 +96,7 @@ void replicate_s_query_batch_size(
 		}
 
 		if (query_num == -1) {
-			stop_all = true;
+			break;
 		}
 	}
 }
@@ -273,86 +272,6 @@ void gather_s_finish(
 		}
 	}
 }
-
-void filter_computed_distances(
-	// in stream
-	hls::stream<int>& s_query_batch_size, // -1: stop
-	hls::stream<int>& s_cand_batch_size,
-	hls::stream<int>& s_num_valid_candidates_base_level_total, 
-	hls::stream<float>& s_largest_result_queue_elements, 
-	hls::stream<result_t>& s_distances_base_level,
-	hls::stream<int>& s_finish_query_in,
-
-	// out stream
-	hls::stream<int>& s_num_valid_candidates_base_level_filtered, 
-	hls::stream<result_t> &s_distances_base_filtered,
-	hls::stream<int>& s_finish_query_out
-) {
-	
-	bool first_s_query_batch_size = true;
-	bool first_s_largest_result_queue_elements = true;
-	bool first_s_num_valid_candidates_base_level_total = true;
-	bool first_s_distances_base_level = true;
-
-	while (true) {
-
-		wait_data_fifo_first_iter<int>(
-			1, s_query_batch_size, first_s_query_batch_size);
-		int query_num = s_query_batch_size.read();
-		if (query_num == -1) {
-			break;
-		}
-
-		for (int qid = 0; qid < query_num; qid++) {
-
-			bool query_first_iter = true; // first iteration has no s_largest_result_queue_elements input
-
-			while (true) {
-				if (!s_finish_query_in.empty() && s_cand_batch_size.empty() 
-					&& s_num_valid_candidates_base_level_total.empty() && s_distances_base_level.empty()) {
-					// Note: here the last iteration of s_largest_result_queue_elements must be consumed
-					s_largest_result_queue_elements.read();
-					s_finish_query_out.write(s_finish_query_in.read());
-					break;
-				} else if (!s_cand_batch_size.empty()) {
-
-					int cand_batch_size = s_cand_batch_size.read();
-
-					// get largest_result_queue_elements every candidate batch
-					float largest_result_queue_elements;
-					if (query_first_iter) { // first iteration has no s_largest_result_queue_elements input
-						largest_result_queue_elements = large_float;
-						query_first_iter = false;
-					} else {
-						wait_data_fifo_first_iter<float>(
-							1, s_largest_result_queue_elements, first_s_largest_result_queue_elements);
-						largest_result_queue_elements = s_largest_result_queue_elements.read();
-					}
-
-					for (int bid = 0; bid < cand_batch_size; bid++) {
-						wait_data_fifo_first_iter<int>(
-							cand_batch_size, s_num_valid_candidates_base_level_total, first_s_num_valid_candidates_base_level_total);
-						int num_valid_candidates_base_level_total = s_num_valid_candidates_base_level_total.read();
-
-						wait_data_fifo_first_iter<result_t>(
-							num_valid_candidates_base_level_total, s_distances_base_level, first_s_distances_base_level);
-
-						int valid_cnt = 0;
-						for (int i = 0; i < num_valid_candidates_base_level_total; i++) {
-							result_t reg_out = s_distances_base_level.read();
-							if (reg_out.dist < largest_result_queue_elements) {
-								s_distances_base_filtered.write(reg_out);
-								valid_cnt++;
-							}
-						}
-						s_num_valid_candidates_base_level_filtered.write(valid_cnt);
-					}
-				}
-			}
-		}
-	}
-}
-
 
 // Send only upper-level results to results collection; replicate to other levels
 void split_s_distances(

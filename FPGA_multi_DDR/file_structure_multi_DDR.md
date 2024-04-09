@@ -8,6 +8,27 @@ Based on single channel V1.2 FPGA_single_DDR_single_layer_v1.2_support_multi_bat
 
 We support breaking down all queries to batches, so we prepare for measuring performance with smaller batches, as well as preparing for the networked version.
 
+## V1.3 : FPGA_inter_query_v1.3_longer_FIFO_alt_PR : updating FIFO size to 512 and use alternative P&R strategies
+
+I found that FIFO depth plays a important role in placemet and routing. When setting as a small number, it will be treated as LUTs rather than FIFO. The P&R may then over-consume LUTs in a single SLR. I also evaluated alternative P&R strategies, which eventually can achieve 180 MHz for 4 channels. Specifically, Performance_WLBlockPlacement and Performance_Explore can achieve 180 MHz for 4 channels.
+
+## Unused V1.1 FPGA_inter_query_v1.1_multi_kernel : multi-kernel
+
+Based on FPGA_inter_query_v1, detached one kernel to the scheduler and multiple per-channel kernels.
+
+However:
+(1) I tried several P&R directives and frequencies, even the 1-kernel version does not work...
+(2) I have not implemented the host for multi-kernel yet.
+
+## Unused V1.2 FPGA_inter_query_v1.2_reduce_mem_interfaces : reduce input / output interfaces
+
+Based on FPGA_inter_query_v1, merging the inputs (queries, entries) into one interface; and outputs (dist, ids, debug) into one interface, in order to achieving better P&R.
+
+However:
+(1) This does not help P&R at all actually
+(2) The correctness is not tuned -> I have not set the offset between multiple inputs/outputs, just wanted to test whether P&R is better
+
+
 # Intra-query Parallel + Multi DRAM Channel
 
 Multiple PEs working on the same query.
@@ -30,5 +51,20 @@ Compared to V1.1, this version:
   * change in utils.hpp by adding function `filter_computed_distances`
   * change in vadd.cpp by adding the function, changing the FIFO connections, etc.
 * Update queue insertion: only if sucessfully inserted would we trigger the two-cycle compare-swap
-  * update `results_collection` in DRAM_utils.hpp
-  * update `insert_only` in priority_queue.hpp
+  * update `results_collection` in DRAM_utils.hpp; also only sort if there is any insertion
+  * update `insert_only` in priority_queue.hpp; also move wait to after sort
+
+
+## Unused: V1.3 FPGA_intra_query_v1.3_alt_shutdown_protocol: alternative protocol for sending tasks
+
+Based on V1.2, I updated the task scheduler --- if in one iteration, the received valid results is zero, then do not send out any task. 
+
+Wenqi comment: this actually may not make sense if we want to send out stuffs as early as possible --- does not have valid results several stages ago does not mean right now we should not send out tasks. 
+
+However: 
+* It failed P&R using several directives.
+* In simulation it seems to be even slower...
+
+## V1.4 FPGA_intra_query_v1.4_fast_task_split
+
+Based on V1.2, I split the neighbor ID readers to 2 functions, detaching memory accessing (512-bit) with parsing. In 4-channel version, this improves the performance by 10~15%; in 2 channel, it improves only around 5%.
