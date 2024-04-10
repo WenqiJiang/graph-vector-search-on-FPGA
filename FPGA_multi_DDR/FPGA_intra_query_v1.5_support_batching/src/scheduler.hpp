@@ -14,11 +14,11 @@ void task_scheduler(
 	hls::stream<int>& s_num_inserted_candidates,
 	hls::stream<result_t>& s_inserted_candidates,
 	hls::stream<float>& s_largest_result_queue_elements,
-	hls::stream<int>& s_debug_num_vec_base_layer,
+	// hls::stream<int>& s_debug_num_vec_base_layer,
 	hls::stream<int>& s_finish_query_in,
 
 	// out streams
-	hls::stream<ap_uint<512>>& s_query_vectors_out,
+	hls::stream<ap_uint<512>> (&s_query_vectors_replicated)[N_CHANNEL],
 	// hls::stream<result_t>& s_entry_point_base_level,
 	hls::stream<int>& s_cand_batch_size, 
 	hls::stream<cand_t>& s_top_candidates,
@@ -34,7 +34,7 @@ void task_scheduler(
 	bool first_s_entry_point_ids = true;
 	bool first_iter_s_inserted_candidates = true;
 	bool first_iter_s_largest_result_queue_elements = true;
-	bool first_iter_s_debug_num_vec_base_layer = true;
+	// bool first_iter_s_debug_num_vec_base_layer = true;
 
 	Priority_queue<result_t, hardware_candidate_queue_size, Collect_smallest> candidate_queue(candidate_queue_runtime_size);
 	const int sort_swap_round = candidate_queue_runtime_size % 2 == 0? candidate_queue_runtime_size / 2 : candidate_queue_runtime_size / 2 + 1;
@@ -42,15 +42,7 @@ void task_scheduler(
 	result_t queue_replication_array[hardware_candidate_queue_size];
 #pragma HLS array_partition variable=queue_replication_array complete
 
-	int async_batch_size_array[hardware_async_batch_size];
-#pragma HLS bind_storage variable=async_batch_size_array type=RAM_2P impl=BRAM
-
-	// const int debug_size = 2;
-	// int debug_signals[debug_size];
-	// int* debug_hops_base_layer = &debug_signals[0];
-	// int* debug_num_vec_base_layer = &debug_signals[1];
 	int debug_hops_base_layer;
-
 	while (true) {
 
 		wait_data_fifo_first_iter<int>(
@@ -61,9 +53,6 @@ void task_scheduler(
 		}
 
 		for (int qid = 0; qid < query_num; qid++) {
-			// for (int did = 0; did < debug_size; did++) {
-			// 	debug_signals[did] = 0;
-			// }
 
 			// send out query vector
 			wait_data_fifo_first_iter<ap_uint<512>>(
@@ -71,7 +60,10 @@ void task_scheduler(
 			for (int i = 0; i < vec_AXI_num; i++) {
 			#pragma HLS pipeline II=1
 				ap_uint<512> query_vector_AXI = s_query_vectors_in.read();
-				s_query_vectors_out.write(query_vector_AXI);
+				for (int cid = 0; cid < N_CHANNEL; cid++) {
+				#pragma HLS unroll
+					s_query_vectors_replicated[cid].write(query_vector_AXI);
+				}
 			}
 
 			// search base layer
@@ -84,7 +76,6 @@ void task_scheduler(
 			s_top_candidates.write({entry_point_id, 0});
 
 			int last_cand_to_be_recv_batch_size = 1; // the size of the last batch of popped candidates
-			async_batch_size_array[0] = last_cand_to_be_recv_batch_size;
 			s_cand_batch_size.write(last_cand_to_be_recv_batch_size);
 
 			int on_the_fly_async_stage_num = 1;
@@ -94,28 +85,26 @@ void task_scheduler(
 			//   adding entry to the result immediately will lead to visit tag mismatch as entry can be inserted twice into the result queue
 			// s_entry_point_base_level.write({currObj, 0, curdist}); 
 
-			// *debug_hops_base_layer = 1;
 			debug_hops_base_layer = 1;
+
+			// regardless of batch size, pull one time from each channel
+			int recv_channels_left = N_CHANNEL;
 
 			bool stop = false;
 			while (!stop) {
-				if (!s_num_inserted_candidates.empty()) {
+				if (!s_num_inserted_candidates.empty()) { // each channel send a number, regardless of per-iter batch size
 
 					int num_insertion = s_num_inserted_candidates.read();
 					wait_data_fifo_first_iter<result_t>(
 						num_insertion, s_inserted_candidates, first_iter_s_inserted_candidates);
 					// insert new values
 					candidate_queue.insert_only(num_insertion, s_inserted_candidates);
-					async_batch_size_array[0]--; // always loading the latest-sent batch 
+					recv_channels_left--; // always loading the latest-sent batch 
 					
 					// if all last batch of candidates are consumed, sort & pop top candidate
-					if (async_batch_size_array[0] == 0) {
+					if (recv_channels_left == 0) {
 						// finish a on-the-fly batch, shift the batch_size in the array
 						on_the_fly_async_stage_num--;
-						for (int i = 0; i < on_the_fly_async_stage_num; i++) {
-							async_batch_size_array[i] = async_batch_size_array[i + 1];
-						}
-
 						candidate_queue.sort();
 
 						// two stop condition: 1. smallest candidate distance > largest result queue element; 
@@ -132,7 +121,6 @@ void task_scheduler(
 								if (candidate_queue.queue[smallest_element_position].dist <= threshold &&
 									candidate_queue.queue[smallest_element_position].dist < large_float) {
 									candidate_queue.pop_top(s_top_candidates);
-									// (*debug_hops_base_layer)++;
 									debug_hops_base_layer++;
 									current_cand_batch_size++;
 								} else {
@@ -142,11 +130,13 @@ void task_scheduler(
 							if (current_cand_batch_size == 0) {
 								break;
 							} else { // current_cand_batch_size > 0
-								async_batch_size_array[oid] = current_cand_batch_size;
 								s_cand_batch_size.write(current_cand_batch_size);
 								on_the_fly_async_stage_num++;
 							}
 						}
+
+						// reset next num batch to receive
+						recv_channels_left = N_CHANNEL;
 
 						// break condition: nothing in the pipeline even after candidate popping	
 						if (on_the_fly_async_stage_num == 0) {
@@ -158,15 +148,11 @@ void task_scheduler(
 
 			s_finish_query_out.write(qid);
 
-			wait_data_fifo_first_iter<int>(
-				1, s_debug_num_vec_base_layer, first_iter_s_debug_num_vec_base_layer);
-			int debug_num_vec_base_layer = s_debug_num_vec_base_layer.read();
+			// wait_data_fifo_first_iter<int>(
+			// 	1, s_debug_num_vec_base_layer, first_iter_s_debug_num_vec_base_layer);
+			// debug_num_vec_base_layer = s_debug_num_vec_base_layer.read();
 
 			s_debug_signals.write(debug_hops_base_layer);
-			s_debug_signals.write(debug_num_vec_base_layer);
-			
-			// here, make sure do not start the next query before the current query if fully ended,
-			//   because the query termination condition of other PEs is that finish signal arrives && data FIFOs are empty
 			while (s_finish_query_in.empty()) {}
 			int finish_query_in = s_finish_query_in.read();
 		}
