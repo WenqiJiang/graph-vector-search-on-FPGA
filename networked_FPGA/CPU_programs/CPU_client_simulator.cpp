@@ -9,22 +9,15 @@ Host CPU communicates with one or multiple FPGAs, can choose to use index or not
       "<2 ~ 2 + num_FPGA - 1 FPGA_IP_addr> " 
     "<2 + num_FPGA ~ 2 + 2 * num_FPGA - 1 C2F_port> " 
     "<2 + 2 * num_FPGA ~ 2 + 3 * num_FPGA - 1 F2C_port> "
-    "<2 + 3 * num_FPGA D> <3 + 3 * num_FPGA TOPK> <4 + 3 * num_FPGA batch_size> "
-    "<5 + 3 * num_FPGA total_batch_num> <6 + 3 * num_FPGA nprobe> <7 + 3 * num_FPGA nlist>"
-    "<8 + 3 * num_FPGA query_window_size> <9 + 3 * num_FPGA batch_window_size>" 
-    "<10 + 3 * num_FPGA enable_index_scan> <11 + 3 * num_FPGA omp_threads>"<< std::endl;
+    "<2 + 3 * num_FPGA D> <3 + 3 * num_FPGA TOPK> " 
+    "<4 + 3 * num_FPGA query_num> " "<5 + 3 * num_FPGA batch_size> "
+    "<6 + 3 * num_FPGA query_window_size> <7 + 3 * num_FPGA batch_window_size> " 
 
   Single FPGA example:
-     # no index scan
-     ./CPU_to_FPGA 1 10.253.74.24 8881 5001 128 100 32 100 16 10 0
-     # with index scan
-     ./CPU_to_FPGA 1 10.253.74.24 8881 5001 128 100 32 100 16 10 1 8
+     ./CPU_to_FPGA 1 10.253.74.24 8881 5001 128 64 10000 100 10 1
   
   Two FPGAs example:
-     # no index scan
-     ./CPU_to_FPGA 2 10.253.74.24 10.253.74.28 8881 8882 5001 5002 128 100 32 100 16 10 0
-     # with index scan
-     ./CPU_to_FPGA 2 10.253.74.24 10.253.74.28 8881 8882 5001 5002 128 100 32 100 16 10 1 8
+     ./CPU_to_FPGA 2 10.253.74.24 10.253.74.28 8881 8882 5001 5002 128 64 10000 100 10 1
 
 */
 
@@ -51,7 +44,7 @@ Host CPU communicates with one or multiple FPGAs, can choose to use index or not
 #include "types.hpp"
 #include "utils.hpp"
 
-// #define DEBUG // uncomment to activate debug print-statements
+#define DEBUG // uncomment to activate debug print-statements
 
 #ifdef DEBUG
 #define IF_DEBUG_DO(x)                                                                                                                                         \
@@ -191,8 +184,8 @@ public:
     size_t bytes_results_dist = AXI_num_results_dist * BYTES_PER_AXI;
     bytes_F2C_per_query = bytes_header + bytes_results_vec_ID + bytes_results_dist;
 
-    IF_DEBUG_DO(std::cout << "bytes_C2F_per_query (include 64-byte header): " << bytes_C2F_per_query << std::endl;);
-    IF_DEBUG_DO(std::cout << "bytes_F2C_per_query (include 64-byte header):" << bytes_F2C_per_query << std::endl;);
+    std::cout << "bytes_C2F_per_query (include 64-byte header): " << bytes_C2F_per_query << std::endl;
+    std::cout << "bytes_F2C_per_query (include 64-byte header):" << bytes_F2C_per_query << std::endl;
 
     sock_f2c = (int*) malloc(num_FPGA * sizeof(int));
     sock_c2f = (int*) malloc(num_FPGA * sizeof(int));
@@ -292,10 +285,15 @@ public:
         std::cout << "C2F finish query_id " << finish_C2F_query_id << std::endl;
       }
     }
-
+  
     std::chrono::system_clock::time_point end = std::chrono::system_clock::now();
     double durationUs = (std::chrono::duration_cast<std::chrono::microseconds>(end-start).count());
-    
+   
+    // send finish: set batch_size as -1
+    int finish_batch_size = -1;
+    memcpy(buf_header, &finish_batch_size, 4);
+    send_header(buf_header); 
+
     std::cout << "C2F side Duration (us) = " << durationUs << std::endl;
     std::cout << "C2F side QPS () = " << query_num / (durationUs / 1000.0 / 1000.0) << std::endl;
     std::cout << "C2F side finished." << std::endl;
@@ -309,6 +307,7 @@ public:
       size_t total_F2C_bytes = 0;
       while (total_F2C_bytes < bytes_F2C_per_query) {
         int F2C_bytes_this_iter = (bytes_F2C_per_query - total_F2C_bytes) < F2C_PKG_SIZE ? (bytes_F2C_per_query - total_F2C_bytes) : F2C_PKG_SIZE;
+        // IF_DEBUG_DO(std::cout << "F2C_bytes_this_iter" << F2C_bytes_this_iter << std::endl;);
         int F2C_bytes = read(sock_f2c[n], &buf_F2C_per_FPGA[n][byte_offset + total_F2C_bytes], F2C_bytes_this_iter);
         total_F2C_bytes += F2C_bytes;
 
@@ -316,7 +315,7 @@ public:
           printf("Receiving data UNSUCCESSFUL!\n");
           return;
         } else {
-          // IF_DEBUG_DO(std::cout << "query_id: " << query_id << " F2C_bytes" << total_F2C_bytes << std::endl;);
+          IF_DEBUG_DO(std::cout << " F2C_bytes" << total_F2C_bytes << std::endl;);
         }
       }
 
@@ -330,9 +329,9 @@ public:
 
     std::cout << "FPGA programs must be started in order (same as the input argument) " <<
       " because the F2C receive side receives connections in order " << std::endl;
-  for (int i = 0; i < num_FPGA; i++) {
-    recv_accept_conn(F2C_port[i]);
-  }
+    for (int i = 0; i < num_FPGA; i++) {
+      sock_f2c[i] = recv_accept_conn(F2C_port[i]);
+    }
     start_F2C = 1;
     while(!start_C2F) {}
     ///////////////////////////////////////
@@ -352,6 +351,7 @@ public:
 
       for (int query_id = F2C_batch_id * batch_size; query_id < F2C_batch_id * batch_size + current_batch_size; query_id++) {
 
+        IF_DEBUG_DO(std::cout << "F2C query_id " << query_id << std::endl;);
         size_t byte_offset = query_id * bytes_F2C_per_query;
         receive_answer_to_query(byte_offset);
 

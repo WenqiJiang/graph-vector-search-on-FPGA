@@ -42,8 +42,6 @@ int send_open_conn(const char* IP_addr, unsigned int send_port) {
         printf("\n Socket creation error \n"); 
         return -1; 
     } 
-    std::cout << "send sock " << sock << std::endl; 
-   
     serv_addr.sin_family = AF_INET; 
     serv_addr.sin_port = htons(send_port); 
        
@@ -62,7 +60,7 @@ int send_open_conn(const char* IP_addr, unsigned int send_port) {
         return -1; 
     } 
 
-	printf("Successfully built connection.\n");
+	std:: cout << "Successfully built connection for send, sock: " << sock << std::endl;
 
     return sock;
 }
@@ -108,7 +106,7 @@ int recv_accept_conn(unsigned int recv_port) {
         perror("accept");
         exit(EXIT_FAILURE);
     }
-    printf("Successfully built connection.\n");
+    std:: cout << "Successfully built connection for recv, sock: " << sock << std::endl;
 
 	return sock;
 }
