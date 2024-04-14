@@ -52,13 +52,13 @@ void network_input_processing(
 	hls::stream<int>& s_entry_point_ids
     ) {
 
-    // Format: foe each query
+    // Format: for each query
     // packet 0: header (batch_size, ) -> batch size as -1 or 0 means terminate
     //   for the following packets, for each query
     // 		packet 1~k: query_vectors
 
     // query format: store in 512-bit packets, pad 0 for the last packet if needed
-	const int vec_AXI_num = D % FLOAT_PER_AXI == 0? D / FLOAT_PER_AXI : D / FLOAT_PER_AXI + 1; 
+	const int AXI_num_vec = D % FLOAT_PER_AXI == 0? D / FLOAT_PER_AXI : D / FLOAT_PER_AXI + 1; 
 
     while (true) {
 
@@ -80,7 +80,7 @@ void network_input_processing(
         for (int query_id = 0; query_id < batch_size; query_id++) {
 
 			s_entry_point_ids.write(entry_point_id);
-            for (int i = 0; i < vec_AXI_num; i++) {
+            for (int i = 0; i < AXI_num_vec; i++) {
 			#pragma HLS pipeline II=1
                 s_query_vectors_in.write(s_kernel_network_in.read());
             }
@@ -105,7 +105,7 @@ void simulated_accelerator_kernel(
 	hls::stream<float>& s_out_dists) {
 
     // query format: store in 512-bit packets, pad 0 for the last packet if needed
-	const int vec_AXI_num = D % FLOAT_PER_AXI == 0? D / FLOAT_PER_AXI : D / FLOAT_PER_AXI + 1; 
+	const int AXI_num_vec = D % FLOAT_PER_AXI == 0? D / FLOAT_PER_AXI : D / FLOAT_PER_AXI + 1; 
 
 	float bias = in_DDR[0];
 
@@ -125,7 +125,7 @@ void simulated_accelerator_kernel(
 			// consume input
 			int entry_point_id = s_entry_point_ids.read();
 			ap_uint<512> reg_in;
-            for (int i = 0; i < vec_AXI_num; i++) {
+            for (int i = 0; i < AXI_num_vec; i++) {
 			#pragma HLS pipeline II=1
                 reg_in = s_query_vectors_in.read();
             }
@@ -161,8 +161,8 @@ void network_output_processing(
 	//    -> size = ceil(topK * 4 / 64) + ceil(topK * 4 / 64)
 
     // in 512-bit packets
-    const int size_results_vec_ID = ef % INT_PER_AXI == 0? ef / INT_PER_AXI : ef / INT_PER_AXI + 1;
-    const int size_results_dist = ef % FLOAT_PER_AXI == 0? ef / FLOAT_PER_AXI : ef / FLOAT_PER_AXI + 1;
+    const int AXI_num_results_vec_ID = ef % INT_PER_AXI == 0? ef / INT_PER_AXI : ef / INT_PER_AXI + 1;
+    const int AXI_num_results_dist = ef % FLOAT_PER_AXI == 0? ef / FLOAT_PER_AXI : ef / FLOAT_PER_AXI + 1;
 
 	bool first_s_query_batch_size = true;
 
@@ -183,7 +183,7 @@ void network_output_processing(
             s_kernel_network_out.write(output_header);
 
             // send vec IDs first
-			for (int s = 0; s < size_results_vec_ID; s++) {
+			for (int s = 0; s < AXI_num_results_vec_ID; s++) {
 				ap_uint<512> reg_out = 0;
 				for (int k = 0; k < INT_PER_AXI && s * INT_PER_AXI + k < ef; k++) {
 					int raw_output = s_out_ids.read();
@@ -194,7 +194,7 @@ void network_output_processing(
 			}
 
             // then send dist
-            for (int j = 0; j < size_results_dist; j++) {
+            for (int j = 0; j < AXI_num_results_dist; j++) {
 				ap_uint<512> reg_out = 0;
 				for (int k = 0; k < FLOAT_PER_AXI && j * FLOAT_PER_AXI + k < ef; k++) {
 					float raw_output = s_out_dists.read();

@@ -1,13 +1,32 @@
 # CPU Programs
 
-The host CPU program that sits between FPGAs and potentially GPUs for RALM. 
+## Network Transmission Formats
 
-## CPU_to_FPGA: the host program
+* CPU -> FPGA : size_c2f(D)
 
-It has complex arguments. To make the program run easier, use the `launch_CPU_and_FPGA.py` script for starting the CPU program and/or the FPGA simulator. 
+```
+    // Format: for each query
+    // packet 0: header (batch_size, ) -> batch size as -1 or 0 means terminate
+    //   for the following packets, for each query
+    // 		packet 1~k: query_vectors
 
-## TODO
+    // query format: store in 512-bit packets, pad 0 for the last packet if needed
+	const int AXI_num_header = 1; 
+	const int AXI_num_vec = D % FLOAT_PER_AXI == 0? D / FLOAT_PER_AXI : D / FLOAT_PER_AXI + 1; 
+	const int AXI_num_input_per_query = AXI_num_header + AXI_num_vec;
+```
 
-* Add HNSW plugin
-* Add real data gathering in multi-thread CPP
-* Save profile information
+* FPGA -> CPU : size_f2c(ef)
+
+```
+    // Format: for each query
+    // packet 0: header (topK == ef)
+    // packet 1~k: topK results, including vec_ID (4-byte) array and dist_array (4-byte)
+	//    -> size = ceil(topK * 4 / 64) + ceil(topK * 4 / 64)
+
+    // in 512-bit packets
+	const int AXI_num_header = 1; 
+    const int AXI_num_results_vec_ID = ef % INT_PER_AXI == 0? ef / INT_PER_AXI : ef / INT_PER_AXI + 1;
+    const int AXI_num_results_dist = ef % FLOAT_PER_AXI == 0? ef / FLOAT_PER_AXI : ef / FLOAT_PER_AXI + 1;
+	const int AXI_num_output_per_query = AXI_num_header + AXI_num_results_vec_ID + AXI_num_results_dist;
+```

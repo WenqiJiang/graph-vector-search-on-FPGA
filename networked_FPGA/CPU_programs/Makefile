@@ -8,25 +8,19 @@ LINK = -lpthread
 LINK_OMP = -fopenmp
 
 all: FPGA_simulator \
-	CPU_cooridnator_for_GPU_FPGA \
-	CPU_index_server \
+	CPU_client_simulator \
 	# CPU_to_single_FPGA \
 	# host_multi_FPGA \
-	# hnswlib_recall \
-	# hnswlib_save_load_index
-
-CPU_cooridnator_for_GPU_FPGA: CPU_cooridnator_for_GPU_FPGA.cpp
-	${CC} ${CLAGS} CPU_cooridnator_for_GPU_FPGA.cpp ${LINK} -o CPU_cooridnator_for_GPU_FPGA
 
 FPGA_simulator: FPGA_simulator.cpp
-	${CC} ${CLAGS} FPGA_simulator.cpp ${LINK} -o FPGA_simulator
+	${CC} ${CLAGS} FPGA_simulator.cpp ${LINK} -o FPGA_simulator.bin
 
-CPU_index_server: CPU_index_server.cpp
-	${CC} ${CLAGS} CPU_index_server.cpp ${LINK} ${LINK_OMP} -o CPU_index_server
+CPU_client_simulator: CPU_client_simulator.cpp
+	${CC} ${CLAGS} CPU_client_simulator.cpp ${LINK} ${LINK_OMP} -o CPU_client_simulator.bin
 
 .PHONY: clean, cleanall
 
 cleanall: clean
 
 clean:
-	rm FPGA_simulator CPU_index_server CPU_cooridnator_for_GPU_FPGA
+	rm FPGA_simulator.bin CPU_client_simulator.bin 
