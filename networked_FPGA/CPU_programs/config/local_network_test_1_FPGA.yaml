@@ -9,9 +9,11 @@
 
 num_FPGA : 1
 
-CPU_IP_addr : "127.0.0.1"
+CPU_IP_addr : "10.1.212.110"
+# CPU_IP_addr : "127.0.0.1"
 # CPU_IP_addr : "10.233.1.1" # doesn't work, firewall issue
-FPGA_IP_addr_list : ["127.0.0.1"]
+FPGA_IP_addr_list : ["10.253.74.28"]
+# FPGA_IP_addr_list : ["127.0.0.1"]
 C2F_port_list: [8881]
 F2C_port_list: [5001]
 
@@ -24,10 +26,10 @@ query_num: 10000
 batch_size: 32
 
 # query window size controls the communication between CPU and FPGA
-query_window_size: 100
+query_window_size: 10
 
 # batch window size controls the speed of index scan on CPU 
-batch_window_size: 2
+batch_window_size: 1
 # batch_window_size: 1
 
 # dataset

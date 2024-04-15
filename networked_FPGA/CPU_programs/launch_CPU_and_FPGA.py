@@ -125,7 +125,7 @@ if mode == 'CPU_client_simulator':
 			# std::cout << "Usage: " << argv[0] << " <XCLBIN File 1> <local_FPGA_IP 2> <RxPort (C2F) 3> <TxIP (CPU IP) 4> <TxPort (F2C) 5> <FPGA_board_ID 6" << std::endl;
 			print(f'\nFPGA {i} commands: ')
 			print("./host/host build_dir.hw.xilinx_u250_gen3x16_xdma_4_1_202210_1/network.xclbin "
-				f" {FPGA_IP_addr} {C2F_port_list[i]} {CPU_IP_addr} {F2C_port_list[i]} {board_ID} \n\n")
+				f" {FPGA_IP_addr} {C2F_port_list[i]} {CPU_IP_addr} {F2C_port_list[i]} {TOPK} \n\n")
 		else:
 			print("Unknown FPGA IP address: ", FPGA_IP_addr)
 
