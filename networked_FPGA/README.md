@@ -24,6 +24,7 @@ Build kernel.
 
 ```
 cd ../
+
 time make all TARGET=hw DEVICE=/opt/xilinx/platforms/xilinx_u250_gen3x16_xdma_4_1_202210_1/xilinx_u250_gen3x16_xdma_4_1_202210_1.xpfm USER_KRNL=hls_recv_krnl USER_KRNL_MODE=hls NETH=4 > out 2>&1
 ```
 

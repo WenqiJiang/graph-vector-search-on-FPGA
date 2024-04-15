@@ -72,3 +72,11 @@ Validate FPGA:
 ```
 xbutil validate --device
 ```
+
+### Check report
+
+Check resource utilization:
+
+```
+vi _x.hw/link/vivado/vpl/prj/prj.runs/impl_1/full_util_placed.rpt
+```

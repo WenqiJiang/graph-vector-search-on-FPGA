@@ -8,15 +8,18 @@ Based on single channel V1.2 FPGA_single_DDR_single_layer_v1.2_support_multi_bat
 
 We support breaking down all queries to batches, so we prepare for measuring performance with smaller batches, as well as preparing for the networked version.
 
-## V1.3 : FPGA_inter_query_v1.3_longer_FIFO_alt_PR : updating FIFO size to 512 and use alternative P&R strategies + Optimize queues
+## V1.3 : FPGA_inter_query_v1.3_longer_FIFO_alt_PR : updating FIFO size to 512 and use alternative P&R strategies
 
 I found that FIFO depth plays a important role in placemet and routing. When setting as a small number, it will be treated as LUTs rather than FIFO. The P&R may then over-consume LUTs in a single SLR. I also evaluated alternative P&R strategies, which eventually can achieve 180 MHz for 4 channels. Specifically, Performance_WLBlockPlacement and Performance_Explore can achieve 180 MHz for 4 channels.
 
+Note: optimizing queues will affect P&R! So I ROLLED Back the following changes!
+```
+# Rolled back
 * Update queue insertion: only if sucessfully inserted would we trigger the two-cycle compare-swap
   * update `results_collection` in DRAM_utils.hpp; also only sort if there is any insertion
   * update `insert_only` in priority_queue.hpp; also move wait to after sort
 * No filter after compute (this requires one more pipeline stage, harmful for performance given a single channel)
-
+```
 
 ## Unused V1.1 FPGA_inter_query_v1.1_multi_kernel : multi-kernel
 

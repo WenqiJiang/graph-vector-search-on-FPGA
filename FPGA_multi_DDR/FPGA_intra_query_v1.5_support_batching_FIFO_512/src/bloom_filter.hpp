@@ -223,18 +223,18 @@ public:
 #pragma HLS inline
 
 		hls::stream<int> s_num_candidates_replicated[num_hash_funs + 1];
-#pragma HLS stream variable=s_num_candidates_replicated depth=16
+#pragma HLS stream variable=s_num_candidates_replicated depth=512
 
 		hls::stream<cand_t> s_all_candidates_replicated[num_hash_funs + 1];
 #pragma HLS stream variable=s_all_candidates_replicated depth=512
 
 		hls::stream<int> s_finish_replicate_candidates;
-#pragma HLS stream variable=s_finish_replicate_candidates depth=16
+#pragma HLS stream variable=s_finish_replicate_candidates depth=512
 
 		// replicate s_query_batch_size to multiple streams
 		const int replicate_factor_s_query_batch_size = 4 + num_hash_funs;
 		hls::stream<int> s_query_batch_size_replicated[replicate_factor_s_query_batch_size];
-#pragma HLS stream variable=s_query_batch_size_replicated depth=16
+#pragma HLS stream variable=s_query_batch_size_replicated depth=512
 
 		replicate_s_query_batch_size<replicate_factor_s_query_batch_size>(
 			s_query_batch_size,
@@ -255,7 +255,7 @@ public:
 		);
 
 		hls::stream<int> s_finish_replicate_candidates_replicated[num_hash_funs];
-#pragma HLS stream variable=s_finish_replicate_candidates_replicated depth=16
+#pragma HLS stream variable=s_finish_replicate_candidates_replicated depth=512
 
 		replicate_s_finish<num_hash_funs>(
 			// in (stream)
@@ -269,7 +269,7 @@ public:
 #pragma HLS stream variable=s_hash_values_per_pe depth=512
 
 		hls::stream<int> s_finish_hash_per_pe[num_hash_funs];
-#pragma HLS stream variable=s_finish_hash_per_pe depth=16
+#pragma HLS stream variable=s_finish_hash_per_pe depth=512
 
 		for (int pe_id = 0; pe_id < num_hash_funs; pe_id++) {
 #pragma HLS UNROLL
@@ -288,7 +288,7 @@ public:
 		}
 
 		hls::stream<int> s_finish_hash;
-#pragma HLS stream variable=s_finish_hash depth=16
+#pragma HLS stream variable=s_finish_hash depth=512
 
 		gather_s_finish<num_hash_funs>(
 			// in (stream)

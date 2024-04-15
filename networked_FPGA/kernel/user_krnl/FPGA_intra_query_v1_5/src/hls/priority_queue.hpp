@@ -83,9 +83,11 @@ class Priority_queue<result_t, hardware_queue_size, Collect_smallest> {
 				for (int i = 0; i < num_insertion; i++) {
 #pragma HLS pipeline II=1
 					result_t reg = s_input.read();
-					this->queue[0] = reg.dist < this->queue[0].dist? reg : this->queue[0];
-					compare_swap_array_step_A();
-					compare_swap_array_step_B();
+					if (reg.dist < this->queue[0].dist) {
+						this->queue[0] = reg;
+						compare_swap_array_step_A();
+						compare_swap_array_step_B();
+					}
 				}
 			}
         }

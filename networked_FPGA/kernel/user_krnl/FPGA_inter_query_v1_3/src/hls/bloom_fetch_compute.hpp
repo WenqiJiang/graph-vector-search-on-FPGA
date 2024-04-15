@@ -31,18 +31,18 @@ void bloom_fetch_compute(
 #pragma HLS inline
 
 	hls::stream<int> s_num_valid_candidates_burst;
-#pragma HLS stream variable=s_num_valid_candidates_burst depth=16
+#pragma HLS stream variable=s_num_valid_candidates_burst depth=512
 
 	hls::stream<cand_t> s_valid_candidates;
 #pragma HLS stream variable=s_valid_candidates depth=512
 
     hls::stream<int> s_finish_bloom; // finish all queries
-#pragma HLS stream variable=s_finish_bloom depth=16
+#pragma HLS stream variable=s_finish_bloom depth=512
 
 	// replicate s_query_batch_size to multiple streams
 	const int replicate_factor_s_query_batch_size = 4;
 	hls::stream<int> s_query_batch_size_replicated[replicate_factor_s_query_batch_size];
-#pragma HLS stream variable=s_query_batch_size_replicated depth=16
+#pragma HLS stream variable=s_query_batch_size_replicated depth=512
 
 	replicate_s_query_batch_size<replicate_factor_s_query_batch_size>(
 		s_query_batch_size,
@@ -70,13 +70,13 @@ void bloom_fetch_compute(
 	const int rep_factor_s_num_valid_candidates_burst = 2;
 
 	hls::stream<int> s_num_valid_candidates_burst_replicated[rep_factor_s_num_valid_candidates_burst];
-#pragma HLS stream variable=s_num_valid_candidates_burst_replicated depth=16
+#pragma HLS stream variable=s_num_valid_candidates_burst_replicated depth=512
 
 	hls::stream<cand_t> s_valid_candidates_replicated[rep_factor_s_num_valid_candidates_burst];
 #pragma HLS stream variable=s_valid_candidates_replicated depth=512
 
 	hls::stream<int> s_finish_query_replicate_candidates; // finish all queries
-#pragma HLS stream variable=s_finish_query_replicate_candidates depth=16
+#pragma HLS stream variable=s_finish_query_replicate_candidates depth=512
 
 	replicate_s_read_iter_and_s_data<rep_factor_s_num_valid_candidates_burst, cand_t>(
 		// in (stream)
@@ -95,7 +95,7 @@ void bloom_fetch_compute(
 #pragma HLS stream variable=s_fetched_vectors depth=512
 	
     hls::stream<int> s_finish_query_fetch_vectors; // finish all queries
-#pragma HLS stream variable=s_finish_query_fetch_vectors depth=16
+#pragma HLS stream variable=s_finish_query_fetch_vectors depth=512
 
 	fetch_vectors(
 		// in runtime (should from DRAM)
@@ -115,7 +115,7 @@ void bloom_fetch_compute(
 #pragma HLS stream variable=s_distances depth=512
 
     hls::stream<int> s_finish_query_compute_distances; // finish all queries
-#pragma HLS stream variable=s_finish_query_compute_distances depth=16
+#pragma HLS stream variable=s_finish_query_compute_distances depth=512
 
 	compute_distances(
 		// in runtime (stream)
