@@ -1,4 +1,4 @@
-kernel_frequency=200
+kernel_frequency=180 # 200 MHz only for 1 or 2 channels
 
 [hls]
 # HLS pipeline flush: https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/Flushing-Pipelines

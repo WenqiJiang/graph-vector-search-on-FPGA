@@ -157,62 +157,62 @@ void vadd(
 #pragma HLS dataflow
 
 	hls::stream<int> s_query_batch_size;
-#pragma HLS stream variable=s_query_batch_size depth=512
+#pragma HLS stream variable=s_query_batch_size depth=depth_control
 
 	hls::stream<ap_uint<512>> s_query_vectors_in;
-#pragma HLS stream variable=s_query_vectors_in depth=512
+#pragma HLS stream variable=s_query_vectors_in depth=depth_data
 
 	hls::stream<int> s_entry_point_ids;
-#pragma HLS stream variable=s_entry_point_ids depth=512
+#pragma HLS stream variable=s_entry_point_ids depth=depth_control
 
 	hls::stream<int> s_finish_batch;
-#pragma HLS stream variable=s_finish_batch depth=512
+#pragma HLS stream variable=s_finish_batch depth=depth_control
 
     hls::stream<int> s_finish_query_task_scheduler; // finish the current query
-#pragma HLS stream variable=s_finish_query_task_scheduler depth=512
+#pragma HLS stream variable=s_finish_query_task_scheduler depth=depth_control
 
     hls::stream<int> s_finish_query_results_collection; // finish all queries
-#pragma HLS stream variable=s_finish_query_results_collection depth=512
+#pragma HLS stream variable=s_finish_query_results_collection depth=depth_control
 	
 	hls::stream<ap_uint<512>> s_query_vectors_replicated[N_CHANNEL];
-#pragma HLS stream variable=s_query_vectors_replicated depth=512
+#pragma HLS stream variable=s_query_vectors_replicated depth=depth_data
 
 // 	hls::stream<result_t> s_entry_point_base_level;
-// #pragma HLS stream variable=s_entry_point_base_level depth=512
+// #pragma HLS stream variable=s_entry_point_base_level depth=depth_control
 
 	hls::stream<int> s_cand_batch_size;
-#pragma HLS stream variable=s_cand_batch_size depth=512
+#pragma HLS stream variable=s_cand_batch_size depth=depth_control
 
     hls::stream<cand_t> s_top_candidates; // current top candidates
-#pragma HLS stream variable=s_top_candidates depth=512
+#pragma HLS stream variable=s_top_candidates depth=depth_data
 
 	hls::stream<int> s_num_inserted_candidates;
-#pragma HLS stream variable=s_num_inserted_candidates depth=512
+#pragma HLS stream variable=s_num_inserted_candidates depth=depth_control
 
 	hls::stream<result_t> s_inserted_candidates;
-#pragma HLS stream variable=s_inserted_candidates depth=512
+#pragma HLS stream variable=s_inserted_candidates depth=depth_data
 
 	hls::stream<int> s_num_valid_candidates_base_level_total;
-#pragma HLS stream variable=s_num_valid_candidates_base_level_total depth=512
+#pragma HLS stream variable=s_num_valid_candidates_base_level_total depth=depth_control
 
 	hls::stream<result_t> s_distances_base_level;
-#pragma HLS stream variable=s_distances_base_level depth=512
+#pragma HLS stream variable=s_distances_base_level depth=depth_data
 
 	hls::stream<float> s_largest_result_queue_elements;
-#pragma HLS stream variable=s_largest_result_queue_elements depth=512	
+#pragma HLS stream variable=s_largest_result_queue_elements depth=depth_control	
 
 	hls::stream<int> s_debug_signals;
-#pragma HLS stream variable=s_debug_signals depth=512
+#pragma HLS stream variable=s_debug_signals depth=depth_control
 
 	const int rep_factor_s_largest_result_queue_elements = 1 + N_CHANNEL;
 	hls::stream<float> s_largest_result_queue_elements_replicated[rep_factor_s_largest_result_queue_elements];
-#pragma HLS stream variable=s_largest_result_queue_elements_replicated depth=512		
+#pragma HLS stream variable=s_largest_result_queue_elements_replicated depth=depth_control		
 
 // 	hls::stream<int> s_debug_num_vec_base_layer;
-// #pragma HLS stream variable=s_debug_num_vec_base_layer depth=512
+// #pragma HLS stream variable=s_debug_num_vec_base_layer depth=depth_control
 
 	hls::stream<int> s_finish_query_replicate_s_largest_result_queue_elements;
-#pragma HLS stream variable=s_finish_query_replicate_s_largest_result_queue_elements depth=512
+#pragma HLS stream variable=s_finish_query_replicate_s_largest_result_queue_elements depth=depth_control
 
 	read_queries(
 		// in initialization
@@ -233,7 +233,7 @@ void vadd(
 	// replicate s_query_batch_size to multiple streams
 	const int replicate_factor_s_query_batch_size = 2 * N_CHANNEL + 9;
 	hls::stream<int> s_query_batch_size_replicated[replicate_factor_s_query_batch_size];
-#pragma HLS stream variable=s_query_batch_size_replicated depth=512
+#pragma HLS stream variable=s_query_batch_size_replicated depth=depth_control
 
 	replicate_s_query_batch_size<replicate_factor_s_query_batch_size>(
 		s_query_batch_size,
@@ -267,13 +267,13 @@ void vadd(
 
 
 	hls::stream<int> s_fetch_batch_size;
-#pragma HLS stream variable=s_fetch_batch_size depth=512
+#pragma HLS stream variable=s_fetch_batch_size depth=depth_control
 
     hls::stream<ap_uint<512>> s_neighbor_ids_raw;
-#pragma HLS stream variable=s_neighbor_ids_raw depth=128
+#pragma HLS stream variable=s_neighbor_ids_raw depth=depth_data
 
     hls::stream<int> s_finish_query_fetch_neighbor_ids; // finish all queries
-#pragma HLS stream variable=s_finish_query_fetch_neighbor_ids depth=512
+#pragma HLS stream variable=s_finish_query_fetch_neighbor_ids depth=depth_control
 
 	fetch_neighbor_ids(
 		max_link_num_base,
@@ -313,13 +313,13 @@ void vadd(
 	);
 
     hls::stream<int> s_num_neighbors_base_level_per_channel[N_CHANNEL]; // number of neighbors of the current candidate
-#pragma HLS stream variable=s_num_neighbors_base_level_per_channel depth=512
+#pragma HLS stream variable=s_num_neighbors_base_level_per_channel depth=depth_control
 
 	hls::stream<cand_t> s_fetched_neighbor_ids_per_channel[N_CHANNEL]; 
-#pragma HLS stream variable=s_fetched_neighbor_ids_per_channel depth=512
+#pragma HLS stream variable=s_fetched_neighbor_ids_per_channel depth=depth_data
 
     hls::stream<int> s_finish_query_split_tasks_to_channels; // finish all queries
-#pragma HLS stream variable=s_finish_query_split_tasks_to_channels depth=512
+#pragma HLS stream variable=s_finish_query_split_tasks_to_channels depth=depth_control
 
 	split_tasks_to_channels(
 		max_link_num_base,
@@ -337,7 +337,7 @@ void vadd(
 	);
 
     hls::stream<int> s_finish_query_split_tasks_to_channels_replicated[N_CHANNEL]; // finish all queries
-#pragma HLS stream variable=s_finish_query_split_tasks_to_channels_replicated depth=512
+#pragma HLS stream variable=s_finish_query_split_tasks_to_channels_replicated depth=depth_control
 
 	replicate_s_finish<N_CHANNEL>(
 		s_query_batch_size_replicated[3],
@@ -346,13 +346,13 @@ void vadd(
 	);
 
 	hls::stream<int> s_num_valid_candidates_base_level_total_per_channel[N_CHANNEL];
-#pragma HLS stream variable=s_num_valid_candidates_base_level_total_per_channel depth=512
+#pragma HLS stream variable=s_num_valid_candidates_base_level_total_per_channel depth=depth_control
 
 	hls::stream<result_t> s_distances_base_level_per_channel[N_CHANNEL];
-#pragma HLS stream variable=s_distances_base_level_per_channel depth=512
+#pragma HLS stream variable=s_distances_base_level_per_channel depth=depth_data
 
     hls::stream<int> s_finish_query_bloom_fetch_compute_per_channel[N_CHANNEL]; // finish all queries
-#pragma HLS stream variable=s_finish_query_bloom_fetch_compute_per_channel depth=512
+#pragma HLS stream variable=s_finish_query_bloom_fetch_compute_per_channel depth=depth_control
 
 
 	// using loop unrolling for bloom_fetch_compute can lead to compilation error
@@ -713,13 +713,13 @@ void vadd(
 	#endif
 
 	hls::stream<int> s_num_valid_candidates_base_level_filtered_per_channel[N_CHANNEL];
-#pragma HLS stream variable=s_num_valid_candidates_base_level_filtered_per_channel depth=512
+#pragma HLS stream variable=s_num_valid_candidates_base_level_filtered_per_channel depth=depth_control
 
 	hls::stream<result_t> s_distances_base_filtered_per_channel[N_CHANNEL];
-#pragma HLS stream variable=s_distances_base_filtered_per_channel depth=512
+#pragma HLS stream variable=s_distances_base_filtered_per_channel depth=depth_data
 
     hls::stream<int> s_finish_filter_computed_distances_per_channel[N_CHANNEL]; // finish all queries
-#pragma HLS stream variable=s_finish_filter_computed_distances_per_channel depth=512	
+#pragma HLS stream variable=s_finish_filter_computed_distances_per_channel depth=depth_control	
 
 filter_computed_distances(
     // in stream
@@ -939,7 +939,7 @@ filter_computed_distances(
 #endif
 
     hls::stream<int> s_finish_query_filter_computed_distances; // finish all queries
-#pragma HLS stream variable=s_finish_query_filter_computed_distances depth=512
+#pragma HLS stream variable=s_finish_query_filter_computed_distances depth=depth_control
 
 	gather_s_finish<N_CHANNEL>(
     	s_query_batch_size_replicated[2 * N_CHANNEL + 4],
@@ -948,7 +948,7 @@ filter_computed_distances(
 	);
 
     hls::stream<int> s_finish_gather_distances_from_channels; // finish all queries
-#pragma HLS stream variable=s_finish_gather_distances_from_channels depth=512
+#pragma HLS stream variable=s_finish_gather_distances_from_channels depth=depth_control
 
 	gather_distances_from_channels(
     	s_query_batch_size_replicated[2 * N_CHANNEL + 5],
@@ -962,10 +962,10 @@ filter_computed_distances(
 	);
 
 	hls::stream<int> s_out_ids;
-#pragma HLS stream variable=s_out_ids depth=512
+#pragma HLS stream variable=s_out_ids depth=depth_data
 
 	hls::stream<float> s_out_dists;
-#pragma HLS stream variable=s_out_dists depth=512
+#pragma HLS stream variable=s_out_dists depth=depth_data
 
 	results_collection(
 		// in (initialization)

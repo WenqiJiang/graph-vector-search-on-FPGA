@@ -419,7 +419,7 @@ void FPGA_inter_query_v1_3(
         s_axis_tcp_port_status);
 
     hls::stream<ap_uint<512>> s_kernel_network_in;
-#pragma HLS STREAM variable=s_kernel_network_in depth=512
+#pragma HLS STREAM variable=s_kernel_network_in depth=depth_network_in
 
     // Wenqi-customized recv function, resolve deadlock in the case that
     //   input data rate >> FPGA query processing rate
@@ -440,17 +440,17 @@ void FPGA_inter_query_v1_3(
 ////////////////////     Network Input     ////////////////////
 
 
-    hls::stream<int> s_query_batch_size;
-#pragma HLS stream variable=s_query_batch_size depth=512
-    
-    hls::stream<ap_uint<512> > s_query_vectors_in;
-#pragma HLS stream variable=s_query_vectors_in depth=512
-    
-    hls::stream<int> s_entry_point_ids;
-#pragma HLS stream variable=s_entry_point_ids depth=512
+	hls::stream<int> s_query_batch_size;
+#pragma HLS stream variable=s_query_batch_size depth=depth_control
+
+	hls::stream<ap_uint<512>> s_query_vectors_in;
+#pragma HLS stream variable=s_query_vectors_in depth=depth_data
+
+	hls::stream<int> s_entry_point_ids;
+#pragma HLS stream variable=s_entry_point_ids depth=depth_control
 
 	hls::stream<int> s_finish_batch;
-#pragma HLS stream variable=s_finish_batch depth=512
+#pragma HLS stream variable=s_finish_batch depth=depth_control
 
 	network_input_processing(
 		// in init
@@ -471,7 +471,7 @@ void FPGA_inter_query_v1_3(
 	// replicate s_query_batch_size to multiple streams
 	const int replicate_factor_s_query_batch_size = 3;
 	hls::stream<int> s_query_batch_size_replicated[replicate_factor_s_query_batch_size];
-#pragma HLS stream variable=s_query_batch_size_replicated depth=512
+#pragma HLS stream variable=s_query_batch_size_replicated depth=depth_control
 
 	replicate_s_query_batch_size<replicate_factor_s_query_batch_size>(
 		s_query_batch_size,
@@ -479,14 +479,14 @@ void FPGA_inter_query_v1_3(
 	);
 
 	hls::stream<int> s_query_batch_size_in_per_channel[N_CHANNEL];
-#pragma HLS stream variable=s_query_batch_size_in_per_channel depth=512
+#pragma HLS stream variable=s_query_batch_size_in_per_channel depth=depth_control
 
 
 	hls::stream<ap_uint<512>> s_query_vectors_in_per_channel[N_CHANNEL];
-#pragma HLS stream variable=s_query_vectors_in_per_channel depth=512
+#pragma HLS stream variable=s_query_vectors_in_per_channel depth=depth_data
 
 	hls::stream<int> s_entry_point_ids_per_channel[N_CHANNEL];
-#pragma HLS stream variable=s_entry_point_ids_per_channel depth=512
+#pragma HLS stream variable=s_entry_point_ids_per_channel depth=depth_control
 
 	split_queries(
 		// in streams
@@ -502,13 +502,13 @@ void FPGA_inter_query_v1_3(
 
 
 	hls::stream<int> s_out_ids_per_channel[N_CHANNEL];
-#pragma HLS stream variable=s_out_ids_per_channel depth=512
+#pragma HLS stream variable=s_out_ids_per_channel depth=depth_data
 
 	hls::stream<float> s_out_dists_per_channel[N_CHANNEL];
-#pragma HLS stream variable=s_out_dists_per_channel depth=512
+#pragma HLS stream variable=s_out_dists_per_channel depth=depth_data
 
 	hls::stream<int> s_debug_signals_per_channel[N_CHANNEL];
-#pragma HLS stream variable=s_debug_signals_per_channel depth=512
+#pragma HLS stream variable=s_debug_signals_per_channel depth=depth_control
 
 	// using an array to represent different DRAM channels would lead to fail to find the per_channel_processing_wrapper
 	// thus manually unrolling
@@ -934,10 +934,10 @@ void FPGA_inter_query_v1_3(
 #endif
 
     hls::stream<int> s_out_ids;
-#pragma HLS stream variable=s_out_ids depth=512
+#pragma HLS stream variable=s_out_ids depth=depth_data
 
     hls::stream<float> s_out_dists;
-#pragma HLS stream variable=s_out_dists depth=512
+#pragma HLS stream variable=s_out_dists depth=depth_data
 
 	write_result_streams(
 		ef,
@@ -959,7 +959,7 @@ void FPGA_inter_query_v1_3(
 ////////////////////     Network Output     ////////////////////
 
     hls::stream<ap_uint<512>> s_kernel_network_out; 
-#pragma HLS stream variable=s_kernel_network_out depth=512
+#pragma HLS stream variable=s_kernel_network_out depth=depth_data
 
 	network_output_processing(
 		// input init

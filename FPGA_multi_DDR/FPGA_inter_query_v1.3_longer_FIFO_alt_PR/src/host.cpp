@@ -20,6 +20,15 @@ long GetFileSize(std::string filename)
     return rc == 0 ? stat_buf.st_size : -1;
 }
 
+// concat dir
+std::string concat_dir(std::string dir, std::string filename) {
+	if (dir.back() == '/') {
+		return dir + filename;
+	} else {
+		return dir + "/" + filename;
+	}
+}
+
 int main(int argc, char** argv)
 {
     cl_int err;
@@ -33,6 +42,20 @@ int main(int argc, char** argv)
     std::cout << "Allocating memory...\n";
 
     // in init
+	std::string graph_type = "NSG"; // "NSG" or "HNSW"
+	std::string index_dir_hnsw = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32";
+	std::string index_dir_nsg = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_NSG/SIFT1M_M64";
+
+	std::string data_dir_bigann = "/mnt/scratch/wenqi/Faiss_experiments/bigann";
+	std::string data_dir_sift1m = "/mnt/scratch/wenqi/Faiss_experiments/sift1M";
+	
+	std::string index_dir;
+	if (graph_type == "HNSW") {
+		index_dir = index_dir_hnsw;
+	} else if (graph_type == "NSG") {
+		index_dir = index_dir_nsg;
+	}
+
     int query_num = 10000;
 	int query_batch_size = 10000;
     int query_offset = 0; // starting from query x
@@ -69,18 +92,28 @@ int main(int argc, char** argv)
 
     // load metadata from file /mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/meta.bin
     //  cur_element_count, maxlevel_, enterpoint_node_, maxM_, maxM0_
-    FILE* f_metadata = fopen("/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/meta.bin", "rb");
-    fread(&num_db_vec, sizeof(int), 1, f_metadata);
-    fread(&max_level, sizeof(int), 1, f_metadata);
-    fread(&entry_point_id, sizeof(int), 1, f_metadata);
-    fread(&max_link_num_upper, sizeof(int), 1, f_metadata);
-    fread(&max_link_num_base, sizeof(int), 1, f_metadata);
-    fclose(f_metadata);
-    std::cout << "num_db_vec=" << num_db_vec << std::endl;
-    std::cout << "max_level=" << max_level << std::endl;
-    std::cout << "entry_point_id=" << entry_point_id << std::endl;
-    std::cout << "max_link_num_upper=" << max_link_num_upper << std::endl;
-    std::cout << "max_link_num_base=" << max_link_num_base << std::endl;
+	FILE* f_metadata = fopen(concat_dir(index_dir, "meta.bin").c_str(), "rb");
+	if (graph_type == "HNSW") {
+		fread(&num_db_vec, sizeof(int), 1, f_metadata);
+		fread(&max_level, sizeof(int), 1, f_metadata);
+		fread(&entry_point_id, sizeof(int), 1, f_metadata);
+		fread(&max_link_num_upper, sizeof(int), 1, f_metadata);
+		fread(&max_link_num_base, sizeof(int), 1, f_metadata);
+		fclose(f_metadata);
+		std::cout << "num_db_vec=" << num_db_vec << std::endl;
+		std::cout << "max_level=" << max_level << std::endl;
+		std::cout << "entry_point_id=" << entry_point_id << std::endl;
+		std::cout << "max_link_num_upper=" << max_link_num_upper << std::endl;
+		std::cout << "max_link_num_base=" << max_link_num_base << std::endl;
+	} else if (graph_type == "NSG") {
+		fread(&num_db_vec, sizeof(int), 1, f_metadata);
+		fread(&entry_point_id, sizeof(int), 1, f_metadata);
+		fread(&max_link_num_base, sizeof(int), 1, f_metadata);
+		fclose(f_metadata);
+		std::cout << "num_db_vec=" << num_db_vec << std::endl;
+		std::cout << "entry_point_id=" << entry_point_id << std::endl;
+		std::cout << "max_link_num_base=" << max_link_num_base << std::endl;
+	}
     
     size_t bytes_per_vec = d * sizeof(float);
     size_t bytes_per_db_vec_plus_padding = d % 16 == 0? d * sizeof(float) + 64 : (d + 16 - d % 16) * sizeof(float) + 64;
@@ -93,153 +126,165 @@ int main(int argc, char** argv)
 
 // here, for inter-query parallel, replicate rather than using different content
 #if N_CHANNEL == 1
-    const char* fname_ground_links_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
+    std::string fname_ground_links_chan_0 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
 #elif N_CHANNEL == 2
-    const char* fname_ground_links_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-    const char* fname_ground_links_chan_1 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
+    std::string fname_ground_links_chan_0 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+    std::string fname_ground_links_chan_1 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
 #elif N_CHANNEL == 3
-    const char* fname_ground_links_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-    const char* fname_ground_links_chan_1 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-    const char* fname_ground_links_chan_2 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
+    std::string fname_ground_links_chan_0 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+    std::string fname_ground_links_chan_1 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+    std::string fname_ground_links_chan_2 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
 #elif N_CHANNEL == 4
-    const char* fname_ground_links_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-    const char* fname_ground_links_chan_1 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-    const char* fname_ground_links_chan_2 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-    const char* fname_ground_links_chan_3 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
+    std::string fname_ground_links_chan_0 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+    std::string fname_ground_links_chan_1 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+    std::string fname_ground_links_chan_2 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+    std::string fname_ground_links_chan_3 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
 #elif N_CHANNEL == 8
-    const char* fname_ground_links_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-    const char* fname_ground_links_chan_1 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-    const char* fname_ground_links_chan_2 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-    const char* fname_ground_links_chan_3 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-    const char* fname_ground_links_chan_4 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-    const char* fname_ground_links_chan_5 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-    const char* fname_ground_links_chan_6 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-    const char* fname_ground_links_chan_7 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
+    std::string fname_ground_links_chan_0 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+    std::string fname_ground_links_chan_1 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+    std::string fname_ground_links_chan_2 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+    std::string fname_ground_links_chan_3 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+    std::string fname_ground_links_chan_4 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+    std::string fname_ground_links_chan_5 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+    std::string fname_ground_links_chan_6 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+    std::string fname_ground_links_chan_7 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
 #elif N_CHANNEL == 16
-	const char* fname_ground_links_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-	const char* fname_ground_links_chan_1 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-	const char* fname_ground_links_chan_2 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-	const char* fname_ground_links_chan_3 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-	const char* fname_ground_links_chan_4 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-	const char* fname_ground_links_chan_5 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-	const char* fname_ground_links_chan_6 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-	const char* fname_ground_links_chan_7 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-	const char* fname_ground_links_chan_8 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-	const char* fname_ground_links_chan_9 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-	const char* fname_ground_links_chan_10 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-	const char* fname_ground_links_chan_11 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-	const char* fname_ground_links_chan_12 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-	const char* fname_ground_links_chan_13 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-	const char* fname_ground_links_chan_14 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
-	const char* fname_ground_links_chan_15 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_links_1_chan_0.bin";
+	std::string fname_ground_links_chan_0 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+	std::string fname_ground_links_chan_1 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+	std::string fname_ground_links_chan_2 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+	std::string fname_ground_links_chan_3 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+	std::string fname_ground_links_chan_4 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+	std::string fname_ground_links_chan_5 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+	std::string fname_ground_links_chan_6 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+	std::string fname_ground_links_chan_7 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+	std::string fname_ground_links_chan_8 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+	std::string fname_ground_links_chan_9 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+	std::string fname_ground_links_chan_10 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+	std::string fname_ground_links_chan_11 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+	std::string fname_ground_links_chan_12 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+	std::string fname_ground_links_chan_13 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+	std::string fname_ground_links_chan_14 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
+	std::string fname_ground_links_chan_15 = concat_dir(index_dir, "ground_links_1_chan_0.bin");
 #endif
 
-    const char* fname_ground_labels = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_labels.bin";
+    std::string fname_ground_labels = concat_dir(index_dir, "ground_labels.bin");
 
 #if N_CHANNEL == 1
-    const char* fname_ground_vectors_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
+    std::string fname_ground_vectors_chan_0 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
 #elif N_CHANNEL == 2
-    const char* fname_ground_vectors_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_1 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
+    std::string fname_ground_vectors_chan_0 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_1 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
 #elif N_CHANNEL == 3
-    const char* fname_ground_vectors_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_1 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_2 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
+    std::string fname_ground_vectors_chan_0 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_1 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_2 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
 #elif N_CHANNEL == 4
-    const char* fname_ground_vectors_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_1 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_2 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_3 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
+    std::string fname_ground_vectors_chan_0 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_1 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_2 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_3 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
 #elif N_CHANNEL == 8
-    const char* fname_ground_vectors_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_1 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_2 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_3 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_4 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_5 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_6 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_7 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
+    std::string fname_ground_vectors_chan_0 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_1 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_2 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_3 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_4 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_5 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_6 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_7 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
 #elif N_CHANNEL == 16
-    const char* fname_ground_vectors_chan_0 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_1 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_2 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_3 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_4 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_5 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_6 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_7 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_8 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_9 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_10 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_11 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_12 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_13 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_14 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
-    const char* fname_ground_vectors_chan_15 = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/ground_vectors_1_chan_0.bin";
+    std::string fname_ground_vectors_chan_0 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_1 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_2 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_3 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_4 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_5 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_6 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_7 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_8 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_9 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_10 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_11 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_12 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_13 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_14 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
+    std::string fname_ground_vectors_chan_15 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
 #endif
 
-    const char* fname_query_vectors =  "/mnt/scratch/wenqi/Faiss_experiments/bigann/bigann_query.bvecs";
-    const char* fname_gt_vec_ID = "/mnt/scratch/wenqi/Faiss_experiments/bigann/gnd/idx_1M.ivecs";
-    const char* fname_gt_dist = "/mnt/scratch/wenqi/Faiss_experiments/bigann/gnd/dis_1M.fvecs";
-    FILE* f_ground_links_chan_0 = fopen(fname_ground_links_chan_0, "rb");
+	std::string fname_query_vectors;
+	std::string fname_gt_vec_ID;
+	std::string fname_gt_dist;
+	if (graph_type == "HNSW") {
+    	fname_query_vectors =  concat_dir(data_dir_bigann, "bigann_query.bvecs");
+    	fname_gt_vec_ID = concat_dir(data_dir_bigann, "gnd/idx_1M.ivecs");
+    	fname_gt_dist = concat_dir(data_dir_bigann, "gnd/dis_1M.fvecs");
+	} else if (graph_type == "NSG") {
+		fname_query_vectors =  concat_dir(data_dir_sift1m, "sift_query.fvecs"); // SIFT 1M dataset with float vectors
+		fname_gt_vec_ID = concat_dir(data_dir_sift1m, "sift_groundtruth.ivecs");
+		fname_gt_dist = concat_dir(data_dir_sift1m, "sift_groundtruth.ivecs");
+	}
+    FILE* f_ground_links_chan_0 = fopen(fname_ground_links_chan_0.c_str(), "rb");
 #if N_CHANNEL >= 2
-    FILE* f_ground_links_chan_1 = fopen(fname_ground_links_chan_1, "rb");
+    FILE* f_ground_links_chan_1 = fopen(fname_ground_links_chan_1.c_str(), "rb");
 #endif
 #if N_CHANNEL >= 3
-    FILE* f_ground_links_chan_2 = fopen(fname_ground_links_chan_2, "rb");
+    FILE* f_ground_links_chan_2 = fopen(fname_ground_links_chan_2.c_str(), "rb");
 #endif
 #if N_CHANNEL >= 4
-    FILE* f_ground_links_chan_3 = fopen(fname_ground_links_chan_3, "rb");
+    FILE* f_ground_links_chan_3 = fopen(fname_ground_links_chan_3.c_str(), "rb");
 #endif
 #if N_CHANNEL >= 8
-    FILE* f_ground_links_chan_4 = fopen(fname_ground_links_chan_4, "rb");
-    FILE* f_ground_links_chan_5 = fopen(fname_ground_links_chan_5, "rb");
-    FILE* f_ground_links_chan_6 = fopen(fname_ground_links_chan_6, "rb");
-    FILE* f_ground_links_chan_7 = fopen(fname_ground_links_chan_7, "rb");
+    FILE* f_ground_links_chan_4 = fopen(fname_ground_links_chan_4.c_str(), "rb");
+    FILE* f_ground_links_chan_5 = fopen(fname_ground_links_chan_5.c_str(), "rb");
+    FILE* f_ground_links_chan_6 = fopen(fname_ground_links_chan_6.c_str(), "rb");
+    FILE* f_ground_links_chan_7 = fopen(fname_ground_links_chan_7.c_str(), "rb");
 #endif
 #if N_CHANNEL >= 16
-    FILE* f_ground_links_chan_8 = fopen(fname_ground_links_chan_8, "rb");
-    FILE* f_ground_links_chan_9 = fopen(fname_ground_links_chan_9, "rb");
-    FILE* f_ground_links_chan_10 = fopen(fname_ground_links_chan_10, "rb");
-    FILE* f_ground_links_chan_11 = fopen(fname_ground_links_chan_11, "rb");
-    FILE* f_ground_links_chan_12 = fopen(fname_ground_links_chan_12, "rb");
-    FILE* f_ground_links_chan_13 = fopen(fname_ground_links_chan_13, "rb");
-    FILE* f_ground_links_chan_14 = fopen(fname_ground_links_chan_14, "rb");
-    FILE* f_ground_links_chan_15 = fopen(fname_ground_links_chan_15, "rb");
+    FILE* f_ground_links_chan_8 = fopen(fname_ground_links_chan_8.c_str(), "rb");
+    FILE* f_ground_links_chan_9 = fopen(fname_ground_links_chan_9.c_str(), "rb");
+    FILE* f_ground_links_chan_10 = fopen(fname_ground_links_chan_10.c_str(), "rb");
+    FILE* f_ground_links_chan_11 = fopen(fname_ground_links_chan_11.c_str(), "rb");
+    FILE* f_ground_links_chan_12 = fopen(fname_ground_links_chan_12.c_str(), "rb");
+    FILE* f_ground_links_chan_13 = fopen(fname_ground_links_chan_13.c_str(), "rb");
+    FILE* f_ground_links_chan_14 = fopen(fname_ground_links_chan_14.c_str(), "rb");
+    FILE* f_ground_links_chan_15 = fopen(fname_ground_links_chan_15.c_str(), "rb");
 #endif
 
-    FILE* f_ground_labels = fopen(fname_ground_labels, "rb");
+	FILE* f_ground_labels;
+	if (graph_type == "HNSW") {
+    	f_ground_labels = fopen(fname_ground_labels.c_str(), "rb");
+	}
 
-    FILE* f_ground_vectors_chan_0 = fopen(fname_ground_vectors_chan_0, "rb");
+    FILE* f_ground_vectors_chan_0 = fopen(fname_ground_vectors_chan_0.c_str(), "rb");
 #if N_CHANNEL >= 2
-    FILE* f_ground_vectors_chan_1 = fopen(fname_ground_vectors_chan_1, "rb");
+    FILE* f_ground_vectors_chan_1 = fopen(fname_ground_vectors_chan_1.c_str(), "rb");
 #endif
 #if N_CHANNEL >= 3
-    FILE* f_ground_vectors_chan_2 = fopen(fname_ground_vectors_chan_2, "rb");
+    FILE* f_ground_vectors_chan_2 = fopen(fname_ground_vectors_chan_2.c_str(), "rb");
 #endif
 #if N_CHANNEL >= 4
-    FILE* f_ground_vectors_chan_3 = fopen(fname_ground_vectors_chan_3, "rb");
+    FILE* f_ground_vectors_chan_3 = fopen(fname_ground_vectors_chan_3.c_str(), "rb");
 #endif
 #if N_CHANNEL >= 8
-    FILE* f_ground_vectors_chan_4 = fopen(fname_ground_vectors_chan_4, "rb");
-    FILE* f_ground_vectors_chan_5 = fopen(fname_ground_vectors_chan_5, "rb");
-    FILE* f_ground_vectors_chan_6 = fopen(fname_ground_vectors_chan_6, "rb");
-    FILE* f_ground_vectors_chan_7 = fopen(fname_ground_vectors_chan_7, "rb");
+    FILE* f_ground_vectors_chan_4 = fopen(fname_ground_vectors_chan_4.c_str(), "rb");
+    FILE* f_ground_vectors_chan_5 = fopen(fname_ground_vectors_chan_5.c_str(), "rb");
+    FILE* f_ground_vectors_chan_6 = fopen(fname_ground_vectors_chan_6.c_str(), "rb");
+    FILE* f_ground_vectors_chan_7 = fopen(fname_ground_vectors_chan_7.c_str(), "rb");
 #endif
 #if N_CHANNEL >= 16
-    FILE* f_ground_vectors_chan_8 = fopen(fname_ground_vectors_chan_8, "rb");
-    FILE* f_ground_vectors_chan_9 = fopen(fname_ground_vectors_chan_9, "rb");
-    FILE* f_ground_vectors_chan_10 = fopen(fname_ground_vectors_chan_10, "rb");
-    FILE* f_ground_vectors_chan_11 = fopen(fname_ground_vectors_chan_11, "rb");
-    FILE* f_ground_vectors_chan_12 = fopen(fname_ground_vectors_chan_12, "rb");
-    FILE* f_ground_vectors_chan_13 = fopen(fname_ground_vectors_chan_13, "rb");
-    FILE* f_ground_vectors_chan_14 = fopen(fname_ground_vectors_chan_14, "rb");
-    FILE* f_ground_vectors_chan_15 = fopen(fname_ground_vectors_chan_15, "rb");
+    FILE* f_ground_vectors_chan_8 = fopen(fname_ground_vectors_chan_8.c_str(), "rb");
+    FILE* f_ground_vectors_chan_9 = fopen(fname_ground_vectors_chan_9.c_str(), "rb");
+    FILE* f_ground_vectors_chan_10 = fopen(fname_ground_vectors_chan_10.c_str(), "rb");
+    FILE* f_ground_vectors_chan_11 = fopen(fname_ground_vectors_chan_11.c_str(), "rb");
+    FILE* f_ground_vectors_chan_12 = fopen(fname_ground_vectors_chan_12.c_str(), "rb");
+    FILE* f_ground_vectors_chan_13 = fopen(fname_ground_vectors_chan_13.c_str(), "rb");
+    FILE* f_ground_vectors_chan_14 = fopen(fname_ground_vectors_chan_14.c_str(), "rb");
+    FILE* f_ground_vectors_chan_15 = fopen(fname_ground_vectors_chan_15.c_str(), "rb");
 #endif
 
-FILE* f_query_vectors = fopen(fname_query_vectors, "rb");
-FILE* f_gt_vec_ID = fopen(fname_gt_vec_ID, "rb");
-FILE* f_gt_dist = fopen(fname_gt_dist, "rb");
+FILE* f_query_vectors = fopen(fname_query_vectors.c_str(), "rb");
+FILE* f_gt_vec_ID = fopen(fname_gt_vec_ID.c_str(), "rb");
+FILE* f_gt_dist = fopen(fname_gt_dist.c_str(), "rb");
 
 // get file size
 size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
@@ -295,7 +340,10 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
     size_t bytes_links_base_chan_14 = GetFileSize(fname_ground_links_chan_14);
     size_t bytes_links_base_chan_15 = GetFileSize(fname_ground_links_chan_15);
 #endif
-    size_t bytes_labels_base = GetFileSize(fname_ground_labels); // int = 4 bytes
+    size_t bytes_labels_base;
+	if (graph_type == "HNSW") {
+		bytes_labels_base = GetFileSize(fname_ground_labels); // int = 4 bytes
+	}
     size_t raw_query_vectors_size = GetFileSize(fname_query_vectors);
     size_t raw_gt_vec_ID_size = GetFileSize(fname_gt_vec_ID);
     size_t raw_gt_dist_size = GetFileSize(fname_gt_dist);
@@ -370,7 +418,10 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
     std::vector<int, aligned_allocator<int>> mem_debug(bytes_mem_debug / sizeof(int));
 
     // intermediate buffer for queries, and ground truth
-    std::vector<int> labels_base(bytes_labels_base / sizeof(int));
+    std::vector<int> labels_base;
+	if (graph_type == "HNSW") {
+		labels_base.resize(bytes_labels_base / sizeof(int));
+	}
     std::vector<unsigned char> raw_query_vectors(raw_query_vectors_size / sizeof(unsigned char));
     std::vector<int> raw_gt_vec_ID(raw_gt_vec_ID_size / sizeof(int));
     std::vector<float> raw_gt_dist(raw_gt_dist_size / sizeof(float));
@@ -470,8 +521,10 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
 #endif
 
     std::cout << "Reading queries and ground truths from file...\n";
-    fread(labels_base.data(), 1, bytes_labels_base, f_ground_labels);
-    fclose(f_ground_labels);
+	if (graph_type == "HNSW") {
+    	fread(labels_base.data(), 1, bytes_labels_base, f_ground_labels);
+    	fclose(f_ground_labels);
+	}
     fread(raw_query_vectors.data(), 1, raw_query_vectors_size, f_query_vectors);
     fclose(f_query_vectors);
     fread(raw_gt_vec_ID.data(), 1, raw_gt_vec_ID_size, f_gt_vec_ID);
@@ -480,25 +533,44 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
     fclose(f_gt_dist);
 
     // query vector = 4-byte ID + d * (uint8) vectors
-    size_t len_per_query = 4 + d;
-    for (int qid = 0; qid < query_num_after_offset; qid++) {
-        for (int i = 0; i < d; i++) {
-            query_vectors[qid * d + i] = (float) raw_query_vectors[(qid + query_offset) * len_per_query + 4 + i];
-        }
-    }
+	
+	if (graph_type == "HNSW") {
+		size_t len_per_query = 4 + d;
+		for (int qid = 0; qid < query_num_after_offset; qid++) {
+			for (int i = 0; i < d; i++) {
+				query_vectors[qid * d + i] = (float) raw_query_vectors[(qid + query_offset) * len_per_query + 4 + i];
+			}
+		}
+	}
+	else if (graph_type == "NSG") { // apply SIFT1M with float
+		size_t len_per_query = 4 + d * 4; // 4-byte ID + d * 4-byte float vectors
+		for (int qid = 0; qid < query_num_after_offset; qid++) {
+			memcpy(query_vectors.data() + qid * d, raw_query_vectors.data() + (qid + query_offset) * len_per_query + 4, d * sizeof(float));
+		}
+	}
 
     for (int qid = 0; qid < query_num_after_offset; qid++) {
         entry_point_ids[qid] = entry_point_id;
     }
 
     // ground truth = 4-byte ID + 1000 * 4-byte ID + 1000 or 4-byte distances
-    size_t len_per_gt = (4 + 1000 * 4) / 4;
-    for (int qid = 0; qid < query_num_after_offset; qid++) {
-        for (int i = 0; i < max_topK; i++) {
-            gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[(qid + query_offset) * len_per_gt + 1 + i];
-            gt_dist[qid * max_topK + i] = raw_gt_dist[(qid + query_offset) * len_per_gt + 1 + i];
-        }
-    }
+	if (graph_type == "HNSW") {
+		size_t len_per_gt = (4 + 1000 * 4) / 4;
+		for (int qid = 0; qid < query_num_after_offset; qid++) {
+			for (int i = 0; i < max_topK; i++) {
+				gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[(qid + query_offset) * len_per_gt + 1 + i];
+				gt_dist[qid * max_topK + i] = raw_gt_dist[(qid + query_offset) * len_per_gt + 1 + i];
+			}
+		}
+	} else if (graph_type == "NSG") {
+		size_t len_per_gt = (4 + 100 * 4) / 4; // SIFT1M has only top 100 ground truth
+		for (int qid = 0; qid < query_num_after_offset; qid++) {
+			for (int i = 0; i < max_topK; i++) {
+				gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[(qid + query_offset) * len_per_gt + 1 + i];
+				gt_dist[qid * max_topK + i] = raw_gt_dist[(qid + query_offset) * len_per_gt + 1 + i];
+			}
+		}
+	}
 
 
 // OPENCL HOST CODE AREA START
@@ -781,9 +853,11 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
     std::cout << "Duration (including memcpy out): " << duration << " sec" << std::endl; 
 
     // Translate physical node IDs to real label IDs
-    for (int i = 0; i < query_num * ef; i++) {
-        out_id[i] = labels_base[out_id[i]];
-    }
+	if (graph_type == "HNSW") {
+		for (int i = 0; i < query_num * ef; i++) {
+			out_id[i] = labels_base[out_id[i]];
+		}
+	}
 
 #ifdef DEBUG
     // print out the debug signals (each 4 byte):
@@ -791,7 +865,6 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
     // debug signals (each 4 byte): 
     //   0: number of hops in base layer (number of pop operations)
     int print_qnum = 10 < query_num? 10 : query_num;
-    int debug_size = 1;
     for (int i = 0; i < print_qnum; i++) {
         std::cout << "query " << i << "\t#hops (base layer) =" << mem_debug[i * debug_size];
         if (gt_vec_ID[i * max_topK] != out_id[i * ef]) {

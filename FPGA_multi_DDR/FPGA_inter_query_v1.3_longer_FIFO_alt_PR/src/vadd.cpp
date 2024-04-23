@@ -161,16 +161,16 @@ void vadd(
 #pragma HLS dataflow
 
 	hls::stream<int> s_query_batch_size;
-#pragma HLS stream variable=s_query_batch_size depth=512
+#pragma HLS stream variable=s_query_batch_size depth=depth_control
 
 	hls::stream<ap_uint<512>> s_query_vectors_in;
-#pragma HLS stream variable=s_query_vectors_in depth=512
+#pragma HLS stream variable=s_query_vectors_in depth=depth_data
 
 	hls::stream<int> s_entry_point_ids;
-#pragma HLS stream variable=s_entry_point_ids depth=512
+#pragma HLS stream variable=s_entry_point_ids depth=depth_control
 
 	hls::stream<int> s_finish_batch;
-#pragma HLS stream variable=s_finish_batch depth=512
+#pragma HLS stream variable=s_finish_batch depth=depth_control
 
 	read_queries(
 		// in initialization
@@ -191,7 +191,7 @@ void vadd(
 	// replicate s_query_batch_size to multiple streams
 	const int replicate_factor_s_query_batch_size = 2;
 	hls::stream<int> s_query_batch_size_replicated[replicate_factor_s_query_batch_size];
-#pragma HLS stream variable=s_query_batch_size_replicated depth=512
+#pragma HLS stream variable=s_query_batch_size_replicated depth=depth_control
 
 	replicate_s_query_batch_size<replicate_factor_s_query_batch_size>(
 		s_query_batch_size,
@@ -199,14 +199,14 @@ void vadd(
 	);
 
 	hls::stream<int> s_query_batch_size_in_per_channel[N_CHANNEL];
-#pragma HLS stream variable=s_query_batch_size_in_per_channel depth=512
+#pragma HLS stream variable=s_query_batch_size_in_per_channel depth=depth_control
 
 
 	hls::stream<ap_uint<512>> s_query_vectors_in_per_channel[N_CHANNEL];
-#pragma HLS stream variable=s_query_vectors_in_per_channel depth=512
+#pragma HLS stream variable=s_query_vectors_in_per_channel depth=depth_data
 
 	hls::stream<int> s_entry_point_ids_per_channel[N_CHANNEL];
-#pragma HLS stream variable=s_entry_point_ids_per_channel depth=512
+#pragma HLS stream variable=s_entry_point_ids_per_channel depth=depth_control
 
 	split_queries(
 		// in streams
@@ -222,13 +222,13 @@ void vadd(
 
 
 	hls::stream<int> s_out_ids_per_channel[N_CHANNEL];
-#pragma HLS stream variable=s_out_ids_per_channel depth=512
+#pragma HLS stream variable=s_out_ids_per_channel depth=depth_data
 
 	hls::stream<float> s_out_dists_per_channel[N_CHANNEL];
-#pragma HLS stream variable=s_out_dists_per_channel depth=512
+#pragma HLS stream variable=s_out_dists_per_channel depth=depth_data
 
 	hls::stream<int> s_debug_signals_per_channel[N_CHANNEL];
-#pragma HLS stream variable=s_debug_signals_per_channel depth=512
+#pragma HLS stream variable=s_debug_signals_per_channel depth=depth_control
 
 	// using an array to represent different DRAM channels would lead to fail to find the per_channel_processing_wrapper
 	// thus manually unrolling

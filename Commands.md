@@ -80,3 +80,9 @@ Check resource utilization:
 ```
 vi _x.hw/link/vivado/vpl/prj/prj.runs/impl_1/full_util_placed.rpt
 ```
+
+For networked project:
+
+```
+vi build_dir.hw.xilinx_u250_gen3x16_xdma_4_1_202210_1/link/vivado/vpl/prj/prj.runs/impl_1/full_util_placed.rpt
+```
