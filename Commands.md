@@ -79,6 +79,8 @@ Check resource utilization:
 
 ```
 vi _x.hw/link/vivado/vpl/prj/prj.runs/impl_1/full_util_placed.rpt
+
+vi _x.hw/vadd.hw/vadd/vadd/solution/syn/report/vadd_csynth.rpt 
 ```
 
 For networked project:

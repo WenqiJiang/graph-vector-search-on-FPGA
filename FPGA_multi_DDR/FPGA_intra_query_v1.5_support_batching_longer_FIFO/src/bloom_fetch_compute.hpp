@@ -92,7 +92,7 @@ void bloom_fetch_compute(
 	);
 
 	hls::stream<ap_uint<512>> s_fetched_vectors; 
-#pragma HLS stream variable=s_fetched_vectors depth=depth_data
+#pragma HLS stream variable=s_fetched_vectors depth=depth_fetched_vectors
 	
     hls::stream<int> s_finish_query_fetch_vectors; // finish all queries
 #pragma HLS stream variable=s_finish_query_fetch_vectors depth=depth_control

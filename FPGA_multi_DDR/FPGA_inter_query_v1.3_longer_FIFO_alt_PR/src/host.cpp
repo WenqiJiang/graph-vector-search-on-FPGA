@@ -31,57 +31,142 @@ std::string concat_dir(std::string dir, std::string filename) {
 
 int main(int argc, char** argv)
 {
-    cl_int err;
-    // Allocate Memory in Host Memory
-    // When creating a buffer with user pointer (CL_MEM_USE_HOST_PTR), under the hood user ptr 
-    // is used if it is properly aligned. when not aligned, runtime had no choice but to create
-    // its own host side buffer. So it is recommended to use this allocator if user wish to
-    // create buffer using CL_MEM_USE_HOST_PTR to align user buffer to page boundary. It will 
-    // ensure that user buffer is used when user create Buffer/Mem object with CL_MEM_USE_HOST_PTR 
-
-    std::cout << "Allocating memory...\n";
+	std::cout << "Usage: ./host <xclbin> <max_cand_batch_size (mc)> <max_async_stage_num (mg)> <ef> <graph_type> <dataset> <Max degree (MD)>" << std::endl;
+	std::cout << "   Example: ./host xclbin/vadd.hw.xclbin 1 4 64 HNSW SIFT1M 64" << std::endl;
 
     // in init
-	std::string graph_type = "NSG"; // "NSG" or "HNSW"
-	std::string index_dir_hnsw = "/mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32";
-	std::string index_dir_nsg = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_NSG/SIFT1M_M64";
-
-	std::string data_dir_bigann = "/mnt/scratch/wenqi/Faiss_experiments/bigann";
-	std::string data_dir_sift1m = "/mnt/scratch/wenqi/Faiss_experiments/sift1M";
-	
-	std::string index_dir;
-	if (graph_type == "HNSW") {
-		index_dir = index_dir_hnsw;
-	} else if (graph_type == "NSG") {
-		index_dir = index_dir_nsg;
-	}
-
+    int d = D;
     int query_num = 10000;
 	int query_batch_size = 10000;
     int query_offset = 0; // starting from query x
     int query_num_after_offset = query_num + query_offset > 10000? 10000 - query_offset : query_num;
-    int ef = 64;
     int candidate_queue_runtime_size = hardware_candidate_queue_size;
 	   
-    int max_cand_batch_size;
-    int max_async_stage_num;
-	if (argc > 2) {
-		max_cand_batch_size = atoi(argv[2]);
-	} else {
-		max_cand_batch_size = 1;
-	}
-	if (argc > 3) {
-		max_async_stage_num = atoi(argv[3]);
-	} else {
-		max_async_stage_num = 4;
-	}
+	int arg_cnt = 2;
+    int max_cand_batch_size = 1;
+	if (argc > 2) { max_cand_batch_size = atoi(argv[arg_cnt++]); } 
+	std::cout << "max_cand_batch_size=" << max_cand_batch_size << std::endl;
 
-    int d = D;
+    int max_async_stage_num = 4;
+	if (argc > 3) { max_async_stage_num = atoi(argv[arg_cnt++]); } 
+	std::cout << "max_async_stage_num=" << max_async_stage_num << std::endl;
+
+    int ef = 64;
+	if (argc > 4) { ef = atoi(argv[arg_cnt++]); }
+	std::cout << "ef=" << ef << std::endl;
+	assert(ef <= hardware_result_queue_size);
+
+	std::string graph_type = "HNSW"; // "NSG" or "HNSW"
+	if (argc > 5) { graph_type = argv[arg_cnt++]; }
+	std::cout << "graph_type=" << graph_type << std::endl;
+	assert (graph_type == "NSG" || graph_type == "HNSW");
+
+	std::string dataset = "SIFT1M"; // "SIFT1M" or "SIFT10M" or "Deep1M" or "Deep10M" or "GLOVE" or "SBERT1M"
+	if (argc > 6) { dataset = argv[arg_cnt++]; }
+	std::cout << "dataset=" << dataset << std::endl;
+	if (dataset == "SIFT1M" || dataset == "SIFT10M") {assert (d == 128);}
+	else if (dataset == "Deep1M" || dataset == "Deep10M") {assert (d == 96);}
+	else if (dataset == "GLOVE") {assert (d == 300);}
+	else if (dataset == "SBERT1M") {assert (d == 384);}
+	else {std::cout << "Unknown dataset\n"; return -1;}
+
+	int MD = 64;
+	if (argc > 7) { MD = atoi(argv[arg_cnt++]); }
+	std::cout << "MD (max degree)=" << MD << std::endl;
+
 	int max_bloom_out_burst_size = 16; // according to mem & compute speed test
+#if N_CHANNEL == 1
     int runtime_n_bucket_addr_bits = 8 + 10; // 256K buckets
-    int runtime_n_buckets = 1 << runtime_n_bucket_addr_bits;
+#endif
+#if N_CHANNEL == 2
+	int runtime_n_bucket_addr_bits = 7 + 10; 
+#endif
+#if N_CHANNEL == 3
+	int runtime_n_bucket_addr_bits = 7 + 10; 
+#endif
+#if N_CHANNEL == 4
+	int runtime_n_bucket_addr_bits = 6 + 10;
+#endif
+	int runtime_n_buckets = 1 << runtime_n_bucket_addr_bits;
     uint32_t hash_seed = 1;
     assert (ef <= hardware_result_queue_size);
+
+	std::string index_dir;
+
+	if (graph_type == "HNSW") {
+		if (dataset == "SIFT1M") {
+			index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/SIFT1M_MD" + std::to_string(MD);
+		} else if (dataset == "SIFT10M") {
+			index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/SIFT10M_MD" + std::to_string(MD);
+		} else if (dataset == "Deep1M") {
+			index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/Deep1M_MD" + std::to_string(MD);
+		} else if (dataset == "Deep10M") {
+			index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/Deep10M_MD" + std::to_string(MD);
+		} else if (dataset == "GLOVE") {
+			index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/GLOVE_MD" + std::to_string(MD);
+		} else if (dataset == "SBERT1M") {
+			index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/SBERT1M_MD" + std::to_string(MD);
+		} else {
+			std::cout << "Unknown dataset\n";
+			return -1;
+		}
+	} else if (graph_type == "NSG") {
+		if (dataset == "SIFT1M") {
+			index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_NSG/SIFT1M_MD" + std::to_string(MD);
+		} else if (dataset == "SIFT10M") {
+			index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_NSG/SIFT10M_MD" + std::to_string(MD);
+		} else if (dataset == "Deep1M") {
+			index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_NSG/Deep1M_MD" + std::to_string(MD);
+		} else if (dataset == "Deep10M") {
+			index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_NSG/Deep10M_MD" + std::to_string(MD);
+		} else if (dataset == "GLOVE") {
+			index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_NSG/GLOVE_MD" + std::to_string(MD);
+		} else if (dataset == "SBERT1M") {
+			index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_NSG/SBERT1M_MD" + std::to_string(MD);
+		} else {
+			std::cout << "Unknown dataset\n";
+			return -1;
+		}
+	} else {
+		std::cout << "Unknown graph type\n";
+		return -1; 
+	}
+
+	std::string dataset_dir;
+	std::string fname_query_vectors;
+	std::string fname_gt_vec_ID;
+	std::string fname_gt_dist;
+	if (dataset == "SIFT1M" || dataset == "SIFT10M") {
+		dataset_dir = "/mnt/scratch/wenqi/Faiss_experiments/bigann";
+		fname_query_vectors = concat_dir(dataset_dir, "bigann_query.bvecs");
+		if (dataset == "SIFT1M") {
+			fname_gt_vec_ID = concat_dir(dataset_dir, "gnd/idx_1M.ivecs");
+			fname_gt_dist = concat_dir(dataset_dir, "gnd/dis_1M.fvecs");
+		} else if (dataset == "SIFT10M") {
+			fname_gt_vec_ID = concat_dir(dataset_dir, "gnd/idx_10M.ivecs");
+			fname_gt_dist = concat_dir(dataset_dir, "gnd/dis_10M.fvecs");
+		}
+	} else if (dataset == "Deep1M" || dataset == "Deep10M") {
+		dataset_dir = "/mnt/scratch/wenqi/Faiss_experiments/deep1b";
+		fname_query_vectors = concat_dir(dataset_dir, "query.public.10K.fbin");
+		if (dataset == "Deep1M") {
+			fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_1M.ibin");
+			fname_gt_dist = concat_dir(dataset_dir, "gt_dis_1M.fbin");
+		} else if (dataset == "Deep10M") {
+			fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_10M.ibin");
+			fname_gt_dist = concat_dir(dataset_dir, "gt_dis_10M.fbin");
+		}
+	} else if (dataset == "GLOVE") {
+		dataset_dir = "/mnt/scratch/wenqi/Faiss_experiments/GLOVE_840B_300d";
+		fname_query_vectors = concat_dir(dataset_dir, "query_10K.fbin");
+		fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_1M.ibin");
+		fname_gt_dist = concat_dir(dataset_dir, "gt_dis_1M.fbin");
+	} else if (dataset == "SBERT1M") {
+		dataset_dir = "/mnt/scratch/wenqi/Faiss_experiments/sbert";
+		fname_query_vectors = concat_dir(dataset_dir, "query_10K.fvecs");
+		fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_1M.ibin");
+		fname_gt_dist = concat_dir(dataset_dir, "gt_dis_1M.fbin");
+	}
 
     // initialization values
     int max_level; // = 16;
@@ -90,7 +175,7 @@ int main(int argc, char** argv)
     int entry_point_id; // = 0;
     int num_db_vec; // = 1000 * 1000;
 
-    // load metadata from file /mnt/scratch/wenqi/hnswlib-eval/FPGA_indexes/SIFT1M_index_M_32/meta.bin
+    // load metadata from file 
     //  cur_element_count, maxlevel_, enterpoint_node_, maxM_, maxM0_
 	FILE* f_metadata = fopen(concat_dir(index_dir, "meta.bin").c_str(), "rb");
 	if (graph_type == "HNSW") {
@@ -211,18 +296,6 @@ int main(int argc, char** argv)
     std::string fname_ground_vectors_chan_15 = concat_dir(index_dir, "ground_vectors_1_chan_0.bin");
 #endif
 
-	std::string fname_query_vectors;
-	std::string fname_gt_vec_ID;
-	std::string fname_gt_dist;
-	if (graph_type == "HNSW") {
-    	fname_query_vectors =  concat_dir(data_dir_bigann, "bigann_query.bvecs");
-    	fname_gt_vec_ID = concat_dir(data_dir_bigann, "gnd/idx_1M.ivecs");
-    	fname_gt_dist = concat_dir(data_dir_bigann, "gnd/dis_1M.fvecs");
-	} else if (graph_type == "NSG") {
-		fname_query_vectors =  concat_dir(data_dir_sift1m, "sift_query.fvecs"); // SIFT 1M dataset with float vectors
-		fname_gt_vec_ID = concat_dir(data_dir_sift1m, "sift_groundtruth.ivecs");
-		fname_gt_dist = concat_dir(data_dir_sift1m, "sift_groundtruth.ivecs");
-	}
     FILE* f_ground_links_chan_0 = fopen(fname_ground_links_chan_0.c_str(), "rb");
 #if N_CHANNEL >= 2
     FILE* f_ground_links_chan_1 = fopen(fname_ground_links_chan_1.c_str(), "rb");
@@ -426,7 +499,7 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
     std::vector<int> raw_gt_vec_ID(raw_gt_vec_ID_size / sizeof(int));
     std::vector<float> raw_gt_dist(raw_gt_dist_size / sizeof(float));
 
-    int max_topK = 100;
+    int max_topK = 100; // cutting ground truth to with only 100 top queries
     std::vector<int> gt_vec_ID(query_num * max_topK);
     std::vector<float> gt_dist(query_num * max_topK);
 
@@ -531,49 +604,71 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
     fclose(f_gt_vec_ID);
     fread(raw_gt_dist.data(), 1, raw_gt_dist_size, f_gt_dist);
     fclose(f_gt_dist);
-
-    // query vector = 4-byte ID + d * (uint8) vectors
 	
-	if (graph_type == "HNSW") {
+	if (dataset == "SIFT1M" || dataset == "SIFT10M") {
 		size_t len_per_query = 4 + d;
+		// conversion from uint8 to float
 		for (int qid = 0; qid < query_num_after_offset; qid++) {
 			for (int i = 0; i < d; i++) {
 				query_vectors[qid * d + i] = (float) raw_query_vectors[(qid + query_offset) * len_per_query + 4 + i];
 			}
 		}
-	}
-	else if (graph_type == "NSG") { // apply SIFT1M with float
-		size_t len_per_query = 4 + d * 4; // 4-byte ID + d * 4-byte float vectors
+		// ground truth = 4-byte ID + 1000 * 4-byte ID + 1000 or 4-byte distances
+		size_t len_per_gt = 1001;
 		for (int qid = 0; qid < query_num_after_offset; qid++) {
-			memcpy(query_vectors.data() + qid * d, raw_query_vectors.data() + (qid + query_offset) * len_per_query + 4, d * sizeof(float));
+			for (int i = 0; i < max_topK; i++) {
+				gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[(qid + query_offset) * len_per_gt + 1 + i];
+				gt_dist[qid * max_topK + i] = raw_gt_dist[(qid + query_offset) * len_per_gt + 1 + i];
+			}
 		}
+	} else if (dataset == "DEEP1M" || dataset == "DEEP10M" || dataset == "GLOVE") {
+		// queries: fbin, ground truth: ibin, first 8 bytes are num vec & dim
+		size_t len_per_query = d * sizeof(float);
+		size_t offset_bytes = 8; // first 8 bytes are num vec & dim
+		for (int qid = 0; qid < query_num_after_offset; qid++) {
+			memcpy(&query_vectors[qid * d], &raw_query_vectors[(qid + query_offset) * len_per_query + offset_bytes], len_per_query);
+		}
+		size_t len_per_gt = 1000;
+		size_t offset = 2; // first 8 bytes are num vec & dim
+		for (int qid = 0; qid < query_num_after_offset; qid++) {
+			for (int i = 0; i < max_topK; i++) {
+				gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[(qid + query_offset) * len_per_gt + offset + i];
+				gt_dist[qid * max_topK + i] = raw_gt_dist[(qid + query_offset) * len_per_gt + offset + i];
+			}
+		}
+	} else if (dataset == "SBERT1M") {
+		// queries: raw bin, ground truth: ibin, first 8 bytes are num vec & dim
+		size_t len_per_query = d * sizeof(float);
+		size_t offset_bytes = 0; // raw bin
+		for (int qid = 0; qid < query_num_after_offset; qid++) {
+			memcpy(&query_vectors[qid * d], &raw_query_vectors[(qid + query_offset) * len_per_query + offset_bytes], len_per_query);
+		}
+		size_t len_per_gt = 1000;
+		size_t offset = 2; // first 8 bytes are num vec & dim
+		for (int qid = 0; qid < query_num_after_offset; qid++) {
+			for (int i = 0; i < max_topK; i++) {
+				gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[(qid + query_offset) * len_per_gt + offset + i];
+				gt_dist[qid * max_topK + i] = raw_gt_dist[(qid + query_offset) * len_per_gt + offset + i];
+			}
+		}
+	} else {
+		std::cout << "Unsupported dataset\n";
+		exit(1);
 	}
 
     for (int qid = 0; qid < query_num_after_offset; qid++) {
         entry_point_ids[qid] = entry_point_id;
     }
 
-    // ground truth = 4-byte ID + 1000 * 4-byte ID + 1000 or 4-byte distances
-	if (graph_type == "HNSW") {
-		size_t len_per_gt = (4 + 1000 * 4) / 4;
-		for (int qid = 0; qid < query_num_after_offset; qid++) {
-			for (int i = 0; i < max_topK; i++) {
-				gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[(qid + query_offset) * len_per_gt + 1 + i];
-				gt_dist[qid * max_topK + i] = raw_gt_dist[(qid + query_offset) * len_per_gt + 1 + i];
-			}
-		}
-	} else if (graph_type == "NSG") {
-		size_t len_per_gt = (4 + 100 * 4) / 4; // SIFT1M has only top 100 ground truth
-		for (int qid = 0; qid < query_num_after_offset; qid++) {
-			for (int i = 0; i < max_topK; i++) {
-				gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[(qid + query_offset) * len_per_gt + 1 + i];
-				gt_dist[qid * max_topK + i] = raw_gt_dist[(qid + query_offset) * len_per_gt + 1 + i];
-			}
-		}
-	}
-
-
 // OPENCL HOST CODE AREA START
+
+    cl_int err;
+    // Allocate Memory in Host Memory
+    // When creating a buffer with user pointer (CL_MEM_USE_HOST_PTR), under the hood user ptr 
+    // is used if it is properly aligned. when not aligned, runtime had no choice but to create
+    // its own host side buffer. So it is recommended to use this allocator if user wish to
+    // create buffer using CL_MEM_USE_HOST_PTR to align user buffer to page boundary. It will 
+    // ensure that user buffer is used when user create Buffer/Mem object with CL_MEM_USE_HOST_PTR 
 
     std::vector<cl::Device> devices = get_devices();
     cl::Device device = devices[0];
