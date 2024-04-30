@@ -300,27 +300,27 @@ void compute_distances(
     const int replication_factor = 3;
 
     hls::stream<int> s_fetch_batch_size_replicated[replication_factor];
-#pragma HLS stream variable=s_fetch_batch_size_replicated depth=512
+#pragma HLS stream variable=s_fetch_batch_size_replicated depth=depth_control
 
     hls::stream<int> s_finish_replicate_s_fetch_batch_size; // finish all queries
-#pragma HLS stream variable=s_finish_replicate_s_fetch_batch_size depth=512
+#pragma HLS stream variable=s_finish_replicate_s_fetch_batch_size depth=depth_control
 
     hls::stream<int> s_finish_query_fetch_sub_PE_A; // finish all queries
-#pragma HLS stream variable=s_finish_query_fetch_sub_PE_A depth=512
+#pragma HLS stream variable=s_finish_query_fetch_sub_PE_A depth=depth_control
     
     hls::stream<int> s_finish_query_fetch_sub_PE_pack_partial_distances; // finish all queries
-#pragma HLS stream variable=s_finish_query_fetch_sub_PE_pack_partial_distances depth=512
+#pragma HLS stream variable=s_finish_query_fetch_sub_PE_pack_partial_distances depth=depth_control
     
     hls::stream<float> s_partial_distances; 
-#pragma HLS stream variable=s_partial_distances depth=512
+#pragma HLS stream variable=s_partial_distances depth=depth_data
 
     hls::stream<float_pack_t> s_partial_distances_packed; 
-#pragma HLS stream variable=s_partial_distances_packed depth=512
+#pragma HLS stream variable=s_partial_distances_packed depth=depth_data
 
 	// replicate s_query_batch_size to multiple streams
 	const int replicate_factor_s_query_batch_size = 4;
 	hls::stream<int> s_query_batch_size_replicated[replicate_factor_s_query_batch_size];
-#pragma HLS stream variable=s_query_batch_size_replicated depth=512
+#pragma HLS stream variable=s_query_batch_size_replicated depth=depth_control
 
 	replicate_s_query_batch_size<replicate_factor_s_query_batch_size>(
 		s_query_batch_size,

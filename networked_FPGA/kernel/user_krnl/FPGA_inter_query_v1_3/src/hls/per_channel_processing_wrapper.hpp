@@ -43,7 +43,7 @@ void per_channel_processing_wrapper(
 #pragma HLS stream variable=s_finish_query_results_collection depth=depth_control
 	
 	hls::stream<ap_uint<512>> s_query_vectors;
-#pragma HLS stream variable=s_query_vectors depth=depth_data
+#pragma HLS stream variable=s_query_vectors depth=depth_query_vectors
 
 // 	hls::stream<result_t> s_entry_point_base_level;
 // #pragma HLS stream variable=s_entry_point_base_level depth=depth_control

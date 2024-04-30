@@ -104,7 +104,7 @@ def plot_heatmap(df, graph_type, dataset, max_degree, ef):
 	# ax_speedup.set_yscale("log")
 
 	ax_speedup.set_title('Throughput speedup over BFS', fontsize=label_font)
-	ax_nodes.set_title('Noramalized average #hops per search', fontsize=label_font)
+	ax_nodes.set_title('Normalized average #hops per search', fontsize=label_font)
 	ax_recall.set_title('Recall R@10', fontsize=label_font)
 
 	# on the upper right corner, mark the dataset name
@@ -120,8 +120,8 @@ if __name__ == "__main__":
 	if args.plot_all:
 		graph_types = ['HNSW']
 		# graph_types = ['HNSW', 'NSG']
-		datasets = ['SIFT1M']
-		# datasets = ['SIFT1M', 'SIFT10M', 'SBERT1M']
+		# datasets = ['SIFT1M']
+		datasets = ['SIFT1M', 'SIFT10M', 'SBERT1M']
 		max_degrees = [16, 32, 64]
 		efs = [64]
 		for graph_type in graph_types:

@@ -483,7 +483,7 @@ void FPGA_inter_query_v1_3(
 
 
 	hls::stream<ap_uint<512>> s_query_vectors_in_per_channel[N_CHANNEL];
-#pragma HLS stream variable=s_query_vectors_in_per_channel depth=depth_data
+#pragma HLS stream variable=s_query_vectors_in_per_channel depth=depth_query_vectors
 
 	hls::stream<int> s_entry_point_ids_per_channel[N_CHANNEL];
 #pragma HLS stream variable=s_entry_point_ids_per_channel depth=depth_control

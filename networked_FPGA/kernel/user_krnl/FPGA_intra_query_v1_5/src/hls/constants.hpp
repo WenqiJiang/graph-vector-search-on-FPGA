@@ -43,3 +43,9 @@ const int hardware_async_batch_size = 64; // to infer BRAM
 
 // debug signals per query
 const int debug_size = 1;
+
+// FIFO depth
+const int depth_data = 512; // data FIFOs without wide data types
+const int depth_control = 16;
+const int depth_fetched_vectors = 512; // 512-bit width to memory
+const int depth_query_vectors = 128; // 512-bit width to memory

@@ -1,10 +1,5 @@
 """
-Test the join performance on a single case. 
-
-This script invoke the C++ sync traversal program first to get the built trees 
-	from the selected datasets. It then calculate the tree depth, and pass the 
-	parameters to the FPGA program. Finally, it gets the FPGA performance in both
-	e2e and kernel execution.
+Test the ANN search throughput throughput on various cases.
 
 (graph_type, dataset, max_degree})	--- these three parameters identifies a unique graph
 
@@ -28,7 +23,7 @@ import numpy as np
 import argparse 
 import pandas as pd
 
-from utils import assert_keywords_in_file, get_number_file_with_keywords
+from utils import assert_keywords_in_file, get_number_file_with_keywords, get_FPGA_summary_time
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--FPGA_project_dir', type=str, default='/mnt/scratch/wenqi/tmp_bitstreams/FPGA_single_DDR_single_layer_v1.1_async_more_debug')
@@ -62,32 +57,6 @@ for i in range(args.min_ef, args.max_ef + 1):
 print("ef list:", ef_list)
 
 
-def get_FPGA_summary_time(fname):
-	"""
-	Given an FPGA summary file (summary.csv),
-		return the performance number in ms for both scheduler and executor
-
-	Key log:
-	Device,Compute Unit,Kernel,Global Work Size,Local Work Size,Number Of Calls,Dataflow Execution,Max Overlapping Executions,Dataflow Acceleration,Total Time (ms),Minimum Time (ms),Average Time (ms),Maximum Time (ms),Clock Frequency (MHz),
-	xilinx_u250_gen3x16_xdma_shell_4_1-0,vadd_1,vadd,1:1:1,1:1:1,1,Yes,1,1.000000x,967.647,967.647,967.647,967.647,200,
-	"""
-	pattern = r"(\d+.\d+)" # float
-	kernel_keyword = 'xilinx_u250_gen3x16_xdma_shell_4_1-0,vadd_1,vadd,1:1:1,1:1:1,1,Yes,1,1.000000x,'
-	time_ms_kernel = None
-	
-	with open(fname) as f:
-		lines = f.readlines()
-		for line in lines:
-			if kernel_keyword in line:
-				new_line = line.replace(kernel_keyword, "")
-				time_ms_kernel = re.findall(pattern, new_line)[0]
-				if '.' in time_ms_kernel:
-					time_ms_kernel = float(time_ms_kernel)
-				else: # only has int part, e.g., 1146,1146
-					time_ms_kernel = float(re.findall(r"\d+", time_ms_kernel)[0])
-	assert time_ms_kernel is not None
-
-	return time_ms_kernel
 
 if __name__ == '__main__':
 
@@ -151,7 +120,6 @@ if __name__ == '__main__':
 
 			
 		# print the dataframe of input keys and results, and the best performance
-		keys_values = {'graph_type': graph_type, 'dataset': dataset, 'max_degree': max_degree, 'ef': ef}
 		print("Performance DataFrame:")
 		df_added = df.loc[(df['graph_type'] == graph_type) & (df['dataset'] == dataset) & (df['max_degree'] == max_degree) & (df['ef'] == ef)]
 		print(df_added)
