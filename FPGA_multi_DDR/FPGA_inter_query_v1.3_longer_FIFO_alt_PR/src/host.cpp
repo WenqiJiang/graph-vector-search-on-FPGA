@@ -1021,14 +1021,22 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
     std::cout << "Dist match id mismatch count=" << dist_match_id_mismatch_cnt << std::endl;
 
     // count avg #hops on base layer
-    int total_hops = 0;
-    int total_visited_nodes = 0;
-    for (int i = 0; i < query_num_after_offset; i++) {
-        total_hops += mem_debug[2 * i];
-        total_visited_nodes += mem_debug[2 * i + 1];
-    }
-    std::cout << "Average #hops on base layer=" << (float) total_hops / query_num_after_offset << std::endl;
-    std::cout << "Average #visited nodes=" << (float) total_visited_nodes / query_num_after_offset << std::endl;
+	if (debug_size == 2) {
+		int total_hops = 0;
+		int total_visited_nodes = 0;
+		for (int i = 0; i < query_num_after_offset; i++) {
+			total_hops += mem_debug[2 * i];
+			total_visited_nodes += mem_debug[2 * i + 1];
+		}
+		std::cout << "Average #hops on base layer=" << (float) total_hops / query_num_after_offset << std::endl;
+		std::cout << "Average #visited nodes=" << (float) total_visited_nodes / query_num_after_offset << std::endl;
+	} else if (debug_size == 1) {
+		int total_hops = 0;
+		for (int i = 0; i < query_num_after_offset; i++) {
+			total_hops += mem_debug[i];
+		}
+		std::cout << "Average #hops on base layer=" << (float) total_hops / query_num_after_offset << std::endl;
+	}
 
     return  0;
 }

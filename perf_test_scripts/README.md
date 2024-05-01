@@ -1,7 +1,7 @@
 # Performance Measurement & Visualization of Local FPGAs
 
 
-## FPGA throughput measurement
+## Throughput measurement
 
 Below are the commands measuring the FPGA performance on SIFT / SBERT datasets
 
@@ -28,7 +28,7 @@ python perf_test.py --max_cand_per_group 6 --max_group_num_in_pipe 6 --save_df s
 python perf_test.py --max_cand_per_group 6 --max_group_num_in_pipe 6 --save_df saved_df/perf_FPGA_inter_query_4_chan.pickle --FPGA_project_dir /mnt/scratch/wenqi/tmp_bitstreams/FPGA_inter_query_v1.3_4_chan_D_128 --graph_type HNSW --dataset SIFT10M --max_degree 64 --min_ef 64 --max_ef 64
 ```
 
-## FPGA throughput measurement
+## Latency measurement
 
 
 ### Show cross-over between intra-query and inter-query parallelism
