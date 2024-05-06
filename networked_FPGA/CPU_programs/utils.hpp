@@ -4,6 +4,7 @@
 #include <stdlib.h> 
 #include <sys/socket.h> 
 #include <arpa/inet.h> 
+#include <netinet/tcp.h>
 
 #include "types.hpp"
 #include "constants.hpp"
@@ -42,6 +43,13 @@ int send_open_conn(const char* IP_addr, unsigned int send_port) {
         printf("\n Socket creation error \n"); 
         return -1; 
     } 
+
+	// use this to reduce latency: https://stackoverflow.com/questions/2251516/how-can-i-reduce-socket-latency
+	int yes = 1;
+	if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char *) &yes, sizeof(int))) {
+		perror("setsockopt");
+		exit(EXIT_FAILURE);
+	}
     serv_addr.sin_family = AF_INET; 
     serv_addr.sin_port = htons(send_port); 
        
@@ -84,6 +92,12 @@ int recv_accept_conn(unsigned int recv_port) {
         perror("setsockopt");
         exit(EXIT_FAILURE);
     }
+	// // add TCP_QUICKACK seems would not further reduce latency given TCP_NODELAY on the sender side
+	// int yes = 1;
+	// if (setsockopt(server_fd, IPPROTO_TCP, TCP_QUICKACK, &yes, sizeof(int))) {
+	// 	perror("setsockopt");
+	// 	exit(EXIT_FAILURE);
+	// }
 
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;

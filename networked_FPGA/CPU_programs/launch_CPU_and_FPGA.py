@@ -1,11 +1,17 @@
 """
 This scripts executes the CPU index server / CPU coordinator / FPGA simulator programs by reading the config file and automatically generate the command line arguments.
 
-Example (one CPU and one FPGA)):
-	In terminal 1:
-		python launch_CPU_and_FPGA.py --config_fname ./config/local_network_test_1_FPGA.yaml --mode CPU_client_simulator --TOPK 100 --query_num 10000 --batch_size 32 
+Example 1: one FPGA simulator (on CPU) and one CPU:
+	In terminal 1 (run host):
+		python launch_CPU_and_FPGA.py --config_fname ./config/local_network_test_1_FPGA.yaml --mode CPU_client_simulator # --ef 100 --query_num 10000 --batch_size 32 
 	In terminal 2:
-		python launch_CPU_and_FPGA.py --config_fname ./config/local_network_test_1_FPGA.yaml --mode FPGA --fpga_id 0 --TOPK 100 --query_num 10000 --batch_size 32 
+		python launch_CPU_and_FPGA.py --config_fname ./config/local_network_test_1_FPGA.yaml --mode FPGA_simulator --fpga_id 0 # --ef 100 --query_num 10000 --batch_size 32 
+
+Example 2: one real FPGA and one CPU:
+	In terminal 1 (run host):
+		python launch_CPU_and_FPGA.py --config_fname ./config/test_1_FPGA.yaml --mode CPU_client_simulator 
+	In terminal 2:
+		type in the commands output by the first terminal
 """
 
 import argparse 
@@ -19,7 +25,7 @@ from helper import save_obj, load_obj
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--config_fname', type=str, default='./config/local_network_test_1_FPGA.yaml')
-parser.add_argument('--mode', type=str, help='CPU_client_simulator or CPU_coordinator or FPGA')
+parser.add_argument('--mode', type=str, help='CPU_client_simulator or FPGA_simulator')
 
 # if run in the CPU mode
 parser.add_argument('--cpu_index_server_exe_dir', type=str, default='./CPU_client_simulator.bin', help="the CPP exe file")
@@ -29,16 +35,22 @@ parser.add_argument('--fpga_simulator_exe_dir', type=str, default='./FPGA_simula
 parser.add_argument('--fpga_id', type=int, default=0, help="the FPGA ID (should start from 0, 1, 2, ...)")
 
 # optional runtim input arguments
-parser.add_argument('--TOPK', type=int, default=None)
+parser.add_argument('--ef', type=int, default=None)
 parser.add_argument('--query_num', type=int, default=None)
 parser.add_argument('--batch_size', type=int, default=None)
+parser.add_argument('--max_cand_per_group', type=int, default=None)
+parser.add_argument('--max_group_num_in_pipe', type=int, default=None)
+parser.add_argument('--graph_type', type=str, default=None)
+parser.add_argument('--dataset', type=str, default=None)
+parser.add_argument('--max_degree', type=int, default=None)
+					
 
 args = parser.parse_args()
 config_fname = args.config_fname
 mode = args.mode
 if mode == 'CPU_client_simulator':
 	cpu_index_server_exe_dir = args.cpu_index_server_exe_dir
-elif mode == 'FPGA':
+elif mode == 'FPGA_simulator':
 	fpga_simulator_exe_dir = args.fpga_simulator_exe_dir
 	fpga_id = args.fpga_id
 	
@@ -75,22 +87,51 @@ C2F_port_list = None
 F2C_port_list = None
 
 D = None 
-TOPK = None
+ef = None
 
 query_num = None
 batch_size = None
-nprobe = None
-nlist = None
 
 query_window_size = None
 batch_window_size = None
-enable_index_scan = None
-cpu_cores = None
+
+max_cand_per_group = None
+max_group_num_in_pipe = None
+graph_type = None
+dataset = None
+max_degree = None
 
 config_dict = {}
 with open(args.config_fname, "r") as f:
     config_dict.update(yaml.safe_load(f))
 locals().update(config_dict)
+
+if args.ef is not None:
+	ef = args.ef
+if args.batch_size is not None:
+	batch_size = args.batch_size
+if args.query_num is not None:
+	query_num = args.query_num
+if args.max_cand_per_group is not None:
+	max_cand_per_group = args.max_cand_per_group
+if args.max_group_num_in_pipe is not None:
+	max_group_num_in_pipe = args.max_group_num_in_pipe
+if args.graph_type is not None:
+	graph_type = args.graph_type
+if args.dataset is not None:
+	dataset = args.dataset
+if args.max_degree is not None:
+	max_degree = args.max_degree
+
+if dataset is not None:
+	if dataset.startswith('SIFT'):
+		D = 128
+	elif dataset.startswith('Deep'):
+		D = 96
+	elif dataset.startswith('SBERT'):
+		D = 384
+	else:
+		raise NotImplementedError
 
 assert int(num_FPGA) == len(FPGA_IP_addr_list)
 assert int(num_FPGA) == len(C2F_port_list)
@@ -99,12 +140,6 @@ assert int(num_FPGA) == len(F2C_port_list)
 # if query_window_size == 'auto':
 # 	query_msg_size = 4 * D * (nprobe + 1) # as an approximation
 
-if args.TOPK is not None:
-	TOPK = args.TOPK
-if args.batch_size is not None:
-	batch_size = args.batch_size
-if args.query_num is not None:
-	query_num = args.query_num
 
 if mode == 'CPU_client_simulator':
 	"""
@@ -112,7 +147,7 @@ if mode == 'CPU_client_simulator':
       "<2 ~ 2 + num_FPGA - 1 FPGA_IP_addr> " 
     "<2 + num_FPGA ~ 2 + 2 * num_FPGA - 1 C2F_port> " 
     "<2 + 2 * num_FPGA ~ 2 + 3 * num_FPGA - 1 F2C_port> "
-    "<2 + 3 * num_FPGA D> <3 + 3 * num_FPGA TOPK> " 
+    "<2 + 3 * num_FPGA D> <3 + 3 * num_FPGA ef> " 
     "<4 + 3 * num_FPGA query_num> " "<5 + 3 * num_FPGA batch_size> "
     "<6 + 3 * num_FPGA query_window_size> <7 + 3 * num_FPGA batch_window_size> " 
 	"""
@@ -123,9 +158,13 @@ if mode == 'CPU_client_simulator':
 		if get_board_ID(FPGA_IP_addr) is not None:
 			board_ID = get_board_ID(FPGA_IP_addr)
 			# std::cout << "Usage: " << argv[0] << " <XCLBIN File 1> <local_FPGA_IP 2> <RxPort (C2F) 3> <TxIP (CPU IP) 4> <TxPort (F2C) 5> <FPGA_board_ID 6" << std::endl;
-			print(f'\nFPGA {i} commands: ')
+			print(f'\nnetwork_sim_graph FPGA {i} commands: ')
 			print("./host/host build_dir.hw.xilinx_u250_gen3x16_xdma_4_1_202210_1/network.xclbin "
-				f" {FPGA_IP_addr} {C2F_port_list[i]} {CPU_IP_addr} {F2C_port_list[i]} {TOPK} \n\n")
+				f" {FPGA_IP_addr} {C2F_port_list[i]} {CPU_IP_addr} {F2C_port_list[i]} {ef} \n")
+			print(f'FPGA_inter_query_v1_3 / FPGA_intra_query_v1_5 FPGA {i} commands: ')
+			print("./host/host build_dir.hw.xilinx_u250_gen3x16_xdma_4_1_202210_1/network.xclbin "
+		 		f" {FPGA_IP_addr} {C2F_port_list[i]} {CPU_IP_addr} {F2C_port_list[i]} "
+				f"{max_cand_per_group} {max_group_num_in_pipe} {ef} {graph_type} {dataset} {max_degree} {batch_size} \n")
 		else:
 			print("Unknown FPGA IP address: ", FPGA_IP_addr)
 
@@ -141,7 +180,7 @@ if mode == 'CPU_client_simulator':
 	for i in range(int(num_FPGA)):
 		cmd += ' {} '.format(F2C_port_list[i])
 	cmd += ' {} '.format(D)
-	cmd += ' {} '.format(TOPK)
+	cmd += ' {} '.format(ef)
 	cmd += ' {} '.format(query_num)
 	cmd += ' {} '.format(batch_size)
 	cmd += ' {} '.format(query_window_size)
@@ -176,7 +215,7 @@ if mode == 'CPU_client_simulator':
 	# save_obj(config_dict, 'performance_pickle', fname)
 
 
-elif mode == 'FPGA':
+elif mode == 'FPGA_simulator':
 	"""
 // std::cout << "Usage: 
 //  " << argv[0] << " <Tx (CPU) IP_addr> <Tx F2C_port> <Rx C2F_port> " 
@@ -187,7 +226,7 @@ elif mode == 'FPGA':
 	cmd += ' {} '.format(CPU_IP_addr)
 	cmd += ' {} '.format(F2C_port_list[fpga_id])
 	cmd += ' {} '.format(C2F_port_list[fpga_id])
-	cmd += ' {} '.format(TOPK)
+	cmd += ' {} '.format(ef)
 	cmd += ' {} '.format(D)
 	cmd += ' {} '.format(query_num)
 	print('Executing: ', cmd)

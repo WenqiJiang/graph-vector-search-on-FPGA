@@ -51,14 +51,15 @@ def plot_latency(df_intra, df_inter, graph_type="HNSW", dataset="SIFT1M", max_de
     plot latency over different batch sizes 
     """
     # get three subplots, horizontally 
-    fig, ax = plt.subplots(1, 1, figsize=(3, 3))
+    fig, ax = plt.subplots(1, 1, figsize=(3, 2))
     
     batch_sizes = [1, 2, 4, 8]
     x = [str(i) for i in batch_sizes]
 
     label_font = 10
     markersize = 8
-    tick_font = 10
+    tick_font = 8
+    legend_font = 9
 
     y_latency_intra = []
     y_latency_inter = []
@@ -73,9 +74,11 @@ def plot_latency(df_intra, df_inter, graph_type="HNSW", dataset="SIFT1M", max_de
     ax.set_xlabel('Batch size', fontsize=label_font)
     ax.set_ylabel('Average Latency (ms)', fontsize=label_font)
     # show graph type and dataset on upper left
-    ax.text(0.1, y_latency_intra[-1], '{},{}'.format(dataset, graph_type), fontsize=label_font, horizontalalignment='left', verticalalignment='top')
+    ax.text(0.1, (y_latency_intra[0] + y_latency_intra[-1]) / 2, '{},{}'.format(dataset, graph_type), fontsize=label_font, horizontalalignment='left', verticalalignment='top')
     # set legend
-    ax.legend(plots, [p.get_label() for p in plots], loc=(-0.1, 1.05), fontsize=label_font, ncol=1)
+    ax.legend(plots, [p.get_label() for p in plots], loc="upper left", fontsize=legend_font, ncol=1)
+    # set tick font size
+    ax.tick_params(axis='both', which='major', labelsize=tick_font)
 
 
     # # print info, with :.2f precision

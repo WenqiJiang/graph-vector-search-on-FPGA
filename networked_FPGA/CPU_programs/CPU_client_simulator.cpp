@@ -9,7 +9,7 @@ Host CPU communicates with one or multiple FPGAs, can choose to use index or not
       "<2 ~ 2 + num_FPGA - 1 FPGA_IP_addr> " 
     "<2 + num_FPGA ~ 2 + 2 * num_FPGA - 1 C2F_port> " 
     "<2 + 2 * num_FPGA ~ 2 + 3 * num_FPGA - 1 F2C_port> "
-    "<2 + 3 * num_FPGA D> <3 + 3 * num_FPGA TOPK> " 
+    "<2 + 3 * num_FPGA D> <3 + 3 * num_FPGA ef> " 
     "<4 + 3 * num_FPGA query_num> " "<5 + 3 * num_FPGA batch_size> "
     "<6 + 3 * num_FPGA query_window_size> <7 + 3 * num_FPGA batch_window_size> " 
 
@@ -65,7 +65,6 @@ class CPU_client_simulator {
 public:
   // parameters
   const size_t D;
-  const size_t TOPK;
   const size_t ef;
   const int query_num;
   const int batch_size;
@@ -140,7 +139,7 @@ public:
   // constructor
   CPU_client_simulator(
     const size_t in_D,
-    const size_t in_TOPK, 
+    const size_t in_ef, 
     const int in_query_num,
     const int in_batch_size,
     const int in_query_window_size,
@@ -149,7 +148,7 @@ public:
     const char** in_FPGA_IP_addr,
     const unsigned int* in_C2F_port,
     const unsigned int* in_F2C_port) :
-    D(in_D), TOPK(in_TOPK), ef(in_TOPK), query_num(in_query_num), batch_size(in_batch_size), 
+    D(in_D), ef(in_ef), query_num(in_query_num), batch_size(in_batch_size), 
     query_window_size(in_query_window_size), batch_window_size(in_batch_window_size),
     num_FPGA(in_num_FPGA), FPGA_IP_addr(in_FPGA_IP_addr), C2F_port(in_C2F_port), F2C_port(in_F2C_port) {
         
@@ -436,7 +435,7 @@ int main(int argc, char const *argv[])
       "<2 ~ 2 + num_FPGA - 1 FPGA_IP_addr> " 
     "<2 + num_FPGA ~ 2 + 2 * num_FPGA - 1 C2F_port> " 
     "<2 + 2 * num_FPGA ~ 2 + 3 * num_FPGA - 1 F2C_port> "
-    "<2 + 3 * num_FPGA D> <3 + 3 * num_FPGA TOPK> " 
+    "<2 + 3 * num_FPGA D> <3 + 3 * num_FPGA ef> " 
     "<4 + 3 * num_FPGA query_num> " "<5 + 3 * num_FPGA batch_size> "
     "<6 + 3 * num_FPGA query_window_size> <7 + 3 * num_FPGA batch_window_size> " 
     << std::endl;
@@ -473,8 +472,8 @@ int main(int argc, char const *argv[])
   size_t D = strtol(argv[argv_cnt++], NULL, 10);
   std::cout << "D: " << D << std::endl;
 
-  size_t TOPK = strtol(argv[argv_cnt++], NULL, 10);
-  std::cout << "TOPK: " << TOPK << std::endl;
+  size_t ef = strtol(argv[argv_cnt++], NULL, 10);
+  std::cout << "ef: " << ef << std::endl;
 
   int query_num = strtol(argv[argv_cnt++], NULL, 10);
   std::cout << "query_num: " << query_num << std::endl;
@@ -499,7 +498,7 @@ int main(int argc, char const *argv[])
     
   CPU_client_simulator cpu_coordinator(
     D,
-    TOPK, 
+    ef, 
     query_num,
     batch_size,
     query_window_size,

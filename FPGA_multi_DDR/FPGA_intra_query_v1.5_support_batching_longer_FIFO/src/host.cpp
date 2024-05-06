@@ -31,7 +31,7 @@ std::string concat_dir(std::string dir, std::string filename) {
 
 int main(int argc, char** argv)
 {
-    std::cout << "Usage: ./host <xclbin> <max_cand_batch_size (mc)> <max_async_stage_num (mg)> <ef> <graph_type> <dataset> <Max degree (MD)> <batch_size>" << std::endl;
+    std::cout << "Usage: ./host <xclbin> <max_cand_per_group (mc)> <max_group_num_in_pipe (mg)> <ef> <graph_type> <dataset> <Max degree (MD)> <batch_size>" << std::endl;
     std::cout << "   Example: ./host xclbin/vadd.hw.xclbin 1 4 64 HNSW SIFT1M 64 10000" << std::endl;
 
     // in init
@@ -42,13 +42,13 @@ int main(int argc, char** argv)
     int candidate_queue_runtime_size = hardware_candidate_queue_size;
        
     int arg_cnt = 2;
-    int max_cand_batch_size = 1;
-    if (argc > 2) { max_cand_batch_size = atoi(argv[arg_cnt++]); } 
-    std::cout << "max_cand_batch_size=" << max_cand_batch_size << std::endl;
+    int max_cand_per_group = 1;
+    if (argc > 2) { max_cand_per_group = atoi(argv[arg_cnt++]); } 
+    std::cout << "max_cand_per_group=" << max_cand_per_group << std::endl;
 
-    int max_async_stage_num = 4;
-    if (argc > 3) { max_async_stage_num = atoi(argv[arg_cnt++]); } 
-    std::cout << "max_async_stage_num=" << max_async_stage_num << std::endl;
+    int max_group_num_in_pipe = 4;
+    if (argc > 3) { max_group_num_in_pipe = atoi(argv[arg_cnt++]); } 
+    std::cout << "max_group_num_in_pipe=" << max_group_num_in_pipe << std::endl;
 
     int ef = 64;
     if (argc > 4) { ef = atoi(argv[arg_cnt++]); }
@@ -796,8 +796,8 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(query_batch_size)));
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(ef)));
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(candidate_queue_runtime_size)));
-    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(max_cand_batch_size)));
-    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(max_async_stage_num)));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(max_cand_per_group)));
+    OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(max_group_num_in_pipe)));
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(runtime_n_bucket_addr_bits)));
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(hash_seed)));
     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, int(max_bloom_out_burst_size)));

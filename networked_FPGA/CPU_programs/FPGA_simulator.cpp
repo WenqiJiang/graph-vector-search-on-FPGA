@@ -99,28 +99,42 @@ void thread_F2C(
 
     std::cout << "send query_id " << query_id << std::endl;
 
-    // send data
-    int total_sent_bytes = 0;
+	// send data until finish_recv_query_id
+	int send_query_num_this_iter = *finish_recv_query_id - query_id + 1;
+	int total_sent_bytes = 0;
+	while (total_sent_bytes < send_query_num_this_iter * bytes_output_per_query) {
+		int send_bytes_this_iter = (send_query_num_this_iter * bytes_output_per_query - total_sent_bytes);
+		int sent_bytes = send(sock, out_buf + query_id * bytes_output_per_query + total_sent_bytes, send_bytes_this_iter, 0);
+		total_sent_bytes += sent_bytes;
+		if (sent_bytes == -1) {
+			printf("Sending data UNSUCCESSFUL!\n");
+			return;
+		}
+	}
+	query_id += send_query_num_this_iter;
 
-    while (total_sent_bytes < bytes_output_per_query) {
-      int send_bytes_this_iter = (bytes_output_per_query - total_sent_bytes) < F2C_PKG_SIZE? (bytes_output_per_query - total_sent_bytes) : F2C_PKG_SIZE;
-      int sent_bytes = send(sock, &out_buf[query_id * bytes_output_per_query + total_sent_bytes], send_bytes_this_iter, 0);
-      total_sent_bytes += sent_bytes;
-      if (sent_bytes == -1) {
-        printf("Sending data UNSUCCESSFUL!\n");
-        return;
-      }
-#ifdef DEBUG
-      else {
-        printf("total sent bytes = %d\n", total_sent_bytes);
-      }
-#endif
-      }
+//     // send data
+//     int total_sent_bytes = 0;
 
-      if (total_sent_bytes != bytes_output_per_query) {
-        printf("Sending error, sending more bytes than a block\n");
-      }
-      query_id++;
+//     while (total_sent_bytes < bytes_output_per_query) {
+//       int send_bytes_this_iter = (bytes_output_per_query - total_sent_bytes) < F2C_PKG_SIZE? (bytes_output_per_query - total_sent_bytes) : F2C_PKG_SIZE;
+//       int sent_bytes = send(sock, &out_buf[query_id * bytes_output_per_query + total_sent_bytes], send_bytes_this_iter, 0);
+//       total_sent_bytes += sent_bytes;
+//       if (sent_bytes == -1) {
+//         printf("Sending data UNSUCCESSFUL!\n");
+//         return;
+//       }
+// #ifdef DEBUG
+//       else {
+//         printf("total sent bytes = %d\n", total_sent_bytes);
+//       }
+// #endif
+//       }
+
+//       if (total_sent_bytes != bytes_output_per_query) {
+//         printf("Sending error, sending more bytes than a block\n");
+//       }
+//       query_id++;
     }
 
     return; 
@@ -181,7 +195,8 @@ void thread_C2F(
     int total_recv_bytes = 0;
     char header_buf[bytes_header];
     while (total_recv_bytes < bytes_header) {
-      int recv_bytes_this_iter = (bytes_header - total_recv_bytes) < C2F_PKG_SIZE? (bytes_header - total_recv_bytes) : C2F_PKG_SIZE;
+      int recv_bytes_this_iter = (bytes_header - total_recv_bytes);
+    //   int recv_bytes_this_iter = (bytes_header - total_recv_bytes) < C2F_PKG_SIZE? (bytes_header - total_recv_bytes) : C2F_PKG_SIZE;
       int recv_bytes = read(sock, header_buf + total_recv_bytes, recv_bytes_this_iter);
       total_recv_bytes += recv_bytes;
       if (recv_bytes == -1) {
@@ -196,32 +211,46 @@ void thread_C2F(
       break;
     }
 
-    for (int query_id = 0; query_id < batch_size; query_id++) {
+	// receive queries of batch size at once
+	total_recv_bytes = 0;
+	while (total_recv_bytes < bytes_input_per_query * batch_size) {
+		int recv_bytes_this_iter = (bytes_input_per_query * batch_size - total_recv_bytes);
+		int recv_bytes = read(sock, FPGA_input.data() + total_recv_bytes, recv_bytes_this_iter);
+		total_recv_bytes += recv_bytes;
+		if (recv_bytes == -1) {
+			printf("Receiving data UNSUCCESSFUL!\n");
+			return;
+		}
+	}
+	*finish_recv_query_id += batch_size;
 
-      std::cout << "recv query_id " << *finish_recv_query_id + 1 << std::endl;
-      int total_recv_bytes = 0;
-      while (total_recv_bytes < bytes_input_per_query) {
-        int recv_bytes_this_iter = (bytes_input_per_query - total_recv_bytes) < C2F_PKG_SIZE? (bytes_input_per_query - total_recv_bytes) : C2F_PKG_SIZE;
-        int recv_bytes = read(sock, FPGA_input.data() + query_id * bytes_input_per_query + total_recv_bytes, recv_bytes_this_iter);
-        total_recv_bytes += recv_bytes;
+
+//     for (int query_id = 0; query_id < batch_size; query_id++) {
+
+//       std::cout << "recv query_id " << *finish_recv_query_id + 1 << std::endl;
+//       int total_recv_bytes = 0;
+//       while (total_recv_bytes < bytes_input_per_query) {
+//         int recv_bytes_this_iter = (bytes_input_per_query - total_recv_bytes) < C2F_PKG_SIZE? (bytes_input_per_query - total_recv_bytes) : C2F_PKG_SIZE;
+//         int recv_bytes = read(sock, FPGA_input.data() + query_id * bytes_input_per_query + total_recv_bytes, recv_bytes_this_iter);
+//         total_recv_bytes += recv_bytes;
         
-        if (recv_bytes == -1) {
-          printf("Receiving data UNSUCCESSFUL!\n");
-          return;
-        }
-#ifdef DEBUG
-        else {
-          std::cout << "query_id: " << *finish_recv_query_id + 1 << " recv_bytes" << total_recv_bytes << std::endl;
-        }
-#endif
-      }
-      // set shared register as soon as the first packet of the results is received
-      (*finish_recv_query_id)++; 
+//         if (recv_bytes == -1) {
+//           printf("Receiving data UNSUCCESSFUL!\n");
+//           return;
+//         }
+// #ifdef DEBUG
+//         else {
+//           std::cout << "query_id: " << *finish_recv_query_id + 1 << " recv_bytes" << total_recv_bytes << std::endl;
+//         }
+// #endif
+//       }
+//       // set shared register as soon as the first packet of the results is received
+//       (*finish_recv_query_id)++; 
 
-      if (total_recv_bytes != bytes_input_per_query) {
-        printf("Receiving error, receiving more bytes than a block\n");
-      }
-    }
+    //   if (total_recv_bytes != bytes_input_per_query) {
+    //     printf("Receiving error, receiving more bytes than a block\n");
+    //   }
+    // }
   }
 
   return; 

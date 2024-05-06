@@ -1,6 +1,6 @@
 #pragma once
 
-#define N_CHANNEL 2 // has to be 2^n
+#define N_CHANNEL 4 // has to be 2^n
 
 #define FLOAT_PER_AXI 16 // 512 bit / 32 bit = 16
 #define INT_PER_AXI 16
@@ -25,6 +25,9 @@ const int bloom_num_bucket_addr_bits = 8 + 10; // 256 * 1024
 #elif N_CHANNEL == 2
 const int bloom_num_bucket_addr_bits = 7 + 10; // 128 * 1024
 #define CHANNEL_ADDR_BITS 1
+#elif N_CHANNEL == 3 // set conservative to be same as 2
+const int bloom_num_bucket_addr_bits = 7 + 10; // 128 * 1024
+#define CHANNEL_ADDR_BITS 1
 #elif N_CHANNEL == 4
 const int bloom_num_bucket_addr_bits = 6 + 10; // 64 * 1024
 #define CHANNEL_ADDR_BITS 2
@@ -42,3 +45,9 @@ const int hardware_async_batch_size = 64; // to infer BRAM
 
 // debug signals per query
 const int debug_size = 2;
+
+// FIFO depth
+const int depth_data = 512; // data FIFOs without wide data types
+const int depth_control = 512; // 16
+const int depth_fetched_vectors = 512; // 512-bit width to memory
+const int depth_query_vectors = 128; // 512-bit width to memory
