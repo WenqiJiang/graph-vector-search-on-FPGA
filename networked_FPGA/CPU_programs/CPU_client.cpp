@@ -9,9 +9,9 @@ Host CPU communicates with one or multiple FPGAs, can choose to use index or not
       "<2 ~ 2 + num_FPGA - 1 FPGA_IP_addr> " 
     "<2 + num_FPGA ~ 2 + 2 * num_FPGA - 1 C2F_port> " 
     "<2 + 2 * num_FPGA ~ 2 + 3 * num_FPGA - 1 F2C_port> "
-    "<2 + 3 * num_FPGA D> <3 + 3 * num_FPGA ef> " 
-    "<4 + 3 * num_FPGA query_num> " "<5 + 3 * num_FPGA batch_size> "
-    "<6 + 3 * num_FPGA query_window_size> <7 + 3 * num_FPGA batch_window_size> " 
+    "<2 + 3 * num_FPGA dataset> <3 + 3 * num_FPGA graph_type> <4 + 3 * num_FPGA max_degree> <5 + 3 * num_FPGA ef> " 
+    "<6 + 3 * num_FPGA query_num> " "<7 + 3 * num_FPGA batch_size> "
+    "<8 + 3 * num_FPGA query_window_size> <9 + 3 * num_FPGA batch_window_size> " 
 */
 
 #include <algorithm>
@@ -53,12 +53,15 @@ Host CPU communicates with one or multiple FPGAs, can choose to use index or not
 #define MAX_FPGA_NUM 16
 
 
-class CPU_client_simulator {
+class CPU_client {
 
 public:
   // parameters
-  const size_t D;
-  const size_t ef;
+  const std::string dataset;
+  const std::string graph_type;
+  size_t D;
+  const int ef;
+  const int max_degree;
   const int query_num;
   const int batch_size;
   int total_batch_num; // total number of batches to send
@@ -66,6 +69,8 @@ public:
   const int batch_window_size; // whether enable inter-batch pipeline overlap (0 = low latency; 1 = hgih throughput)
 
   const int num_FPGA; // <= MAX_FPGA_NUM
+
+  int max_topK; // topK for ground truth
 
   // arrays of FPGA IP addresses and ports
   const char** FPGA_IP_addr;
@@ -95,6 +100,8 @@ public:
   size_t bytes_vec;
   size_t bytes_F2C_per_query; // expected bytes received per query including header
   size_t bytes_C2F_per_query;
+  size_t bytes_results_vec_ID; // shared with calculating recall
+  size_t bytes_results_dist; // shared with calculating recall
 
   /* An illustration of the semaphore logics:
   
@@ -124,6 +131,10 @@ public:
   char* buf_F2C_per_FPGA[MAX_FPGA_NUM];
   char* buf_C2F;
 
+  std::vector<int> gt_vec_ID;
+  std::vector<float> gt_dist;
+  std::vector<int> labels_base; // for HNSW, which can reorder the query IDs
+
   std::chrono::system_clock::time_point* batch_start_time_array;
   std::chrono::system_clock::time_point* batch_finish_time_array;
   // end-to-end performance
@@ -131,9 +142,11 @@ public:
   double QPS;
 
   // constructor
-  CPU_client_simulator(
-    const size_t in_D,
-    const size_t in_ef, 
+  CPU_client(
+    std::string in_dataset,
+    std::string in_graph_type,
+    const int in_max_degree,
+    const int in_ef, 
     const int in_query_num,
     const int in_batch_size,
     const int in_query_window_size,
@@ -142,10 +155,17 @@ public:
     const char** in_FPGA_IP_addr,
     const unsigned int* in_C2F_port,
     const unsigned int* in_F2C_port) :
-    D(in_D), ef(in_ef), query_num(in_query_num), batch_size(in_batch_size), 
+    dataset(in_dataset), graph_type(in_graph_type), max_degree(in_max_degree), ef(in_ef), query_num(in_query_num), batch_size(in_batch_size), 
     query_window_size(in_query_window_size), batch_window_size(in_batch_window_size),
     num_FPGA(in_num_FPGA), FPGA_IP_addr(in_FPGA_IP_addr), C2F_port(in_C2F_port), F2C_port(in_F2C_port) {
-        
+
+    // if start with SIFT
+    if (dataset.find("SIFT") == 0) { D = 128;}
+    else if (dataset.find("Deep") == 0) { D = 96;}
+    else if (dataset == "GLOVE") { D = 300; }
+    else if (dataset.find("SBERT") == 0 ) { D = 384; }
+    else { std::cout << "Unknown dataset: " << dataset << std::endl; exit(1);}
+
     // Initialize internal variables
     total_batch_num = query_num % batch_size == 0? query_num / batch_size : query_num / batch_size + 1;
 
@@ -166,7 +186,7 @@ public:
 
     size_t bytes_header = AXI_num_header * BYTES_PER_AXI;
     bytes_C2F_header = bytes_header;
-	bytes_F2C_header = bytes_header;
+    bytes_F2C_header = bytes_header;
     bytes_vec = AXI_num_vec * BYTES_PER_AXI;
     bytes_C2F_per_query = bytes_C2F_header + bytes_vec; 
 
@@ -174,8 +194,8 @@ public:
     const int AXI_num_results_vec_ID = ef % INT_PER_AXI == 0? ef / INT_PER_AXI : ef / INT_PER_AXI + 1;
     const int AXI_num_results_dist = ef % FLOAT_PER_AXI == 0? ef / FLOAT_PER_AXI : ef / FLOAT_PER_AXI + 1;
 
-    size_t bytes_results_vec_ID = AXI_num_results_vec_ID * BYTES_PER_AXI;
-    size_t bytes_results_dist = AXI_num_results_dist * BYTES_PER_AXI;
+    bytes_results_vec_ID = AXI_num_results_vec_ID * BYTES_PER_AXI;
+    bytes_results_dist = AXI_num_results_dist * BYTES_PER_AXI;
     bytes_F2C_per_query = bytes_F2C_header + bytes_results_vec_ID + bytes_results_dist;
 
     std::cout << "bytes_C2F_per_query (include 64-byte header): " << bytes_C2F_per_query << std::endl;
@@ -188,12 +208,187 @@ public:
       buf_F2C_per_FPGA[i] = (char*) malloc(bytes_F2C_per_query * query_num);
     }
     buf_C2F = (char*) malloc(bytes_vec * query_num); // only the queries
+    memset(buf_C2F, 0, bytes_vec * query_num);
 
     batch_start_time_array = (std::chrono::system_clock::time_point*) malloc(total_batch_num * sizeof(std::chrono::system_clock::time_point));
     batch_finish_time_array = (std::chrono::system_clock::time_point*) malloc(total_batch_num * sizeof(std::chrono::system_clock::time_point));
     batch_duration_ms_array = (double*) malloc(total_batch_num * sizeof(double));
 
     assert (in_num_FPGA < MAX_FPGA_NUM);
+
+    ///// load the queries from the dataset & store them into the send buffer /////
+    std::string dataset_dir;
+    std::string fname_query_vectors;
+    std::string fname_gt_vec_ID;
+    std::string fname_gt_dist;
+    if (dataset.find("SIFT") == 0) {
+        dataset_dir = "/mnt/scratch/wenqi/Faiss_experiments/bigann";
+        fname_query_vectors = concat_dir(dataset_dir, "bigann_query.bvecs");
+        if (dataset == "SIFT1M") {
+            fname_gt_vec_ID = concat_dir(dataset_dir, "gnd/idx_1M.ivecs");
+            fname_gt_dist = concat_dir(dataset_dir, "gnd/dis_1M.fvecs");
+        } else if (dataset == "SIFT10M") {
+            fname_gt_vec_ID = concat_dir(dataset_dir, "gnd/idx_10M.ivecs");
+            fname_gt_dist = concat_dir(dataset_dir, "gnd/dis_10M.fvecs");
+        } else if (dataset == "SIFT100M") {
+      fname_gt_vec_ID = concat_dir(dataset_dir, "gnd/idx_100M.ivecs");
+      fname_gt_dist = concat_dir(dataset_dir, "gnd/dis_100M.fvecs");
+    } else if (dataset == "SIFT1000M") {
+      fname_gt_vec_ID = concat_dir(dataset_dir, "gnd/idx_1000M.ivecs");
+      fname_gt_dist = concat_dir(dataset_dir, "gnd/dis_1000M.fvecs");
+      }
+    } else if (dataset.find("Deep") == 0) {
+      dataset_dir = "/mnt/scratch/wenqi/Faiss_experiments/deep1b";
+      fname_query_vectors = concat_dir(dataset_dir, "query.public.10K.fbin");
+      if (dataset == "Deep1M") {
+          fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_1M.ibin");
+          fname_gt_dist = concat_dir(dataset_dir, "gt_dis_1M.fbin");
+      } else if (dataset == "Deep10M") {
+          fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_10M.ibin");
+          fname_gt_dist = concat_dir(dataset_dir, "gt_dis_10M.fbin");
+      } else if (dataset == "Deep100M") {
+        fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_100M.ibin");
+        fname_gt_dist = concat_dir(dataset_dir, "gt_dis_100M.fbin");
+      } else if (dataset == "Deep1000M") {
+        fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_1000M.ibin");
+        fname_gt_dist = concat_dir(dataset_dir, "gt_dis_1000M.fbin");
+      }
+    } else if (dataset == "GLOVE") {
+        dataset_dir = "/mnt/scratch/wenqi/Faiss_experiments/GLOVE_840B_300d";
+        fname_query_vectors = concat_dir(dataset_dir, "query_10K.fbin");
+        fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_1M.ibin");
+        fname_gt_dist = concat_dir(dataset_dir, "gt_dis_1M.fbin");
+    } else if (dataset.find("SBERT") == 0) {
+        dataset_dir = "/mnt/scratch/wenqi/Faiss_experiments/sbert";
+        fname_query_vectors = concat_dir(dataset_dir, "query_10K.fvecs");
+      if (dataset == "SBERT1M") {
+        fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_1M.ibin");
+        fname_gt_dist = concat_dir(dataset_dir, "gt_dis_1M.fbin");
+      } else if (dataset == "SBERT10M") {
+        fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_10M.ibin");
+        fname_gt_dist = concat_dir(dataset_dir, "gt_dis_10M.fbin");
+      } else if (dataset == "SBERT100M") {
+        fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_100M.ibin");
+        fname_gt_dist = concat_dir(dataset_dir, "gt_dis_100M.fbin");
+      } else if (dataset == "SBERT1000M") {
+        fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_1000M.ibin");
+        fname_gt_dist = concat_dir(dataset_dir, "gt_dis_1000M.fbin");
+      }
+    } else {
+      std::cout << "Unknown dataset: " << dataset << std::endl;
+      exit(1);
+    }
+
+  if (graph_type == "HNSW") {
+    std::string index_dir;
+    if (dataset == "SIFT1M") {
+        index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/SIFT1M_MD" + std::to_string(max_degree);
+    } else if (dataset == "SIFT10M") {
+        index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/SIFT10M_MD" + std::to_string(max_degree);
+    } else if (dataset == "Deep1M") {
+        index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/Deep1M_MD" + std::to_string(max_degree);
+    } else if (dataset == "Deep10M") {
+        index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/Deep10M_MD" + std::to_string(max_degree);
+    } else if (dataset == "GLOVE") {
+        index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/GLOVE_MD" + std::to_string(max_degree);
+    } else if (dataset == "SBERT1M") {
+        index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/SBERT1M_MD" + std::to_string(max_degree);
+    } else {
+        std::cout << "Unknown dataset\n";
+        exit(1);
+    }
+    std::string fname_ground_labels = concat_dir(index_dir, "ground_labels.bin");
+    FILE* f_ground_labels = fopen(fname_ground_labels.c_str(), "rb");
+    size_t bytes_labels_base = GetFileSize(fname_ground_labels);
+    labels_base.resize(bytes_labels_base / sizeof(int));
+        fread(labels_base.data(), 1, bytes_labels_base, f_ground_labels);
+        fclose(f_ground_labels);
+  }
+
+    size_t raw_query_vectors_size = GetFileSize(fname_query_vectors);
+    size_t raw_gt_vec_ID_size = GetFileSize(fname_gt_vec_ID);
+    size_t raw_gt_dist_size = GetFileSize(fname_gt_dist);
+    std::cout << "raw_query_vectors_size: " << raw_query_vectors_size << std::endl;
+    std::cout << "raw_gt_vec_ID_size: " << raw_gt_vec_ID_size << std::endl;
+    std::cout << "raw_gt_dist_size: " << raw_gt_dist_size << std::endl;
+    std::vector<float, aligned_allocator<float>> query_vectors(D * query_num, 0);
+    std::vector<unsigned char> raw_query_vectors(raw_query_vectors_size / sizeof(unsigned char), 0);
+    std::vector<int> raw_gt_vec_ID(raw_gt_vec_ID_size / sizeof(int), 0);
+    std::vector<float> raw_gt_dist(raw_gt_dist_size / sizeof(float), 0);
+
+    max_topK = 100; // cutting ground truth to with only 100 top queries
+    gt_vec_ID.resize(query_num * max_topK);
+    gt_dist.resize(query_num * max_topK);
+    
+
+    FILE* f_query_vectors = fopen(fname_query_vectors.c_str(), "rb");
+    FILE* f_gt_vec_ID = fopen(fname_gt_vec_ID.c_str(), "rb");
+    FILE* f_gt_dist = fopen(fname_gt_dist.c_str(), "rb");
+
+    fread(raw_query_vectors.data(), 1, raw_query_vectors_size, f_query_vectors);
+    fclose(f_query_vectors);
+    fread(raw_gt_vec_ID.data(), 1, raw_gt_vec_ID_size, f_gt_vec_ID);
+    fclose(f_gt_vec_ID);
+    fread(raw_gt_dist.data(), 1, raw_gt_dist_size, f_gt_dist);
+    fclose(f_gt_dist);
+
+    if (dataset.find("SIFT") == 0) {
+      size_t len_per_query = 4 + D;
+      // conversion from uint8 to float
+      for (int qid = 0; qid < query_num; qid++) {
+          for (int i = 0; i < D; i++) {
+              query_vectors[qid * D + i] = (float) raw_query_vectors[qid * len_per_query + 4 + i];
+          }
+      }
+      // ground truth = 4-byte ID + 1000 * 4-byte ID + 1000 or 4-byte distances
+      size_t len_per_gt = 1001;
+      for (int qid = 0; qid < query_num; qid++) {
+          for (int i = 0; i < max_topK; i++) {
+              gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[qid * len_per_gt + 1 + i];
+              gt_dist[qid * max_topK + i] = raw_gt_dist[qid * len_per_gt + 1 + i];
+          }
+      }
+    } else if (dataset.find("DEEP") == 0) {
+      // queries: fbin, ground truth: ibin, first 8 bytes are num vec & dim
+      size_t len_per_query = D * sizeof(float);
+      size_t offset_bytes = 8; // first 8 bytes are num vec & dim
+      for (int qid = 0; qid < query_num; qid++) {
+          memcpy(&query_vectors[qid * D], &raw_query_vectors[qid * len_per_query + offset_bytes], len_per_query);
+      }
+      size_t len_per_gt = 1000;
+      size_t offset = 2; // first 8 bytes are num vec & dim
+      for (int qid = 0; qid < query_num; qid++) {
+          for (int i = 0; i < max_topK; i++) {
+              gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[qid * len_per_gt + offset + i];
+              gt_dist[qid * max_topK + i] = raw_gt_dist[qid * len_per_gt + offset + i];
+          }
+      }
+    } else if (dataset.find("SBERT") == 0) {
+      // queries: raw bin, ground truth: ibin, first 8 bytes are num vec & dim
+      size_t len_per_query = D * sizeof(float);
+      size_t offset_bytes = 0; // raw bin
+      for (int qid = 0; qid < query_num; qid++) {
+          memcpy(&query_vectors[qid * D], &raw_query_vectors[qid * len_per_query + offset_bytes], len_per_query);
+      }
+      size_t len_per_gt = 1000;
+      size_t offset = 2; // first 8 bytes are num vec & dim
+      for (int qid = 0; qid < query_num; qid++) {
+          for (int i = 0; i < max_topK; i++) {
+              gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[qid * len_per_gt + offset + i];
+              gt_dist[qid * max_topK + i] = raw_gt_dist[qid * len_per_gt + offset + i];
+          }
+      }
+    } else {
+      std::cout << "Unsupported dataset\n";
+      exit(1);
+    }
+
+    // store queries into the send buffer
+    for (int qid = 0; qid < query_num; qid++) {
+      char* query_addr = buf_C2F + qid * bytes_vec;
+      memcpy(query_addr, &query_vectors[qid * D], D * sizeof(float));
+    }
+
   }
 
   // C2F send batch header
@@ -371,11 +566,121 @@ public:
   void start_C2F_F2C_threads() {
 
     // start thread with member function: https://stackoverflow.com/questions/10673585/start-thread-with-member-function
-    std::thread t_F2C(&CPU_client_simulator::thread_F2C, this);
-    std::thread t_C2F(&CPU_client_simulator::thread_C2F, this);
+    std::thread t_F2C(&CPU_client::thread_F2C, this);
+    std::thread t_C2F(&CPU_client::thread_C2F, this);
 
     t_F2C.join();
     t_C2F.join();
+  }
+
+  void calculate_recall() {
+
+  std::vector<int> out_id(query_num * ef, 0);
+  std::vector<float> out_dist(query_num * ef, 0);
+
+  for (int F2C_batch_id = 0; F2C_batch_id < total_batch_num; F2C_batch_id++) {
+    int current_batch_size = query_num - F2C_batch_id * batch_size < batch_size? query_num - F2C_batch_id * batch_size : batch_size;
+    for (int query_id = F2C_batch_id * batch_size; query_id < F2C_batch_id * batch_size + current_batch_size; query_id++) {
+
+      std::vector<std::pair<int, float>> out_id_dist(ef * num_FPGA, std::make_pair(-1, 1e20));
+      // Format: for each query
+      // packet 0: header (topK == ef)
+      // packet 1~k: topK results, including vec_ID (4-byte) array and dist_array (4-byte)
+      //    -> size = ceil(topK * 4 / 64) + ceil(topK * 4 / 64)
+
+      size_t byte_offset = query_id * bytes_F2C_per_query;
+      // merge N FPGA's results, sort by distance in ascending order
+      for (int n = 0; n < num_FPGA; n++) {
+        for (int i = 0; i < ef; i++) {
+          int vec_ID = *(int*)(&buf_F2C_per_FPGA[n][byte_offset + bytes_F2C_header + i * 4]);
+          float dist = *(float*)(&buf_F2C_per_FPGA[n][byte_offset + bytes_F2C_header + bytes_results_vec_ID + i * 4]);
+          out_id_dist[n * ef + i] = std::make_pair(vec_ID, dist);
+        }
+      }
+      std::sort(out_id_dist.begin(), out_id_dist.end(), [](const std::pair<int, float> &left, const std::pair<int, float> &right) {
+        return left.second < right.second;
+      });
+
+      // copy the top ef results
+      for (int i = 0; i < ef; i++) {
+        out_id[query_id * ef + i] = out_id_dist[i].first;
+        out_dist[query_id * ef + i] = out_id_dist[i].second;
+      }
+    }
+  }
+
+  if (graph_type == "HNSW") {
+    // HNSW reorders label IDs
+    for (int qid = 0; qid < query_num; qid++) {
+      for (int i = 0; i < ef; i++) {
+        out_id[qid * ef + i] = labels_base[out_id[qid * ef + i]];
+      }
+    }
+  }
+
+
+  int top1_correct_count = 0;
+  int top10_correct_count = 0;
+  int top100_correct_count = 0;
+  int k;
+
+  int dist_match_id_mismatch_cnt = 0;
+
+    for (int qid = 0; qid < query_num; qid++) {
+
+      k = 1;
+      for (int i = 0; i < k; i++) {
+          int gt = gt_vec_ID[qid * max_topK];
+          // float gt_dist_cur = gt_dist[qid * max_topK];
+          int hw_id = out_id[qid * ef];
+          // float hw_dist = out_dist[qid * ef];
+          
+          if (hw_id == gt) {
+              top1_correct_count++;
+          } else if (out_dist[qid * ef] == gt_dist[qid * max_topK]) {
+              std::cout << "qid = " << qid << " Distance is the same" << " hw dist: " << out_dist[qid * ef] << " gt dist: " << gt_dist[qid * max_topK] <<
+                  "hw id: " << hw_id << " gt id: " << gt << std::endl; 
+              dist_match_id_mismatch_cnt++;
+          }
+      }
+
+      if (ef >= 10) {
+        // Check top-10 recall
+        k = 10;
+        for (int i = 0; i < k; i++) {
+          int gt = gt_vec_ID[qid * max_topK + i];
+          // check if it matches any top-10 ground truth
+          for (int j = 0; j < k; j++) {
+            int hw_id = out_id[qid * ef + j];
+            if (hw_id == gt) {
+              top10_correct_count++;
+              break;
+            }
+          }
+        }
+      }
+
+      if (ef >= 100) {
+        // Check top-100 recall
+        k = 100;
+        for (int i = 0; i < k; i++) {
+          int gt = gt_vec_ID[qid * max_topK + i];
+          // check if it matches any top-100 ground truth
+          for (int j = 0; j < k; j++) {
+            int hw_id = out_id[qid * ef + j];
+            if (hw_id == gt) {
+              top100_correct_count++;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    std::cout << "Recall@1=" << (float) top1_correct_count / query_num << std::endl;
+    if (ef >= 10) { std::cout << "Recall@10=" << (float) top10_correct_count / (query_num * 10) << std::endl; }
+    if (ef >= 100) { std::cout << "Recall@100=" << (float) top100_correct_count / (query_num * 100) << std::endl; }
+    std::cout << "dist_match_id_mismatch_cnt = " << dist_match_id_mismatch_cnt << std::endl;
   }
 
   void calculate_latency() {
@@ -430,15 +735,15 @@ int main(int argc, char const *argv[])
       "<2 ~ 2 + num_FPGA - 1 FPGA_IP_addr> " 
     "<2 + num_FPGA ~ 2 + 2 * num_FPGA - 1 C2F_port> " 
     "<2 + 2 * num_FPGA ~ 2 + 3 * num_FPGA - 1 F2C_port> "
-    "<2 + 3 * num_FPGA D> <3 + 3 * num_FPGA ef> " 
-    "<4 + 3 * num_FPGA query_num> " "<5 + 3 * num_FPGA batch_size> "
-    "<6 + 3 * num_FPGA query_window_size> <7 + 3 * num_FPGA batch_window_size> " 
+    "<2 + 3 * num_FPGA dataset> <3 + 3 * num_FPGA graph_type> <4 + 3 * num_FPGA max_degree> <5 + 3 * num_FPGA ef> " 
+    "<6 + 3 * num_FPGA query_num> " "<7 + 3 * num_FPGA batch_size> "
+    "<8 + 3 * num_FPGA query_window_size> <9 + 3 * num_FPGA batch_window_size> " 
     << std::endl;
 
   int argv_cnt = 1;
   int num_FPGA = strtol(argv[argv_cnt++], NULL, 10);
   std::cout << "num_FPGA: " << num_FPGA << std::endl;
-  assert(argc == 8 + 3 * num_FPGA);
+  assert(argc == 10 + 3 * num_FPGA);
   assert(num_FPGA <= MAX_FPGA_NUM);
 
   const char* FPGA_IP_addr[num_FPGA];
@@ -464,10 +769,16 @@ int main(int argc, char const *argv[])
       std::cout << "F2C_port " << n << ": " << F2C_port[n] << std::endl;
   } 
     
-  size_t D = strtol(argv[argv_cnt++], NULL, 10);
-  std::cout << "D: " << D << std::endl;
+  std::string dataset = argv[argv_cnt++];
+  std::cout << "dataset: " << dataset << std::endl;
 
-  size_t ef = strtol(argv[argv_cnt++], NULL, 10);
+  std::string graph_type = argv[argv_cnt++];
+  std::cout << "graph_type: " << graph_type << std::endl;
+
+  int max_degree = strtol(argv[argv_cnt++], NULL, 10);
+  std::cout << "max_degree: " << max_degree << std::endl;
+
+  int ef = strtol(argv[argv_cnt++], NULL, 10);
   std::cout << "ef: " << ef << std::endl;
 
   int query_num = strtol(argv[argv_cnt++], NULL, 10);
@@ -491,8 +802,10 @@ int main(int argc, char const *argv[])
     ", batch window size controls how many batches can be computed for index scan in advance (compute control)" << std::endl;
   assert (batch_window_size >= 1);
     
-  CPU_client_simulator cpu_coordinator(
-    D,
+  CPU_client cpu_coordinator(
+    dataset,
+    graph_type,
+    max_degree,
     ef, 
     query_num,
     batch_size,
@@ -504,6 +817,7 @@ int main(int argc, char const *argv[])
     F2C_port);
 
   cpu_coordinator.start_C2F_F2C_threads();
+  cpu_coordinator.calculate_recall();
   cpu_coordinator.calculate_latency();
 
   return 0; 

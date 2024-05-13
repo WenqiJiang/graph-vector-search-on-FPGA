@@ -4,15 +4,18 @@
 #   alveo-u250-02: 10.253.74.16
 #   alveo-u250-03: 10.253.74.20
 #   alveo-u250-04: 10.253.74.24
+#     host 04: 10.253.74.22
 #   alveo-u250-05: 10.253.74.28
+#     host 05: 10.253.74.26
 #   alveo-u250-06: 10.253.74.40
 
 num_FPGA : 1
 
-CPU_IP_addr : "10.1.212.110"
+# Comment: try to avoid using alveo-build-01, as there can be many system noises
+CPU_IP_addr : "10.253.74.22"
 # CPU_IP_addr : "127.0.0.1"
 # CPU_IP_addr : "10.233.1.1" # doesn't work, firewall issue
-FPGA_IP_addr_list : ["10.253.74.20"]
+FPGA_IP_addr_list : ["10.253.74.24"]
 # FPGA_IP_addr_list : ["127.0.0.1"]
 C2F_port_list: [8881]
 F2C_port_list: [5001]
@@ -20,14 +23,18 @@ F2C_port_list: [5001]
 # Fixed parameters
 # D: 128
 D: NULL # determined by the dataset
-ef: 64 # == ef
 
 query_num: 10000
 
 # Tunable parameters at runtime
-batch_size: 32
-max_cand_per_group: 1
-max_group_num_in_pipe: 1
+performance_profile_dir : "../../perf_test_scripts/saved_df/latency_FPGA_intra_query_4_chan.pickle"
+# performance_profile_dir : "../../perf_test_scripts/saved_df/latency_FPGA_inter_query_4_chan.pickle"
+batch_size: 1
+ef: 64 # == ef
+max_cand_per_group: "auto" # auto means load the best performance setting from the performance profile
+max_group_num_in_pipe: "auto" # auto means load the best performance setting from the performance profile
+# max_cand_per_group: 1
+# max_group_num_in_pipe: 1
 graph_type: "HNSW"
 # graph_type: "NSG"
 # dataset: NULL 
@@ -41,5 +48,5 @@ query_window_size: 100
 # query_window_size: 10
 
 # batch window size controls the speed of index scan on CPU 
-batch_window_size: 3
+batch_window_size: 1
 # batch_window_size: 1

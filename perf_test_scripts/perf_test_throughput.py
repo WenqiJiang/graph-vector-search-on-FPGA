@@ -5,13 +5,13 @@ Test the ANN search throughput throughput on various cases.
 
 Example Usage:
 # SIFT
-python perf_test.py \
+python perf_test_throughput.py \
 --max_cand_per_group 4 --max_group_num_in_pipe 6 --save_df FPGA_inter_query_4_chan.pickle \
 --FPGA_project_dir /mnt/scratch/wenqi/tmp_bitstreams/FPGA_inter_query_v1.3_4_chan_D_128 \
 --graph_type HNSW --dataset SIFT1M --max_degree 64 --min_ef 64 --max_ef 64
 
 # Sbert
-python perf_test.py \
+python perf_test_throughput.py \
 --max_cand_per_group 4 --max_group_num_in_pipe 6 --save_df FPGA_inter_query_4_chan.pickle \
 --FPGA_project_dir /mnt/scratch/wenqi/tmp_bitstreams/FPGA_inter_query_v1.3_4_chan_D_384 \
 --graph_type HNSW --dataset SBERT1M --max_degree 64 --min_ef 64 --max_ef 64

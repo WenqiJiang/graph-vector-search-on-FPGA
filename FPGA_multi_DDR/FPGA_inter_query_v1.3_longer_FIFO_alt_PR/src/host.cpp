@@ -428,7 +428,6 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
     std::cout << "bytes_links_base_chan_0=" << bytes_links_base_chan_0 << std::endl;
     std::cout << "raw_query_vectors_size=" << raw_query_vectors_size << std::endl;
 
-
     // input vecs
     std::vector<int, aligned_allocator<int>> entry_point_ids(bytes_entry_point_ids / sizeof(int));
     std::vector<float, aligned_allocator<float>> query_vectors(bytes_query_vectors / sizeof(float));
@@ -625,7 +624,7 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
                 gt_dist[qid * max_topK + i] = raw_gt_dist[(qid + query_offset) * len_per_gt + 1 + i];
             }
         }
-    } else if (dataset == "DEEP1M" || dataset == "DEEP10M" || dataset == "GLOVE") {
+    } else if (dataset == "Deep1M" || dataset == "Deep10M" || dataset == "GLOVE") {
         // queries: fbin, ground truth: ibin, first 8 bytes are num vec & dim
         size_t len_per_query = d * sizeof(float);
         size_t offset_bytes = 8; // first 8 bytes are num vec & dim

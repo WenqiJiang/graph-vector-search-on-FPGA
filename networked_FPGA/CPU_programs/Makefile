@@ -9,18 +9,22 @@ LINK_OMP = -fopenmp
 
 all: FPGA_simulator \
 	CPU_client_simulator \
+	CPU_client \
 	# CPU_to_single_FPGA \
 	# host_multi_FPGA \
 
 FPGA_simulator: FPGA_simulator.cpp
-	${CC} ${CLAGS} FPGA_simulator.cpp ${LINK} -o FPGA_simulator.bin
+	${CC} ${CLAGS} FPGA_simulator.cpp ${LINK} -o FPGA_simulator
 
 CPU_client_simulator: CPU_client_simulator.cpp
-	${CC} ${CLAGS} CPU_client_simulator.cpp ${LINK} ${LINK_OMP} -o CPU_client_simulator.bin
+	${CC} ${CLAGS} CPU_client_simulator.cpp ${LINK} ${LINK_OMP} -o CPU_client_simulator
+
+CPU_client: CPU_client.cpp
+	${CC} ${CLAGS} CPU_client.cpp ${LINK} ${LINK_OMP} -o CPU_client
 
 .PHONY: clean, cleanall
 
 cleanall: clean
 
 clean:
-	rm FPGA_simulator.bin CPU_client_simulator.bin 
+	rm FPGA_simulator CPU_client_simulator CPU_client

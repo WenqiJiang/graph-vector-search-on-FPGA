@@ -5,6 +5,7 @@
 #include <sys/socket.h> 
 #include <arpa/inet.h> 
 #include <netinet/tcp.h>
+#include <sys/stat.h>
 
 #include "types.hpp"
 #include "constants.hpp"
@@ -123,4 +124,20 @@ int recv_accept_conn(unsigned int recv_port) {
     std:: cout << "Successfully built connection for recv, sock: " << sock << std::endl;
 
 	return sock;
+}
+
+long GetFileSize(std::string filename)
+{
+    struct stat stat_buf;
+    int rc = stat(filename.c_str(), &stat_buf);
+    return rc == 0 ? stat_buf.st_size : -1;
+}
+
+// concat dir
+std::string concat_dir(std::string dir, std::string filename) {
+    if (dir.back() == '/') {
+        return dir + filename;
+    } else {
+        return dir + "/" + filename;
+    }
 }
