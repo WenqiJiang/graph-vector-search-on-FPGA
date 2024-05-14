@@ -220,21 +220,22 @@ if mode == 'CPU_client':
 	print('Executing: ', cmd)
 	os.system(cmd)
 
-	print('Loading and copying profile...')
-	latency_ms_distribution = np.fromfile('profile_latency_ms_distribution.double', dtype=np.float64).reshape(-1,)
+	# print('Loading and copying profile...')
+	latency_ms_distribution = np.fromfile(
+		f'latency_ms_per_batch_{dataset}_{graph_type}_MD{max_degree}_ef{ef}_batch_size{batch_size}.double', dtype=np.float64).reshape(-1,)
 	# deep copy latency_ms_distribution
 	latency_ms_distribution_sorted = np.array(latency_ms_distribution)
 	latency_ms_distribution_sorted.sort()
 	latency_ms_min = latency_ms_distribution_sorted[0]
 	latency_ms_max = latency_ms_distribution_sorted[-1]
 	latency_ms_median = latency_ms_distribution_sorted[int(len(latency_ms_distribution_sorted) / 2)]
-	QPS = np.fromfile('profile_QPS.double', dtype=np.float64).reshape(-1,)[0]
+	# QPS = np.fromfile('profile_QPS.double', dtype=np.float64).reshape(-1,)[0]
 
 	print("Loaded profile: ")
 	print("latency_ms_min: ", latency_ms_min)
 	print("latency_ms_max: ", latency_ms_max)
 	print("latency_ms_median: ", latency_ms_median)
-	print("QPS: ", QPS)
+	# print("QPS: ", QPS)
 	
 	# config_dict['latency_ms_distribution'] = latency_ms_distribution
 	# config_dict['latency_ms_min'] = latency_ms_min

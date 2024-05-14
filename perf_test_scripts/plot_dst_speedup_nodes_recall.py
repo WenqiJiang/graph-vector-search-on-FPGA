@@ -4,10 +4,10 @@ This script visualizes the heatmap of the speedup, nodes, and recall on FPGA usi
 Example usage:
 
 	# plot a specific setting
-	python plot_dst_speedup_nodes_recall.py --graph_type HNSW --dataset SIFT1M --max_degree 64 --ef 64 --df_path ./saved_df/perf_FPGA_inter_query_4_chan.pickle
+	python plot_dst_speedup_nodes_recall.py --graph_type HNSW --dataset SIFT1M --max_degree 64 --ef 64 --df_path ./saved_df/throughput_FPGA_inter_query_4_chan.pickle
 
 	# plot all (hard-coded) settings
-	python plot_dst_speedup_nodes_recall.py --plot_all 1 --df_path ./saved_df/perf_FPGA_inter_query_4_chan.pickle
+	python plot_dst_speedup_nodes_recall.py --plot_all 1 --df_path ./saved_df/throughput_FPGA_inter_query_4_chan.pickle
 """
 
 import argparse

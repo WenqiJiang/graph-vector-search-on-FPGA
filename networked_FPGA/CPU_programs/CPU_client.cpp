@@ -138,7 +138,6 @@ public:
   std::chrono::system_clock::time_point* batch_start_time_array;
   std::chrono::system_clock::time_point* batch_finish_time_array;
   // end-to-end performance
-  double* batch_duration_ms_array;
   double QPS;
 
   // constructor
@@ -212,7 +211,6 @@ public:
 
     batch_start_time_array = (std::chrono::system_clock::time_point*) malloc(total_batch_num * sizeof(std::chrono::system_clock::time_point));
     batch_finish_time_array = (std::chrono::system_clock::time_point*) malloc(total_batch_num * sizeof(std::chrono::system_clock::time_point));
-    batch_duration_ms_array = (double*) malloc(total_batch_num * sizeof(double));
 
     assert (in_num_FPGA < MAX_FPGA_NUM);
 
@@ -348,7 +346,7 @@ public:
               gt_dist[qid * max_topK + i] = raw_gt_dist[qid * len_per_gt + 1 + i];
           }
       }
-    } else if (dataset.find("DEEP") == 0) {
+    } else if (dataset.find("Deep") == 0) {
       // queries: fbin, ground truth: ibin, first 8 bytes are num vec & dim
       size_t len_per_query = D * sizeof(float);
       size_t offset_bytes = 8; // first 8 bytes are num vec & dim
@@ -685,6 +683,7 @@ public:
 
   void calculate_latency() {
 
+    std::vector<double> batch_duration_ms_array;
     std::vector<double> sorted_duration_ms;
     double total_ms = 0.0;
 
@@ -692,7 +691,7 @@ public:
       double durationUs = (std::chrono::duration_cast<std::chrono::microseconds>(
         batch_finish_time_array[b] - batch_start_time_array[b]).count());
       double durationMs = durationUs / 1000.0;
-      batch_duration_ms_array[b] = durationMs;
+      batch_duration_ms_array.push_back(durationMs);
       sorted_duration_ms.push_back(durationMs);
       total_ms += durationMs;
     }
@@ -717,13 +716,20 @@ public:
     std::cout << "End-to-end QPS = " << QPS << std::endl;
 
     // write latency and throughput to file in double-precision
-    FILE *file_latency = fopen("profile_latency_ms_distribution.double", "w");
-    fwrite(batch_duration_ms_array, sizeof(double), total_batch_num, file_latency);
+	  std::string out_fname = "latency_ms_per_batch_" + dataset + "_" + graph_type + 
+		  "_MD" + std::to_string(max_degree) + "_ef" + std::to_string(ef) + + "_batch_size" + std::to_string(batch_size) + ".double";
+    FILE *file_latency = fopen(out_fname.c_str(), "w");
+    // write by removing the first & last batch
+    if (total_batch_num > 2) {
+      fwrite(&batch_duration_ms_array[1], sizeof(double), total_batch_num - 2, file_latency);
+    } else {
+      std::cout << "Only less than 2 batches, no latency data to write\n" << std::endl;
+    }
     fclose(file_latency);
 
-    FILE *file_throughput = fopen("profile_QPS.double", "w");
-    fwrite(&QPS, sizeof(double), 1, file_throughput);
-    fclose(file_throughput);
+    // FILE *file_throughput = fopen("profile_QPS.double", "w");
+    // fwrite(&QPS, sizeof(double), 1, file_throughput);
+    // fclose(file_throughput);
   }
 };
 

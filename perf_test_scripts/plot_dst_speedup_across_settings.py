@@ -3,7 +3,7 @@ This script shows the speedup brought by DST, given different settings (mostly d
 
 Example usage:
 
-    python plot_dst_speedup_across_settings.py --df_path ./saved_df/perf_FPGA_inter_query_4_chan.pickle
+    python plot_dst_speedup_across_settings.py --df_path ./saved_df/throughput_FPGA_inter_query_4_chan.pickle
 """
 
 import argparse

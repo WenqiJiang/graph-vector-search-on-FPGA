@@ -13,10 +13,10 @@
 num_FPGA : 1
 
 # Comment: try to avoid using alveo-build-01, as there can be many system noises
-CPU_IP_addr : "10.253.74.18"
+CPU_IP_addr : "10.253.74.22"
 # CPU_IP_addr : "127.0.0.1"
 # CPU_IP_addr : "10.233.1.1" # doesn't work, firewall issue
-FPGA_IP_addr_list : ["10.253.74.20"]
+FPGA_IP_addr_list : ["10.253.74.24"]
 # FPGA_IP_addr_list : ["127.0.0.1"]
 C2F_port_list: [8881]
 F2C_port_list: [5001]
@@ -28,9 +28,9 @@ D: NULL # determined by the dataset
 query_num: 10000
 
 # Tunable parameters at runtime
-performance_profile_dir : "../../perf_test_scripts/saved_df/latency_FPGA_intra_query_4_chan.pickle"
-# performance_profile_dir : "../../perf_test_scripts/saved_df/latency_FPGA_inter_query_4_chan.pickle"
-batch_size: 1
+# performance_profile_dir : "../../perf_test_scripts/saved_df/latency_FPGA_intra_query_4_chan.pickle"
+performance_profile_dir : "../../perf_test_scripts/saved_df/latency_FPGA_inter_query_4_chan.pickle"
+batch_size: 16
 ef: 64 # == ef
 max_cand_per_group: "auto" # auto means load the best performance setting from the performance profile
 max_group_num_in_pipe: "auto" # auto means load the best performance setting from the performance profile
