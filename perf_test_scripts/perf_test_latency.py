@@ -117,6 +117,7 @@ if __name__ == '__main__':
 				idx = df.index[(df['graph_type'] == graph_type) & (df['dataset'] == dataset) & (df['max_degree'] == max_degree) & (df['ef'] == ef) & 
 								(df['max_cand_per_group'] == max_cand_per_group) & (df['max_group_num_in_pipe'] == max_group_num_in_pipe) & (df['batch_size'] == batch_size_max)]
 				if len(idx) > 0:
+					print("Drop the old performance df rows", df.loc[idx])
 					df = df.drop(idx)
 			# append results
 			df = df.append({**keys_values, 'time_ms_kernel': time_ms_kernel, 'avg_latency_per_batch_ms': time_ms_kernel,
@@ -168,6 +169,7 @@ if __name__ == '__main__':
 				idx = df.index[(df['graph_type'] == graph_type) & (df['dataset'] == dataset) & (df['max_degree'] == max_degree) & (df['ef'] == ef) & 
 								(df['max_cand_per_group'] == mc) & (df['max_group_num_in_pipe'] == mg) & (df['batch_size'] == batch_size)]
 				if len(idx) > 0:
+					print("Drop the old performance df rows", df.loc[idx])
 					df = df.drop(idx)
 			# append results
 			df = df.append({**keys_values, 'time_ms_kernel': time_ms_kernel, 'avg_latency_per_batch_ms': avg_latency_per_batch_ms,

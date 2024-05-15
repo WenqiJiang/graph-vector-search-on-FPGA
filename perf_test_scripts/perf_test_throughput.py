@@ -113,6 +113,7 @@ if __name__ == '__main__':
 					idx = df.index[(df['graph_type'] == graph_type) & (df['dataset'] == dataset) & (df['max_degree'] == max_degree) & (df['ef'] == ef) & 
 									(df['max_cand_per_group'] == max_cand_per_group) & (df['max_group_num_in_pipe'] == max_group_num_in_pipe)]
 					if len(idx) > 0:
+						print("Drop the old performance df rows", df.loc[idx])
 						df = df.drop(idx)
 				# append results
 				df = df.append({**keys_values, 'time_ms_kernel': time_ms_kernel, 'recall_1': recall_1, 'recall_10': recall_10, 

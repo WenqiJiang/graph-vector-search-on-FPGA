@@ -28,9 +28,9 @@ D: NULL # determined by the dataset
 query_num: 10000
 
 # Tunable parameters at runtime
-performance_profile_dir : "../../perf_test_scripts/saved_df/latency_FPGA_intra_query_4_chan.pickle"
-# performance_profile_dir : "../../perf_test_scripts/saved_df/latency_FPGA_inter_query_4_chan.pickle"
-batch_size: 1
+# performance_profile_dir : "../../perf_test_scripts/saved_df/latency_FPGA_intra_query_4_chan.pickle"
+performance_profile_dir : "../../perf_test_scripts/saved_df/latency_FPGA_inter_query_4_chan.pickle"
+batch_size: 2
 ef: 64 # == ef
 max_cand_per_group: "auto" # auto means load the best performance setting from the performance profile
 max_group_num_in_pipe: "auto" # auto means load the best performance setting from the performance profile
@@ -39,7 +39,7 @@ max_group_num_in_pipe: "auto" # auto means load the best performance setting fro
 graph_type: "HNSW"
 # graph_type: "NSG"
 # dataset: NULL 
-dataset: "Deep10M"
+dataset: "SIFT10M"
 # dataset: "SIFT10M"
 # dataset: "SBERT1M"
 max_degree: 64

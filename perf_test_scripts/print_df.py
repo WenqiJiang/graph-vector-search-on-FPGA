@@ -14,6 +14,7 @@ parser.add_argument('--path', type=str, default='perf_df.pickle', help="the path
 args = parser.parse_args()
 
 pd.set_option('display.expand_frame_repr', False) # print all columns
+pd.set_option('display.max_rows', None) # print all rows
 
 # load
 df = pd.read_pickle(args.path)

@@ -595,7 +595,10 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
 #endif
 
     std::cout << "Reading queries and ground truths from file...\n";
-    fread(labels_base.data(), 1, bytes_labels_base, f_ground_labels);
+    if (graph_type == "HNSW") {
+        fread(labels_base.data(), 1, bytes_labels_base, f_ground_labels);
+        fclose(f_ground_labels);
+    }
     fclose(f_ground_labels);
     fread(raw_query_vectors.data(), 1, raw_query_vectors_size, f_query_vectors);
     fclose(f_query_vectors);

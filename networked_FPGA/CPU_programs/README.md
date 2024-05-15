@@ -5,6 +5,7 @@ This folder contains the files to track the
 ## Experiments
 
 ### Preparation
+
 1. Log into one of the FPGA servers, use that server as the host CPU server (build server has a lot of noises).
 2. Edit `config/test_1_FPGA.yaml`, make sure the CPU and FPGA addresses are correctly typed
 3. Make sure to select `performance_profile_dir` as the one used to store the right FPGA performance data (intra and inter-query are in different files)
@@ -12,6 +13,7 @@ This folder contains the files to track the
 5. Use `ef=64` and `max_degree=64` as the version for latency measurements
 
 ### Procedure for each dataset
+
 1. Make sure that `dataset` & `graph_type` are correctly set
 2. Iterate over different `batch_size`, e.g., 1, 2, ..., 16
 3. Open two terminals:
@@ -21,10 +23,23 @@ This folder contains the files to track the
 5. After each run, reset the FPGA device
 
 ### All different combinations
+
 1. Datasets: SIFT1M/10M, Deep1M/10M (can be parallelized over multiple FPGAs)
 2. batch sizes: 1, 2, ..., 16 (can be parallelized over multiple FPGAs)
 3. Graph types: HNSW, NSG (can be parallelized over multiple FPGAs)
 4. Intra-query and Inter-query (please NOT RUN them in parallel, as the naming of the profiles do not differentiate different FPGA bitstreams)
+
+
+### Test CPU-level latency
+
+Apart from networked-FPGA latency, it would be also useful to test the latency between different CPU servers, given different datasets and batch sizes. 
+
+Setup 1: local CPU server, given different batch sizes & datasets.
+Setup 1: two CPU server connected to the same switch, give different batch sizes & datasets.
+
+1. Edit `./config/local_network_test_1_FPGA.yaml` to set appropriate IP addresses. 
+2. In terminal one: `python launch_CPU_and_FPGA.py --config_fname ./config/local_network_test_1_FPGA.yaml --mode CPU_client`; in terminal two: `python launch_CPU_and_FPGA.py --config_fname ./config/local_network_test_1_FPGA.yaml --mode FPGA_simulator`
+3. Give them proper meaning: note that the latency is the same for 1M/10M, so just remove suffix; but different across datasets due to the dimensionalities
 
 ## Network Transmission Formats
 

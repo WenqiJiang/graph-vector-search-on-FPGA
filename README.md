@@ -73,8 +73,9 @@ Here shows the most useful folders
 │   │   ├── FPGA_inter_query_v1_3
 │   │   ├── FPGA_intra_query_v1_5
 ├── perf_test_scripts
-│   ├── images
 │   └── saved_df
+├── plots
+│   ├── images
 ├── test_dataflow_feedback
 └── unit_tests
     ├── bloom_and_hash
@@ -87,6 +88,10 @@ Here shows the most useful folders
 `FPGA_multi_DDR`: multi-DDR version FPGA implementations
 
 `networked_FPGA`: networked version of multi-DDR version FPGA implementations, with exactly the same kernel implemented in `FPGA_multi_DDR`
+
+`perf_test_scripts`: all the plots used to measure the performance of local FPGAs
+
+`plots`: all the plotting scripts
 
 (unused) `FPGA_single_DDR`: single-DDR version FPGA implementations. Used only for developments.
 

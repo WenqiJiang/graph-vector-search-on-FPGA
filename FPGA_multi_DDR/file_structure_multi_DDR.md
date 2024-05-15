@@ -21,6 +21,10 @@ Note: optimizing queues will affect P&R! So I ROLLED Back the following changes!
 * No filter after compute (this requires one more pipeline stage, harmful for performance given a single channel)
 ```
 
+## eval_trace_FPGA_inter_query_v1.3
+
+This one is used to track the distance over steps, to compare BFS, MCS, and DST.
+
 ## Unused V1.1 FPGA_inter_query_v1.1_multi_kernel : multi-kernel
 
 Based on FPGA_inter_query_v1, detached one kernel to the scheduler and multiple per-channel kernels.
