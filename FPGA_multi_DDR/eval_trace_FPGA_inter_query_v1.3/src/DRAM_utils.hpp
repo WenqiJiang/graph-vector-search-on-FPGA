@@ -202,7 +202,7 @@ void fetch_neighbor_ids(
 	const ap_uint<512>* links_base,
 	// in runtime (stream)
 	hls::stream<int>& s_query_batch_size, // -1: stop
-	hls::stream<cand_t>& s_top_candidates,
+	hls::stream<result_t>& s_top_candidates,
 	hls::stream<int>& s_finish_query_in,
 
 	// out (stream)
@@ -240,7 +240,7 @@ void fetch_neighbor_ids(
 					break;
 				} else if (!s_top_candidates.empty()) {
 					// receive task
-					cand_t reg_cand = s_top_candidates.read();
+					result_t reg_cand = s_top_candidates.read();
 					int node_id = reg_cand.node_id;
 					int level_id = reg_cand.level_id;
 					bool send_node_itself = false;
@@ -359,11 +359,14 @@ void results_collection(
 	hls::stream<int>& s_query_batch_size, // -1: stop
 	// hls::stream<result_t>& s_entry_point_base_level,
 	hls::stream<int>& s_cand_batch_size, 
+	hls::stream<result_t>& s_top_candidates,
 	hls::stream<int>& s_num_neighbors_base_level,
 	hls::stream<result_t>& s_distances_base_level,
 	hls::stream<int>& s_finish_query_in,
 
 	// out distance & ids
+	float* debug_out_per_query_cand_dists,
+	int* debug_out_per_query_cand_num_neighbors,
 	float* debug_out_per_query_dists,
 	int* debug_out_per_query_ids,
 
@@ -381,6 +384,7 @@ void results_collection(
 	const int sort_swap_round = ef % 2 == 0? ef / 2 : ef / 2 + 1;
 
 	bool first_s_query_batch_size = true;
+	bool first_s_top_candidates = true;
 	bool first_iter_s_distances_base_level = true;
 
 	/// debug_out_per_query_dists_ids format
@@ -390,7 +394,17 @@ void results_collection(
 	// ...
 	// dist, id of last step
 	/// -2 (as finish)
+
+	/// debug_out_per_query_cand_dists/num_neighbors format
+	/// -1 (as start) -> dtype = float / int, depends on dist / num neighbors
+	// dist, num_neighbors of 1st candidate
+	// dist, num_neighbors of 2nd candidate
+	// ...
+	// dist, num_neighbors of last candidate
+	/// -2 (as finish)
+
 	int cnt_debug_out_per_query_dists_ids = 0;
+	int cnt_debug_cand_cnt = 0;
 	int cnt_total_qid = 0;
 
 	while (true) {
@@ -408,6 +422,10 @@ void results_collection(
 			debug_out_per_query_ids[cnt_debug_out_per_query_dists_ids] = -1;
 			cnt_debug_out_per_query_dists_ids++;
 
+			debug_out_per_query_cand_dists[cnt_debug_cand_cnt] = -1;
+			debug_out_per_query_cand_num_neighbors[cnt_debug_cand_cnt] = -1;
+			cnt_debug_cand_cnt++;
+
 			result_queue.reset_queue(); // reset content to large_float
 			// int effect_queue_size = 0; // number of results in queue
 			// while (s_entry_point_base_level.empty()) {}
@@ -418,21 +436,27 @@ void results_collection(
 
 			while (true) {
 				// check query finish
-				if (!s_finish_query_in.empty() && s_cand_batch_size.empty() 
+				if (!s_finish_query_in.empty() && s_cand_batch_size.empty() && s_top_candidates.empty()
 					&& s_num_neighbors_base_level.empty() && s_distances_base_level.empty()) {
 					// volatile int reg_finish = s_finish_query_in.read();
 					s_debug_num_vec_base_layer.write(debug_num_vec_base_layer);
 					s_finish_query_out.write(s_finish_query_in.read());
 					break;
-				} else if (!s_cand_batch_size.empty() && !s_num_neighbors_base_level.empty()) {
+				} else if (!s_cand_batch_size.empty() && !s_top_candidates.empty() && !s_num_neighbors_base_level.empty()) {
 
 					int cand_batch_size = s_cand_batch_size.read();
 
 					for (int bid = 0; bid < cand_batch_size; bid++) {
+						result_t top_cand = s_top_candidates.read();
+
 						int num_neighbors = s_num_neighbors_base_level.read();
 						wait_data_fifo_first_iter<result_t>(
 							num_neighbors, s_distances_base_level, first_iter_s_distances_base_level);
 						debug_num_vec_base_layer += num_neighbors;
+
+						debug_out_per_query_cand_dists[cnt_debug_cand_cnt] = top_cand.dist;
+						debug_out_per_query_cand_num_neighbors[cnt_debug_cand_cnt] = num_neighbors;
+						cnt_debug_cand_cnt++;
 
 						int inserted_num_this_iter = 0;
 
@@ -491,6 +515,9 @@ void results_collection(
 			debug_out_per_query_dists[cnt_debug_out_per_query_dists_ids] = -2;
 			debug_out_per_query_ids[cnt_debug_out_per_query_dists_ids] = -2;
 			cnt_debug_out_per_query_dists_ids++;
+			debug_out_per_query_cand_dists[cnt_debug_cand_cnt] = -2;
+			debug_out_per_query_cand_num_neighbors[cnt_debug_cand_cnt] = -2;
+			cnt_debug_cand_cnt++;
 		}
 	}
 }

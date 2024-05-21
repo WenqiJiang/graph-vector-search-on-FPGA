@@ -29,6 +29,8 @@ void per_channel_processing_wrapper(
 	hls::stream<int>& s_entry_point_ids, 
 
 	// out distance & ids
+	float* debug_out_per_query_cand_dists,
+	int* debug_out_per_query_cand_num_neighbors,
 	float* debug_out_per_query_dists,
 	int* debug_out_per_query_ids,
 
@@ -55,7 +57,11 @@ void per_channel_processing_wrapper(
 	hls::stream<int> s_cand_batch_size;
 #pragma HLS stream variable=s_cand_batch_size depth=depth_control
 
-    hls::stream<cand_t> s_top_candidates; // current top candidates
+    hls::stream<result_t> s_top_candidates; // current top candidates
+#pragma HLS stream variable=s_top_candidates depth=depth_data
+
+	const int replicate_factor_s_top_candidates = 2;
+    hls::stream<result_t> s_top_candidates_replicated[replicate_factor_s_top_candidates]; // current top candidates
 #pragma HLS stream variable=s_top_candidates depth=depth_data
 
 	hls::stream<int> s_num_inserted_candidates;
@@ -77,7 +83,7 @@ void per_channel_processing_wrapper(
 #pragma HLS stream variable=s_debug_num_vec_base_layer depth=depth_control
 
 	// replicate s_query_batch_size to multiple streams
-	const int replicate_factor_s_query_batch_size = 4;
+	const int replicate_factor_s_query_batch_size = 5;
 	hls::stream<int> s_query_batch_size_replicated[replicate_factor_s_query_batch_size];
 #pragma HLS stream variable=s_query_batch_size_replicated depth=depth_control
 
@@ -120,6 +126,20 @@ void per_channel_processing_wrapper(
     hls::stream<cand_t> s_fetched_neighbor_ids; 
 #pragma HLS stream variable=s_fetched_neighbor_ids depth=depth_data
 
+    hls::stream<int> s_finish_replicate_s_top_candidates; // finish all queries
+#pragma HLS stream variable=s_finish_replicate_s_top_candidates depth=depth_control
+
+	replicate_s_control<replicate_factor_s_top_candidates, result_t>(
+		// in (stream)
+		s_query_batch_size_replicated[4], // -1: stop
+		s_top_candidates, // must not be s_query_batch_size
+		s_finish_query_task_scheduler,
+		
+		// out (stream)
+		s_top_candidates_replicated,
+		s_finish_replicate_s_top_candidates
+	);
+
     hls::stream<int> s_finish_query_fetch_neighbor_ids; // finish all queries
 #pragma HLS stream variable=s_finish_query_fetch_neighbor_ids depth=depth_control
 
@@ -130,8 +150,8 @@ void per_channel_processing_wrapper(
     	links_base,
 		// in runtime (stream)
 		s_query_batch_size_replicated[1],
-		s_top_candidates,
-		s_finish_query_task_scheduler,
+		s_top_candidates_replicated[0],
+		s_finish_replicate_s_top_candidates,
 
 		// out (stream)
 		s_num_neighbors_base_level,
@@ -172,11 +192,14 @@ void per_channel_processing_wrapper(
 		s_query_batch_size_replicated[3],
 		// s_entry_point_base_level,
 		s_cand_batch_size,
+		s_top_candidates_replicated[1],
 		s_num_valid_candidates_base_level_total,
 		s_distances_base_level,
 		s_finish_query_bloom_fetch_compute,
 
 		// out distance & ids
+		debug_out_per_query_cand_dists,
+		debug_out_per_query_cand_num_neighbors,
 		debug_out_per_query_dists,
 		debug_out_per_query_ids,
 

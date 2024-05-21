@@ -25,6 +25,20 @@ Note: optimizing queues will affect P&R! So I ROLLED Back the following changes!
 
 This one is used to track the distance over steps, to compare BFS, MCS, and DST.
 
+Commands for testing: 
+
+BFS: mc=1, mg=1
+./host xclbin/vadd.hw.xclbin 1 1 64 HNSW SIFT1M 64 10000
+
+MCS: mc=4, mg=1
+./host xclbin/vadd.hw.xclbin 4 1 64 HNSW SIFT1M 64 10000
+
+DST: mc=2, mg=2
+./host xclbin/vadd.hw.xclbin 2 2 64 HNSW SIFT1M 64 10000
+
+DST: mc=1, mg=4
+./host xclbin/vadd.hw.xclbin 1 4 64 HNSW SIFT1M 64 10000
+
 ## Unused V1.1 FPGA_inter_query_v1.1_multi_kernel : multi-kernel
 
 Based on FPGA_inter_query_v1, detached one kernel to the scheduler and multiple per-channel kernels.

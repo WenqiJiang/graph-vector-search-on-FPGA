@@ -21,7 +21,7 @@ void task_scheduler(
 	hls::stream<ap_uint<512>>& s_query_vectors_out,
 	// hls::stream<result_t>& s_entry_point_base_level,
 	hls::stream<int>& s_cand_batch_size, 
-	hls::stream<cand_t>& s_top_candidates,
+	hls::stream<result_t>& s_top_candidates,
 	hls::stream<int>& s_debug_signals,
 	hls::stream<int>& s_finish_query_out
 ) {
@@ -81,7 +81,7 @@ void task_scheduler(
 			wait_data_fifo_first_iter<int>(
 				1, s_entry_point_ids, first_s_entry_point_ids);
 			int entry_point_id = s_entry_point_ids.read();
-			s_top_candidates.write({entry_point_id, 0});
+			s_top_candidates.write({entry_point_id, 0, large_float});
 
 			int last_cand_to_be_recv_batch_size = 1; // the size of the last batch of popped candidates
 			async_batch_size_array[0] = last_cand_to_be_recv_batch_size;

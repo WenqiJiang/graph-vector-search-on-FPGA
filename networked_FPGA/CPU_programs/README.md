@@ -35,7 +35,7 @@ This folder contains the files to track the
 Apart from networked-FPGA latency, it would be also useful to test the latency between different CPU servers, given different datasets and batch sizes. 
 
 Setup 1: local CPU server, given different batch sizes & datasets.
-Setup 1: two CPU server connected to the same switch, give different batch sizes & datasets.
+Setup 2: two CPU server connected to the same switch, give different batch sizes & datasets.
 
 1. Edit `./config/local_network_test_1_FPGA.yaml` to set appropriate IP addresses. 
 2. In terminal one: `python launch_CPU_and_FPGA.py --config_fname ./config/local_network_test_1_FPGA.yaml --mode CPU_client`; in terminal two: `python launch_CPU_and_FPGA.py --config_fname ./config/local_network_test_1_FPGA.yaml --mode FPGA_simulator`

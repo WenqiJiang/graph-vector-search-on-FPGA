@@ -81,6 +81,27 @@ void vadd(
 // 	const ap_uint<512>* links_base_chan_15,
 // #endif
 
+	float* debug_out_per_query_cand_dists_chan_0,
+#if N_CHANNEL >= 2
+	float* debug_out_per_query_cand_dists_chan_1,
+#endif
+#if N_CHANNEL >= 3	
+	float* debug_out_per_query_cand_dists_chan_2,
+#endif
+#if N_CHANNEL >= 4
+	float* debug_out_per_query_cand_dists_chan_3,
+#endif
+
+	int* debug_out_per_query_cand_num_neighbors_chan_0,
+#if N_CHANNEL >= 2
+	int* debug_out_per_query_cand_num_neighbors_chan_1,
+#endif
+#if N_CHANNEL >= 3
+	int* debug_out_per_query_cand_num_neighbors_chan_2,
+#endif
+#if N_CHANNEL >= 4
+	int* debug_out_per_query_cand_num_neighbors_chan_3,
+#endif
 
 	// out distance & ids
 	float* debug_out_per_query_dists_chan_0,
@@ -180,17 +201,25 @@ void vadd(
 // #endif
 
 
+#pragma HLS INTERFACE m_axi port=debug_out_per_query_cand_dists_chan_0 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdebuge0
+#pragma HLS INTERFACE m_axi port=debug_out_per_query_cand_num_neighbors_chan_0 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdebuge0
 #pragma HLS INTERFACE m_axi port=debug_out_per_query_dists_chan_0 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdebuge0
 #pragma HLS INTERFACE m_axi port=debug_out_per_query_ids_chan_0 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdebuge0
 #if N_CHANNEL >= 2
+#pragma HLS INTERFACE m_axi port=debug_out_per_query_cand_dists_chan_1 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdebuge0
+#pragma HLS INTERFACE m_axi port=debug_out_per_query_cand_num_neighbors_chan_1 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdebuge0
 #pragma HLS INTERFACE m_axi port=debug_out_per_query_dists_chan_1 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdebuge1
 #pragma HLS INTERFACE m_axi port=debug_out_per_query_ids_chan_1 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdebuge1
 #endif
 #if N_CHANNEL >= 3
+#pragma HLS INTERFACE m_axi port=debug_out_per_query_cand_dists_chan_2 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdebuge0
+#pragma HLS INTERFACE m_axi port=debug_out_per_query_cand_num_neighbors_chan_2 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdebuge0
 #pragma HLS INTERFACE m_axi port=debug_out_per_query_dists_chan_2 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdebuge2
 #pragma HLS INTERFACE m_axi port=debug_out_per_query_ids_chan_2 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdebuge2
 #endif
 #if N_CHANNEL >= 4
+#pragma HLS INTERFACE m_axi port=debug_out_per_query_cand_dists_chan_3 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdebuge0
+#pragma HLS INTERFACE m_axi port=debug_out_per_query_cand_num_neighbors_chan_3 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdebuge0
 #pragma HLS INTERFACE m_axi port=debug_out_per_query_dists_chan_3 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdebuge3
 #pragma HLS INTERFACE m_axi port=debug_out_per_query_ids_chan_3 latency=32 num_read_outstanding=16  num_write_outstanding=1 max_write_burst_length=2 offset=slave bundle=gmemdebuge3
 #endif
@@ -294,6 +323,8 @@ void vadd(
 		s_entry_point_ids_per_channel[0], 
 
 		// out distance & ids
+		debug_out_per_query_cand_dists_chan_0,
+		debug_out_per_query_cand_num_neighbors_chan_0,
 		debug_out_per_query_dists_chan_0,
 		debug_out_per_query_ids_chan_0,
 
@@ -324,6 +355,8 @@ void vadd(
 		s_entry_point_ids_per_channel[1], 
 
 		// out distance & ids
+		debug_out_per_query_cand_dists_chan_1,
+		debug_out_per_query_cand_num_neighbors_chan_1,
 		debug_out_per_query_dists_chan_1,
 		debug_out_per_query_ids_chan_1,
 
@@ -355,6 +388,8 @@ void vadd(
 		s_entry_point_ids_per_channel[2], 
 
 		// out distance & ids
+		debug_out_per_query_cand_dists_chan_2,
+		debug_out_per_query_cand_num_neighbors_chan_2,
 		debug_out_per_query_dists_chan_2,
 		debug_out_per_query_ids_chan_2,
 
@@ -386,6 +421,8 @@ void vadd(
 		s_entry_point_ids_per_channel[3], 
 
 		// out distance & ids
+		debug_out_per_query_cand_dists_chan_3,
+		debug_out_per_query_cand_num_neighbors_chan_3,
 		debug_out_per_query_dists_chan_3,
 		debug_out_per_query_ids_chan_3,
 

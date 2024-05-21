@@ -163,4 +163,41 @@ class Priority_queue<result_t, hardware_queue_size, Collect_smallest> {
 				this->queue[i] = backup_queue_array[i];
 			}
 		}
+
+		// pop top element
+		void pop_top(
+			hls::stream<result_t> &s_top_candidates) {
+#pragma HLS inline
+
+			int smallest_element_position = this->runtime_queue_size - 1;
+
+			result_t backup_queue_array[hardware_queue_size];
+#pragma HLS array_partition variable=backup_queue_array complete
+
+			// pop
+			result_t reg_cand = this->queue[smallest_element_position];
+			s_top_candidates.write(reg_cand);
+
+			// right shift step 1: copy to backup register
+			for (int i = 0; i < hardware_queue_size; i++) {
+#pragma HLS UNROLL
+				if (i == 0) {
+					backup_queue_array[i].node_id = -1;
+					backup_queue_array[i].level_id = -1;
+					backup_queue_array[i].dist = large_float;
+				} else if (i > 0 && i < this->runtime_queue_size) {
+					backup_queue_array[i] = this->queue[i - 1];
+				} else { // i >= runtime_queue_size
+					backup_queue_array[i].node_id = -1;
+					backup_queue_array[i].level_id = -1;
+					backup_queue_array[i].dist = -large_float;
+				}
+			}
+
+			// right shift step 2: copy back
+			for (int i = 0; i < hardware_queue_size; i++) {
+#pragma HLS UNROLL
+				this->queue[i] = backup_queue_array[i];
+			}
+		}
 };

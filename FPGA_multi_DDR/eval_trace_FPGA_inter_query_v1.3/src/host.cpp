@@ -500,17 +500,25 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
 	// debug signal: all distances and ids per query 
 	size_t bytes_debug_per_query = 1024 * 1024 * 1024;
 	
+	std::vector<float, aligned_allocator<float>> debug_out_per_query_cand_dists_chan_0(bytes_debug_per_query / sizeof(float));
+	std::vector<int, aligned_allocator<int>> debug_out_per_query_cand_num_neighbors_chan_0(bytes_debug_per_query / sizeof(int));
 	std::vector<float, aligned_allocator<float>> debug_out_per_query_dists_chan_0(bytes_debug_per_query / sizeof(float));
 	std::vector<int, aligned_allocator<int>> debug_out_per_query_ids_chan_0(bytes_debug_per_query / sizeof(int));
 #if N_CHANNEL >= 2
+	std::vector<float, aligned_allocator<float>> debug_out_per_query_cand_dists_chan_1(bytes_debug_per_query / sizeof(float));
+	std::vector<int, aligned_allocator<int>> debug_out_per_query_cand_num_neighbors_chan_1(bytes_debug_per_query / sizeof(int));
 	std::vector<float, aligned_allocator<float>> debug_out_per_query_dists_chan_1(bytes_debug_per_query / sizeof(float));
 	std::vector<int, aligned_allocator<int>> debug_out_per_query_ids_chan_1(bytes_debug_per_query / sizeof(int));
 #endif
 #if N_CHANNEL >= 3
+	std::vector<float, aligned_allocator<float>> debug_out_per_query_cand_dists_chan_2(bytes_debug_per_query / sizeof(float));
+	std::vector<int, aligned_allocator<int>> debug_out_per_query_cand_num_neighbors_chan_2(bytes_debug_per_query / sizeof(int));
 	std::vector<float, aligned_allocator<float>> debug_out_per_query_dists_chan_2(bytes_debug_per_query / sizeof(float));
 	std::vector<int, aligned_allocator<int>> debug_out_per_query_ids_chan_2(bytes_debug_per_query / sizeof(int));
 #endif
 #if N_CHANNEL >= 4
+	std::vector<float, aligned_allocator<float>> debug_out_per_query_cand_dists_chan_3(bytes_debug_per_query / sizeof(float));
+	std::vector<int, aligned_allocator<int>> debug_out_per_query_cand_num_neighbors_chan_3(bytes_debug_per_query / sizeof(int));
 	std::vector<float, aligned_allocator<float>> debug_out_per_query_dists_chan_3(bytes_debug_per_query / sizeof(float));
 	std::vector<int, aligned_allocator<int>> debug_out_per_query_ids_chan_3(bytes_debug_per_query / sizeof(int));
 #endif
@@ -820,21 +828,43 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
             bytes_mem_debug, mem_debug.data(), &err));
 
 	// debug signal
+	OCL_CHECK(err, cl::Buffer buffer_debug_out_per_query_cand_dists_chan_0 (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
+			bytes_debug_per_query, debug_out_per_query_cand_dists_chan_0.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_debug_out_per_query_cand_num_neighbors_chan_0 (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
+			bytes_debug_per_query, debug_out_per_query_cand_num_neighbors_chan_0.data(), &err));
 	OCL_CHECK(err, cl::Buffer buffer_debug_out_per_query_dists_chan_0 (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
 			bytes_debug_per_query, debug_out_per_query_dists_chan_0.data(), &err));
 	OCL_CHECK(err, cl::Buffer buffer_debug_out_per_query_ids_chan_0 (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
 			bytes_debug_per_query, debug_out_per_query_ids_chan_0.data(), &err));
 #if N_CHANNEL >= 2
+	OCL_CHECK(err, cl::Buffer buffer_debug_out_per_query_cand_dists_chan_1 (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
+			bytes_debug_per_query, debug_out_per_query_cand_dists_chan_1.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_debug_out_per_query_cand_num_neighbors_chan_1 (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
+			bytes_debug_per_query, debug_out_per_query_cand_num_neighbors_chan_1.data(), &err));
 	OCL_CHECK(err, cl::Buffer buffer_debug_out_per_query_dists_chan_1 (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
 			bytes_debug_per_query, debug_out_per_query_dists_chan_1.data(), &err));
 	OCL_CHECK(err, cl::Buffer buffer_debug_out_per_query_ids_chan_1 (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
 			bytes_debug_per_query, debug_out_per_query_ids_chan_1.data(), &err));
 #endif
 #if N_CHANNEL >= 3
+	OCL_CHECK(err, cl::Buffer buffer_debug_out_per_query_cand_dists_chan_2 (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
+			bytes_debug_per_query, debug_out_per_query_cand_dists_chan_2.data(), &err));	
+	OCL_CHECK(err, cl::Buffer buffer_debug_out_per_query_cand_num_neighbors_chan_2 (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
+			bytes_debug_per_query, debug_out_per_query_cand_num_neighbors_chan_2.data(), &err));
 	OCL_CHECK(err, cl::Buffer buffer_debug_out_per_query_dists_chan_2 (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
 			bytes_debug_per_query, debug_out_per_query_dists_chan_2.data(), &err));
 	OCL_CHECK(err, cl::Buffer buffer_debug_out_per_query_ids_chan_2 (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
 			bytes_debug_per_query, debug_out_per_query_ids_chan_2.data(), &err));
+#endif
+#if N_CHANNEL >= 4
+	OCL_CHECK(err, cl::Buffer buffer_debug_out_per_query_cand_dists_chan_3 (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
+			bytes_debug_per_query, debug_out_per_query_cand_dists_chan_3.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_debug_out_per_query_cand_num_neighbors_chan_3 (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
+			bytes_debug_per_query, debug_out_per_query_cand_num_neighbors_chan_3.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_debug_out_per_query_dists_chan_3 (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
+			bytes_debug_per_query, debug_out_per_query_dists_chan_3.data(), &err));
+	OCL_CHECK(err, cl::Buffer buffer_debug_out_per_query_ids_chan_3 (context,CL_MEM_USE_HOST_PTR,// | CL_MEM_WRITE_ONLY,
+			bytes_debug_per_query, debug_out_per_query_ids_chan_3.data(), &err));
 #endif
 
     std::cout << "Finish allocate buffer...\n";
@@ -909,6 +939,28 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
 //     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_14));
 //     OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_links_base_chan_15));
 // #endif
+
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_debug_out_per_query_cand_dists_chan_0));
+#if N_CHANNEL >= 2
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_debug_out_per_query_cand_dists_chan_1));
+#endif
+#if N_CHANNEL >= 3
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_debug_out_per_query_cand_dists_chan_2));
+#endif
+#if N_CHANNEL >= 4
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_debug_out_per_query_cand_dists_chan_3));
+#endif
+
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_debug_out_per_query_cand_num_neighbors_chan_0));
+#if N_CHANNEL >= 2
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_debug_out_per_query_cand_num_neighbors_chan_1));
+#endif
+#if N_CHANNEL >= 3
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_debug_out_per_query_cand_num_neighbors_chan_2));
+#endif
+#if N_CHANNEL >= 4
+	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_debug_out_per_query_cand_num_neighbors_chan_3));
+#endif
 
 	OCL_CHECK(err, err = krnl_vector_add.setArg(arg_counter++, buffer_debug_out_per_query_dists_chan_0));
 #if N_CHANNEL >= 2
@@ -1005,15 +1057,19 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
     // Copy Result from Device Global Memory to Host Local Memory
     OCL_CHECK(err, err = q.enqueueMigrateMemObjects({
         buffer_out_id, buffer_out_dist, buffer_mem_debug,
+		buffer_debug_out_per_query_cand_dists_chan_0, buffer_debug_out_per_query_cand_num_neighbors_chan_0,
 		buffer_debug_out_per_query_dists_chan_0, buffer_debug_out_per_query_ids_chan_0
 #if N_CHANNEL >= 2
-		, buffer_debug_out_per_query_dists_chan_1, buffer_debug_out_per_query_ids_chan_1
+		, buffer_debug_out_per_query_cand_dists_chan_1, buffer_debug_out_per_query_cand_num_neighbors_chan_1,
+		buffer_debug_out_per_query_dists_chan_1, buffer_debug_out_per_query_ids_chan_1
 #endif
 #if N_CHANNEL >= 3
-		, buffer_debug_out_per_query_dists_chan_2, buffer_debug_out_per_query_ids_chan_2
+		, buffer_debug_out_per_query_cand_dists_chan_2, buffer_debug_out_per_query_cand_num_neighbors_chan_2,
+		buffer_debug_out_per_query_dists_chan_2, buffer_debug_out_per_query_ids_chan_2
 #endif
 #if N_CHANNEL >= 4
-		, buffer_debug_out_per_query_dists_chan_3, buffer_debug_out_per_query_ids_chan_3
+		, buffer_debug_out_per_query_cand_dists_chan_3, buffer_debug_out_per_query_cand_num_neighbors_chan_3,
+		buffer_debug_out_per_query_dists_chan_3, buffer_debug_out_per_query_ids_chan_3
 #endif
 		}, CL_MIGRATE_MEM_OBJECT_HOST));
     q.finish();
@@ -1146,13 +1202,47 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
 		}
 	}
 
+	int cnt_debug_num_cand_per_array = 0;
+	for (int i = 0; i < query_num_after_offset; i++) {
+		assert (debug_out_per_query_cand_dists_chan_0[cnt_debug_num_cand_per_array] == -1);
+		assert (debug_out_per_query_cand_num_neighbors_chan_0[cnt_debug_num_cand_per_array] == -1);
+		cnt_debug_num_cand_per_array++;
+		
+		while (true) {
+			if (debug_out_per_query_cand_dists_chan_0[cnt_debug_num_cand_per_array] == -2
+				&& debug_out_per_query_cand_num_neighbors_chan_0[cnt_debug_num_cand_per_array] == -2) {
+				cnt_debug_num_cand_per_array++;
+				break;
+			} else if (debug_out_per_query_cand_dists_chan_0[cnt_debug_num_cand_per_array] != -2
+				&& debug_out_per_query_cand_num_neighbors_chan_0[cnt_debug_num_cand_per_array] != -2) {
+				cnt_debug_num_cand_per_array ++;
+			} else {
+				std::cout << "Error: debug signal format is wrong" << std::endl;
+				std::cout << "cnt_debug_num_cand_per_array=" << cnt_debug_num_cand_per_array << std::endl;
+				std::cout << "cand dist=" << debug_out_per_query_cand_dists_chan_0[cnt_debug_num_cand_per_array] << std::endl;
+				std::cout << "num neighbors=" << debug_out_per_query_cand_num_neighbors_chan_0[cnt_debug_num_cand_per_array] << std::endl;
+				exit(1);
+			}
+		}
+	}
+
+
 	// save the first cnt_debug_num_elements_per_array elements per array
+	std::string out_fname_cand_dist = "per_query_cand_dists_" + dataset + "_" + graph_type + 
+		"_mc" + std::to_string(max_cand_per_group) + "_mg" + std::to_string(max_group_num_in_pipe) + ".float";
+	std::string out_fname_cand_num_neighbors = "per_query_cand_num_neighbors_" + dataset + "_" + graph_type +
+		"_mc" + std::to_string(max_cand_per_group) + "_mg" + std::to_string(max_group_num_in_pipe) + ".int";
 	std::string out_fname_dists = "per_query_dists_" + dataset + "_" + graph_type + 
 		"_mc" + std::to_string(max_cand_per_group) + "_mg" + std::to_string(max_group_num_in_pipe) + ".float";
 	std::string out_fname_ids = "per_query_ids_" + dataset + "_" + graph_type +
 		"_mc" + std::to_string(max_cand_per_group) + "_mg" + std::to_string(max_group_num_in_pipe) + ".int";
+	
+	FILE *file_out_fname_cand_dist = fopen(out_fname_cand_dist.c_str(), "w");
+	FILE *file_out_fname_cand_num_neighbors = fopen(out_fname_cand_num_neighbors.c_str(), "w");
     FILE *file_out_fname_dists = fopen(out_fname_dists.c_str(), "w");
 	FILE *file_out_fname_ids = fopen(out_fname_ids.c_str(), "w");
+	fwrite(debug_out_per_query_cand_dists_chan_0.data(), sizeof(float), cnt_debug_num_cand_per_array, file_out_fname_cand_dist);
+	fwrite(debug_out_per_query_cand_num_neighbors_chan_0.data(), sizeof(int), cnt_debug_num_cand_per_array, file_out_fname_cand_num_neighbors);
     fwrite(debug_out_per_query_dists_chan_0.data(), sizeof(float), cnt_debug_num_elements_per_array, file_out_fname_dists);
 	fwrite(debug_out_per_query_ids_chan_0.data(), sizeof(int), cnt_debug_num_elements_per_array, file_out_fname_ids);
 
