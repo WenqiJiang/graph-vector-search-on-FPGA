@@ -84,7 +84,7 @@ def plot_latency(dataset='SIFT1M', graph_type="HNSW", max_degree=64, ef=64, batc
 	ax.set_title(f'Dataset: {dataset}, Graph: {graph_type}', fontsize=12)
 	# plt.text(2, len(y_tick_labels) + 2, "Linear Heatmap", fontsize=16)
 
-	plt.savefig(f'./images/latency_FPGA_{dataset}_{graph_type}.png', transparent=False, dpi=200, bbox_inches="tight")
+	plt.savefig(f'./images/latency_FPGA/latency_FPGA_{dataset}_{graph_type}.png', transparent=False, dpi=200, bbox_inches="tight")
 
 	# plt.show()
 

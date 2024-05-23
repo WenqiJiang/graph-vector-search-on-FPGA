@@ -92,7 +92,7 @@ def plot_latency(df_intra, df_inter, graph_type="HNSW", dataset="SIFT1M", max_de
 
     # print("DST Hops Ratio to 1-PP BFS: {:.2f}, {:.2f}, {:.2f}".format(*y_avg_hops_ratio_dst))
 
-    plt.savefig('./images/intra_inter_query_crossover_{}_{}.png'.format(graph_type, dataset), transparent=False, dpi=200, bbox_inches="tight")
+    plt.savefig('./images/intra_vs_inter_performance/intra_inter_query_crossover_{}_{}.png'.format(graph_type, dataset), transparent=False, dpi=200, bbox_inches="tight")
 
     # plt.show()
  

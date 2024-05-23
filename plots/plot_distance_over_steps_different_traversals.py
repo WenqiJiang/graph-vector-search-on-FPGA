@@ -154,7 +154,7 @@ def plot_distance_over_steps_subplots(mc_mg_groups = [(1, 1), (4, 1), (2, 2)]):
 
         # plt.rcParams.update({'figure.autolayout': True})
 
-    plt.savefig(f'./images/distances_over_steps_all.png', transparent=False, dpi=200, bbox_inches="tight")
+    plt.savefig(f'./images/distance_over_steps/distances_over_steps_all.png', transparent=False, dpi=200, bbox_inches="tight")
     # plt.show()
 
 def plot_distance_over_steps(mc=1, mg=1):
@@ -243,7 +243,7 @@ def plot_distance_over_steps(mc=1, mg=1):
 
     # plt.rcParams.update({'figure.autolayout': True})
 
-    plt.savefig(f'./images/distances_over_steps_mc{mc}_mg{mg}.png', transparent=False, dpi=200, bbox_inches="tight")
+    plt.savefig(f'./images/distance_over_steps/distances_over_steps_mc{mc}_mg{mg}.png', transparent=False, dpi=200, bbox_inches="tight")
     # plt.show()
 
 if __name__ == "__main__":
