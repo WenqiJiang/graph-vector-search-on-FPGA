@@ -90,8 +90,8 @@ def plot_speedup(df_1_chan, df_2_chan, df_4_chan, graph_type="HNSW", dataset="SI
 
     # plot 
     plt_speedup_dst = ax.plot(x, y_speedup_dst, marker='o', markersize=markersize, label='DST speedup')
-    plt_speedup_bfs = ax.plot(x, y_speedup_bfs, marker='x', markersize=markersize, label='BFS speedup')
-    ax.set_xlabel('Number of Processing Pipelines (PP)', fontsize=label_font)
+    plt_speedup_bfs = ax.plot(x, y_speedup_bfs, marker='o', markersize=markersize, label='BFS speedup')
+    ax.set_xlabel('Number of Bloom-fetch-compute (BFC) units', fontsize=label_font)
     ax.set_ylabel('Normalized speedup\nover 1-PP BFS', fontsize=label_font)
     # show graph type and dataset on upper left
     ax.text(0.1, y_speedup_dst[-1], '{},{}'.format(dataset, graph_type), fontsize=label_font, horizontalalignment='left', verticalalignment='top')
@@ -99,7 +99,7 @@ def plot_speedup(df_1_chan, df_2_chan, df_4_chan, graph_type="HNSW", dataset="SI
     # plot group 2 using dashed lines
     ax2 = ax.twinx()
     plt_avg_hops_ratio_dst = ax2.plot(x, y_avg_hops_ratio_dst, marker='^', markersize=markersize, label='DST hops', linestyle='--')
-    plt_avg_hops_ratio_bfs = ax2.plot(x, y_avg_hops_ratio_bfs, marker='s', markersize=markersize, label='BFS hops', linestyle='--')
+    plt_avg_hops_ratio_bfs = ax2.plot(x, y_avg_hops_ratio_bfs, marker='^', markersize=markersize, label='BFS hops', linestyle='--')
     ax2.set_ylabel('Normalized #hops\ncompared to 1-PP BFS', fontsize=label_font)
 
     # mark the speedup of 4 chan dst to 1 chan dst, with a vertical line (with speedup), with y range from  y_speedup_dst[0] to  y_speedup_dst[-1]

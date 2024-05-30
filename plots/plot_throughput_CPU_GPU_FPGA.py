@@ -147,9 +147,27 @@ def plot_throughput(datasets=["SIFT10M", "Deep10M"], graph_types=["HNSW", "NSG"]
     y_gpu_means = get_y_array(get_mean(y_gpu), x_labels_gpu)
     y_fpga_means = get_y_array(get_mean(y_fpga), x_labels)
 
+    # print("CPU throughput:", y_cpu_means)
+    # print("GPU throughput:", y_gpu_means)
+    # print("FPGA throughput:", y_fpga_means)
+    speedup_over_cpu = np.array(y_fpga_means) / np.array(y_cpu_means)
+    y_fpga_means_hnsw = [y_fpga_means[i] for i, x in enumerate(x_labels) if "HNSW" in x]
+    speedup_over_gpu = np.array(y_fpga_means_hnsw) / np.array(y_gpu_means)
+    print("FPGA throughput speedup over CPU: {:.2f}~{:.2f}".format(np.min(speedup_over_cpu), np.max(speedup_over_cpu)))
+    print("FPGA throughput speedup over GPU: {:.2f}~{:.2f}".format(np.min(speedup_over_gpu), np.max(speedup_over_gpu)))
+
     y_cpu_means_norm = get_y_array(get_mean(y_cpu_norm), x_labels)
     y_gpu_means_norm = get_y_array(get_mean(y_gpu_norm), x_labels_gpu)
     y_fpga_means_norm = get_y_array(get_mean(y_fpga_norm), x_labels)
+    
+    # print("Normalized CPU throughput:", y_cpu_means_norm)
+    # print("Normalized GPU throughput:", y_gpu_means_norm)
+    # print("Normalized FPGA throughput:", y_fpga_means_norm)
+    speedup_over_cpu_norm = np.array(y_fpga_means_norm) / np.array(y_cpu_means_norm)
+    y_fpga_means_norm_hnsw = [y_fpga_means_norm[i] for i, x in enumerate(x_labels) if "HNSW" in x]
+    speedup_over_gpu_norm = np.array(y_fpga_means_norm_hnsw) / np.array(y_gpu_means_norm)
+    print("Normalized FPGA throughput speedup over CPU: {:.2f}~{:.2f}".format(np.min(speedup_over_cpu_norm), np.max(speedup_over_cpu_norm)))
+    print("Normalized FPGA throughput speedup over GPU: {:.2f}~{:.2f}".format(np.min(speedup_over_gpu_norm), np.max(speedup_over_gpu_norm)))
 
     y_cpu_error_bar = get_y_array(get_error_bar(y_cpu), x_labels)
     y_gpu_error_bar = get_y_array(get_error_bar(y_gpu), x_labels_gpu)
@@ -202,7 +220,7 @@ def plot_throughput(datasets=["SIFT10M", "Deep10M"], graph_types=["HNSW", "NSG"]
     ax.set_xticks([])
     ax_norm.set_xticks(x)
     ax_norm.set_xticklabels(x_labels_with_recall, rotation=0, fontsize=tick_font)
-    ax.legend([rects1, rects2, rects3], ["CPU", "FPGA", "GPU"], loc="upper center", ncol=3, \
+    ax.legend([rects1, rects2, rects3], ["CPU", "Falcon", "GPU"], loc="upper center", ncol=3, \
         facecolor='white', framealpha=1, frameon=True, fontsize=legend_font)
 
     def autolabel(rects, ax=ax):

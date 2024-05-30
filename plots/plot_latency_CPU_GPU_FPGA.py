@@ -13,6 +13,16 @@ sns.set_theme(style="whitegrid")
 # Set the palette to the "pastel" default palette:
 # sns.set_palette("pastel")
 
+global_intra_query_median_latency_speedup_over_GPU = []
+global_intra_query_median_latency_speedup_over_CPU = []
+global_inter_query_median_latency_speedup_over_GPU = []
+global_inter_query_median_latency_speedup_over_CPU = []
+
+global_intra_query_P95_latency_speedup_over_GPU = []
+global_intra_query_P95_latency_speedup_over_CPU = []
+global_inter_query_P95_latency_speedup_over_GPU = []
+global_inter_query_P95_latency_speedup_over_CPU = []
+
 def plot_latency(dataset='SIFT1M', graph_type="HNSW", max_degree=64, ef=64, batch_sizes=[1,2,4,8,16],
                  show_FPGA=True, show_CPU=True, show_GPU=True, add_CPU_network_latency=True):
 
@@ -42,6 +52,16 @@ def plot_latency(dataset='SIFT1M', graph_type="HNSW", max_degree=64, ef=64, batc
     recall_1_CPU = None
     recall_10_CPU = None
 
+    latency_median_CPU = []
+    latency_median_GPU = []
+    latency_median_FPGA_inter_query = []
+    latency_median_FPGA_intra_query = []
+    
+    latency_P95_CPU = []
+    latency_P95_GPU = []
+    latency_P95_FPGA_inter_query = []
+    latency_P95_FPGA_intra_query = []
+
     for batch_size in batch_sizes:
         if show_FPGA:
             # load latency distribution (in double)
@@ -56,6 +76,11 @@ def plot_latency(dataset='SIFT1M', graph_type="HNSW", max_degree=64, ef=64, batc
             latency_FPGA_inter_query = np.fromfile(f_name_FPGA_inter_query, dtype=np.float64)
             latency_FPGA_intra_query = np.fromfile(f_name_FPGA_intra_query, dtype=np.float64)
 
+            latency_median_FPGA_inter_query.append(np.median(latency_FPGA_inter_query))
+            latency_median_FPGA_intra_query.append(np.median(latency_FPGA_intra_query))
+            latency_P95_FPGA_inter_query.append(np.percentile(latency_FPGA_inter_query, 95))
+            latency_P95_FPGA_intra_query.append(np.percentile(latency_FPGA_intra_query, 95))
+            
             for latency in latency_FPGA_inter_query:
                 d['label'].append('batch_size={}'.format(batch_size))
                 d['data'].append(latency)
@@ -115,6 +140,9 @@ def plot_latency(dataset='SIFT1M', graph_type="HNSW", max_degree=64, ef=64, batc
                         d['label'].append('batch_size={}'.format(batch_size))
                         d['data'].append(latency + average_network_latency)
                         d['category'].append('CPU')
+
+                latency_median_CPU.append(np.median(df_selected['latency_ms_per_batch'].values[0]) + average_network_latency)
+                latency_P95_CPU.append(np.percentile(df_selected['latency_ms_per_batch'].values[0], 95) + average_network_latency)
             if show_GPU:
                 # GPU only supports HNSW
                 if graph_type == "HNSW":
@@ -130,6 +158,8 @@ def plot_latency(dataset='SIFT1M', graph_type="HNSW", max_degree=64, ef=64, batc
                     df_selected = df_gpu[(df_gpu['dataset'] == dataset) & (df_gpu['KBuild'] == degree_gpu) & (df_gpu['MaxIter'] == max_iter_gpu) & (df_gpu['batch_size'] == batch_size)]
                     assert len(df_selected) == 1
 
+                    latency_median_GPU.append(np.median(df_selected['latency_ms_per_batch'].values[0]) + average_network_latency)
+                    latency_P95_GPU.append(np.percentile(df_selected['latency_ms_per_batch'].values[0], 95) + average_network_latency)	
                     # add latency to d
                     for latency in df_selected['latency_ms_per_batch'].values[0]:
                         # print(latency)
@@ -138,8 +168,58 @@ def plot_latency(dataset='SIFT1M', graph_type="HNSW", max_degree=64, ef=64, batc
                         d['category'].append('GPU')
 
     df = pd.DataFrame(data=d)
-    print(df.index)
-    print(df.columns)
+    # print(df.index)
+    # print(df.columns)
+
+    print(f"==== {dataset}, {graph_type} ====")
+    # print(f"Median Latency (ms):")
+    # print(f"CPU: {latency_median_CPU}")
+    # if graph_type == "HNSW":
+    #     print(f"GPU: {latency_median_GPU}")
+    # print(f"FPGA Inter-query Parallel: {latency_median_FPGA_inter_query}")
+    # print(f"FPGA Intra-query Parallel: {latency_median_FPGA_intra_query}")
+
+    # print(f"P95 Latency (ms):")
+    # print(f"CPU: {latency_P95_CPU}")
+    # if graph_type == "HNSW":
+    #     print(f"GPU: {latency_P95_GPU}")
+    # print(f"FPGA Inter-query Parallel: {latency_P95_FPGA_inter_query}")
+    # print(f"FPGA Intra-query Parallel: {latency_P95_FPGA_intra_query}")
+
+    inter_query_median_latency_speedup_over_CPU = np.array(latency_median_CPU) / np.array(latency_median_FPGA_inter_query)
+    intra_query_median_latency_speedup_over_CPU = np.array(latency_median_CPU) / np.array(latency_median_FPGA_intra_query)
+    inter_query_P95_latency_speedup_over_CPU = np.array(latency_P95_CPU) / np.array(latency_P95_FPGA_inter_query)
+    intra_query_P95_latency_speedup_over_CPU = np.array(latency_P95_CPU) / np.array(latency_P95_FPGA_intra_query)
+    global_intra_query_median_latency_speedup_over_CPU.extend(intra_query_median_latency_speedup_over_CPU)
+    global_inter_query_median_latency_speedup_over_CPU.extend(inter_query_median_latency_speedup_over_CPU)
+    global_intra_query_P95_latency_speedup_over_CPU.extend(intra_query_P95_latency_speedup_over_CPU)
+    global_inter_query_P95_latency_speedup_over_CPU.extend(inter_query_P95_latency_speedup_over_CPU)
+    if graph_type == "HNSW":
+        inter_query_median_latency_speedup_over_GPU = np.array(latency_median_GPU) / np.array(latency_median_FPGA_inter_query)
+        intra_query_median_latency_speedup_over_GPU = np.array(latency_median_GPU) / np.array(latency_median_FPGA_intra_query)
+        inter_query_P95_latency_speedup_over_GPU = np.array(latency_P95_GPU) / np.array(latency_P95_FPGA_inter_query)
+        intra_query_P95_latency_speedup_over_GPU = np.array(latency_P95_GPU) / np.array(latency_P95_FPGA_intra_query)
+        global_intra_query_median_latency_speedup_over_GPU.extend(intra_query_median_latency_speedup_over_GPU)
+        global_inter_query_median_latency_speedup_over_GPU.extend(inter_query_median_latency_speedup_over_GPU)
+        global_intra_query_P95_latency_speedup_over_GPU.extend(intra_query_P95_latency_speedup_over_GPU)
+        global_inter_query_P95_latency_speedup_over_GPU.extend(inter_query_P95_latency_speedup_over_GPU)
+    print("Inter-query speedup over CPU (median): {:.2f}~{:.2f}x".format(np.min(inter_query_median_latency_speedup_over_CPU), np.max(inter_query_median_latency_speedup_over_CPU)))
+    print(inter_query_median_latency_speedup_over_CPU)
+    print("Intra-query speedup over CPU (median): {:.2f}~{:.2f}x".format(np.min(intra_query_median_latency_speedup_over_CPU), np.max(intra_query_median_latency_speedup_over_CPU)))
+    print(intra_query_median_latency_speedup_over_CPU)
+    print("Inter-query speedup over CPU (P95): {:.2f}~{:.2f}x".format(np.min(inter_query_P95_latency_speedup_over_CPU), np.max(inter_query_P95_latency_speedup_over_CPU)))
+    # print(inter_query_P95_latency_speedup_over_CPU)
+    print("Intra-query speedup over CPU (P95): {:.2f}~{:.2f}x".format(np.min(intra_query_P95_latency_speedup_over_CPU), np.max(intra_query_P95_latency_speedup_over_CPU)))
+    # print(intra_query_P95_latency_speedup_over_CPU)
+
+    if graph_type == "HNSW":
+        print("Inter-query speedup over GPU (median): {:.2f}~{:.2f}x".format(np.min(inter_query_median_latency_speedup_over_GPU), np.max(inter_query_median_latency_speedup_over_GPU)))
+        print(inter_query_median_latency_speedup_over_GPU)
+        print("Intra-query speedup over GPU (median): {:.2f}~{:.2f}x".format(np.min(intra_query_median_latency_speedup_over_GPU), np.max(intra_query_median_latency_speedup_over_GPU)))
+        print(intra_query_median_latency_speedup_over_GPU)
+        print("Inter-query speedup over GPU (P95): {:.2f}~{:.2f}x".format(np.min(inter_query_P95_latency_speedup_over_GPU), np.max(inter_query_P95_latency_speedup_over_GPU)))
+        print("Intra-query speedup over GPU (P95): {:.2f}~{:.2f}x".format(np.min(intra_query_P95_latency_speedup_over_GPU), np.max(intra_query_P95_latency_speedup_over_GPU)))
+
 
     plt.figure(figsize=(5.5, 2.5))
     # API: https://seaborn.pydata.org/generated/seaborn.violinplot.html
@@ -194,10 +274,34 @@ def plot_latency(dataset='SIFT1M', graph_type="HNSW", max_degree=64, ef=64, batc
 
 if __name__ == "__main__":
     # datasets = ["SIFT1M"]
-    datasets = ["SIFT1M", "SIFT10M", "Deep1M", "Deep10M"]
+    datasets = ["SIFT10M", "Deep10M"]
     graph_types = ["HNSW", "NSG"]
     # graph_types = ["HNSW"]
 
     for dataset in datasets:
         for graph_type in graph_types:
             plot_latency(dataset, graph_type, show_FPGA=True, show_CPU=True, show_GPU=True, add_CPU_network_latency=True)
+
+    print("\n\n===== Speedup across all experiments =====")
+    print("Inter-query median latency speedup over CPU: {:.2f}~{:.2f}x".format(np.min(global_inter_query_median_latency_speedup_over_CPU), np.max(global_inter_query_median_latency_speedup_over_CPU)))
+    print("Intra-query median latency speedup over CPU: {:.2f}~{:.2f}x".format(np.min(global_intra_query_median_latency_speedup_over_CPU), np.max(global_intra_query_median_latency_speedup_over_CPU)))
+    print("Inter-query P95 latency speedup over CPU: {:.2f}~{:.2f}x".format(np.min(global_inter_query_P95_latency_speedup_over_CPU), np.max(global_inter_query_P95_latency_speedup_over_CPU)))
+    print("Intra-query P95 latency speedup over CPU: {:.2f}~{:.2f}x".format(np.min(global_intra_query_P95_latency_speedup_over_CPU), np.max(global_intra_query_P95_latency_speedup_over_CPU)))
+
+    if "HNSW" in graph_types:
+        print("Inter-query median latency speedup over GPU: {:.2f}~{:.2f}x".format(np.min(global_inter_query_median_latency_speedup_over_GPU), np.max(global_inter_query_median_latency_speedup_over_GPU)))
+        print("Intra-query median latency speedup over GPU: {:.2f}~{:.2f}x".format(np.min(global_intra_query_median_latency_speedup_over_GPU), np.max(global_intra_query_median_latency_speedup_over_GPU)))
+        print("Inter-query P95 latency speedup over GPU: {:.2f}~{:.2f}x".format(np.min(global_inter_query_P95_latency_speedup_over_GPU), np.max(global_inter_query_P95_latency_speedup_over_GPU)))
+        print("Intra-query P95 latency speedup over GPU: {:.2f}~{:.2f}x".format(np.min(global_intra_query_P95_latency_speedup_over_GPU), np.max(global_intra_query_P95_latency_speedup_over_GPU)))
+
+    # take the max speedup of two array for each element
+    Falcon_median_speedup_over_CPU = np.maximum(global_inter_query_median_latency_speedup_over_CPU, global_intra_query_median_latency_speedup_over_CPU)
+    Falcon_P95_speedup_over_CPU = np.maximum(global_inter_query_P95_latency_speedup_over_CPU, global_intra_query_P95_latency_speedup_over_CPU)
+    print("Falcon (best of inter/intra-query) median latency speedup over CPU: {:.2f}~{:.2f}x".format(np.min(Falcon_median_speedup_over_CPU), np.max(Falcon_median_speedup_over_CPU)))
+    print("Falcon (best of inter/intra-query) P95 latency speedup over CPU: {:.2f}~{:.2f}x".format(np.min(Falcon_P95_speedup_over_CPU), np.max(Falcon_P95_speedup_over_CPU)))
+    if "HNSW" in graph_types:
+        Falcon_median_speedup_over_GPU = np.maximum(global_inter_query_median_latency_speedup_over_GPU, global_intra_query_median_latency_speedup_over_GPU)
+        Falcon_P95_speedup_over_GPU = np.maximum(global_inter_query_P95_latency_speedup_over_GPU, global_intra_query_P95_latency_speedup_over_GPU)
+        print("Falcon (best of inter/intra-query) median latency speedup over GPU: {:.2f}~{:.2f}x".format(np.min(Falcon_median_speedup_over_GPU), np.max(Falcon_median_speedup_over_GPU)))
+        print("Falcon (best of inter/intra-query) P95 latency speedup over GPU: {:.2f}~{:.2f}x".format(np.min(Falcon_P95_speedup_over_GPU), np.max(Falcon_P95_speedup_over_GPU)))
+    

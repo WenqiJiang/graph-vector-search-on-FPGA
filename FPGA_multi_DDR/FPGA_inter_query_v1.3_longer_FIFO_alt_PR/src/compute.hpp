@@ -51,7 +51,7 @@ void compute_distances_sub_PE_A(
 
     const int vec_AXI_num = D % FLOAT_PER_AXI == 0? D / FLOAT_PER_AXI : D / FLOAT_PER_AXI + 1; 
 
-    float query_vector[D];
+    float query_vector[vec_AXI_num * FLOAT_PER_AXI];
 #pragma HLS unroll variable=query_vector factor=float_per_axi
 
 	bool first_s_query_batch_size = true;

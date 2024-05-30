@@ -93,7 +93,7 @@ def plot_speedup(df, graph_type="HNSW", datasets=['SIFT10M', 'Deep10M'], max_deg
     if suffix == 'inter_query':
         ax.set_title("Inter-query parallel, Graph: " + graph_type, fontsize=label_font)
     elif suffix == 'intra_query':
-        ax.set_title("Intra-query parallel, " + graph_type, fontsize=label_font)
+        ax.set_title("Intra-query parallel, Graph: " + graph_type, fontsize=label_font)
 
     # print speedup range
     print("\n=== {}, Graph: {} ===".format(suffix, graph_type))

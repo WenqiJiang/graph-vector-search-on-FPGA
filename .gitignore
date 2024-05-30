@@ -1,3 +1,4 @@
+perf_test_scripts_*
 **__pycache__
 **/.ipcache
 tree_bin

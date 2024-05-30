@@ -67,6 +67,7 @@ int main(int argc, char** argv)
     else if (dataset == "Deep1M" || dataset == "Deep10M") {assert (d == 96);}
     else if (dataset == "GLOVE") {assert (d == 300);}
     else if (dataset == "SBERT1M") {assert (d == 384);}
+    else if (dataset == "SPACEV1M" || dataset == "SPACEV10M") {assert (d == 100);}
     else {std::cout << "Unknown dataset\n"; return -1;}
 
     int MD = 64;
@@ -110,6 +111,10 @@ int main(int argc, char** argv)
             index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/GLOVE_MD" + std::to_string(MD);
         } else if (dataset == "SBERT1M") {
             index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/SBERT1M_MD" + std::to_string(MD);
+        } else if (dataset == "SPACEV1M") {
+            index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/SPACEV1M_MD" + std::to_string(MD);
+        } else if (dataset == "SPACEV10M") {
+            index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/SPACEV10M_MD" + std::to_string(MD);
         } else {
             std::cout << "Unknown dataset\n";
             return -1;
@@ -127,7 +132,11 @@ int main(int argc, char** argv)
             index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_NSG/GLOVE_MD" + std::to_string(MD);
         } else if (dataset == "SBERT1M") {
             index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_NSG/SBERT1M_MD" + std::to_string(MD);
-        } else {
+        } else if (dataset == "SPACEV1M") {
+            index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_NSG/SPACEV1M_MD" + std::to_string(MD);
+        } else if (dataset == "SPACEV10M") {
+            index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_NSG/SPACEV10M_MD" + std::to_string(MD);
+        }  else {
             std::cout << "Unknown dataset\n";
             return -1;
         }
@@ -170,6 +179,16 @@ int main(int argc, char** argv)
         fname_query_vectors = concat_dir(dataset_dir, "query_10K.fvecs");
         fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_1M.ibin");
         fname_gt_dist = concat_dir(dataset_dir, "gt_dis_1M.fbin");
+    } else if (dataset == "SPACEV1M" || dataset == "SPACEV10M") {
+        dataset_dir = "/mnt/scratch/wenqi/Faiss_experiments/SPACEV";
+        fname_query_vectors = concat_dir(dataset_dir, "query_10K.bin");
+        if (dataset == "SPACEV1M") {
+            fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_1M.ibin");
+            fname_gt_dist = concat_dir(dataset_dir, "gt_dis_1M.fbin");
+        } else if (dataset == "SPACEV10M") {
+            fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_10M.ibin");
+            fname_gt_dist = concat_dir(dataset_dir, "gt_dis_10M.fbin");
+        }
     }
 
     // initialization values
@@ -205,10 +224,12 @@ int main(int argc, char** argv)
     }
     
     size_t bytes_per_vec = d * sizeof(float);
-    size_t bytes_per_db_vec_plus_padding = d % 16 == 0? d * sizeof(float) + 64 : (d + 16 - d % 16) * sizeof(float) + 64;
-    size_t bytes_entry_vector = bytes_per_vec;
+    size_t bytes_per_db_vec_plus_padding = d % 16 == 0? d * sizeof(float) : (d + 16 - d % 16) * sizeof(float);
+    assert (bytes_per_db_vec_plus_padding % 64 == 0);
+    int d_after_padding = bytes_per_db_vec_plus_padding / sizeof(float);
+    size_t bytes_entry_vector = bytes_per_db_vec_plus_padding;
     size_t bytes_entry_point_ids = query_num * sizeof(int);
-    size_t bytes_query_vectors = query_num * bytes_per_vec;
+    size_t bytes_query_vectors = query_num * bytes_per_db_vec_plus_padding;
     size_t bytes_out_id = query_num * ef * sizeof(int);
     size_t bytes_out_dist = query_num * ef * sizeof(float);	
     size_t bytes_mem_debug = query_num * 5 * sizeof(int);
@@ -498,7 +519,9 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
     if (graph_type == "HNSW") {
         labels_base.resize(bytes_labels_base / sizeof(int));
     }
-    std::vector<unsigned char> raw_query_vectors(raw_query_vectors_size / sizeof(unsigned char));
+    // init query vectors as zeros (there will be paddings in some cases for unusual d)
+    std::vector<char> raw_query_vectors(raw_query_vectors_size / sizeof(char));
+    memset(raw_query_vectors.data(), 0, raw_query_vectors_size);
     std::vector<int> raw_gt_vec_ID(raw_gt_vec_ID_size / sizeof(int));
     std::vector<float> raw_gt_dist(raw_gt_dist_size / sizeof(float));
 
@@ -631,6 +654,32 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
         for (int qid = 0; qid < query_num_after_offset; qid++) {
             memcpy(&query_vectors[qid * d], &raw_query_vectors[(qid + query_offset) * len_per_query + offset_bytes], len_per_query);
         }
+        size_t len_per_gt = 1000;
+        size_t offset = 2; // first 8 bytes are num vec & dim
+        for (int qid = 0; qid < query_num_after_offset; qid++) {
+            for (int i = 0; i < max_topK; i++) {
+                gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[(qid + query_offset) * len_per_gt + offset + i];
+                gt_dist[qid * max_topK + i] = raw_gt_dist[(qid + query_offset) * len_per_gt + offset + i];
+            }
+        }
+    } else if (dataset == "SPACEV1M" || dataset == "SPACEV10M") {
+        // queries: fbin, ground truth: ibin, first 8 bytes are num vec & dim
+        size_t len_per_query = d * sizeof(char);
+        size_t offset_bytes = 8; // first 8 bytes are num vec & dim
+
+        // raw query vectors are in int8 format, need to convert to flow format for query_vectors
+        for (int qid = 0; qid < query_num_after_offset; qid++) {
+            for (int i = 0; i < d; i++) {
+                // first load as unsigned int, thus reducing offset of 128 between int8 and uint8
+                float val = (float) raw_query_vectors[(qid + query_offset) * len_per_query + offset_bytes + i];
+                query_vectors[qid * d_after_padding + i] = val;
+            }
+        }
+        // print out first query (include padding):
+        // std::cout << "First query: ";
+        // for (int i = 0; i < d_after_padding; i++) {
+        // 	std::cout << query_vectors[i] << " ";
+        // }
         size_t len_per_gt = 1000;
         size_t offset = 2; // first 8 bytes are num vec & dim
         for (int qid = 0; qid < query_num_after_offset; qid++) {
@@ -968,7 +1017,8 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
         if (gt_vec_ID[i * max_topK] != out_id[i * ef]) {
                 std::cout << "Mismatch ";
         }    
-        std::cout << "gt: " << gt_vec_ID[i * max_topK] << " hw: " << out_id[i * ef] << " hw dist: " << out_dist[i * ef] <<   std::endl;
+        std::cout << "gt ID: " << gt_vec_ID[i * max_topK] << "\tgt dist: " << gt_dist[i * max_topK] 
+            << "\thw ID: " << out_id[i * ef] << "\thw dist: " << out_dist[i * ef] <<   std::endl;
     }
 #endif
 
@@ -1020,22 +1070,22 @@ size_t bytes_db_vectors_chan_0 = GetFileSize(fname_ground_vectors_chan_0);
     std::cout << "Dist match id mismatch count=" << dist_match_id_mismatch_cnt << std::endl;
 
     // count avg #hops on base layer
-	if (debug_size == 2) {
-		int total_hops = 0;
-		int total_visited_nodes = 0;
-		for (int i = 0; i < query_num_after_offset; i++) {
-			total_hops += mem_debug[2 * i];
-			total_visited_nodes += mem_debug[2 * i + 1];
-		}
-		std::cout << "Average #hops on base layer=" << (float) total_hops / query_num_after_offset << std::endl;
-		std::cout << "Average #visited nodes=" << (float) total_visited_nodes / query_num_after_offset << std::endl;
-	} else if (debug_size == 1) {
-		int total_hops = 0;
-		for (int i = 0; i < query_num_after_offset; i++) {
-			total_hops += mem_debug[i];
-		}
-		std::cout << "Average #hops on base layer=" << (float) total_hops / query_num_after_offset << std::endl;
-	}
+    if (debug_size == 2) {
+        int total_hops = 0;
+        int total_visited_nodes = 0;
+        for (int i = 0; i < query_num_after_offset; i++) {
+            total_hops += mem_debug[2 * i];
+            total_visited_nodes += mem_debug[2 * i + 1];
+        }
+        std::cout << "Average #hops on base layer=" << (float) total_hops / query_num_after_offset << std::endl;
+        std::cout << "Average #visited nodes=" << (float) total_visited_nodes / query_num_after_offset << std::endl;
+    } else if (debug_size == 1) {
+        int total_hops = 0;
+        for (int i = 0; i < query_num_after_offset; i++) {
+            total_hops += mem_debug[i];
+        }
+        std::cout << "Average #hops on base layer=" << (float) total_hops / query_num_after_offset << std::endl;
+    }
 
     return  0;
 }

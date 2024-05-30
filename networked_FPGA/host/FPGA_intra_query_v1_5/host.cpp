@@ -139,6 +139,7 @@ int main(int argc, char **argv) {
     else if (dataset == "Deep1M" || dataset == "Deep10M") {assert (d == 96);}
     else if (dataset == "GLOVE") {assert (d == 300);}
     else if (dataset == "SBERT1M") {assert (d == 384);}
+    else if (dataset == "SPACEV1M" || dataset == "SPACEV10M") {assert (d == 100);}
     else {std::cout << "Unknown dataset\n"; return -1;}
 
     int MD = 64;
@@ -185,6 +186,10 @@ int main(int argc, char **argv) {
             index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/GLOVE_MD" + std::to_string(MD);
         } else if (dataset == "SBERT1M") {
             index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/SBERT1M_MD" + std::to_string(MD);
+        } else if (dataset == "SPACEV1M") {
+            index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/SPACEV1M_MD" + std::to_string(MD);
+        } else if (dataset == "SPACEV10M") {
+            index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/SPACEV10M_MD" + std::to_string(MD);
         } else {
             std::cout << "Unknown dataset\n";
             return -1;
@@ -202,7 +207,11 @@ int main(int argc, char **argv) {
             index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_NSG/GLOVE_MD" + std::to_string(MD);
         } else if (dataset == "SBERT1M") {
             index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_NSG/SBERT1M_MD" + std::to_string(MD);
-        } else {
+        } else if (dataset == "SPACEV1M") {
+            index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_NSG/SPACEV1M_MD" + std::to_string(MD);
+        } else if (dataset == "SPACEV10M") {
+            index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_NSG/SPACEV10M_MD" + std::to_string(MD);
+        }  else {
             std::cout << "Unknown dataset\n";
             return -1;
         }
@@ -245,6 +254,16 @@ int main(int argc, char **argv) {
         // fname_query_vectors = concat_dir(dataset_dir, "query_10K.fvecs");
         // fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_1M.ibin");
         // fname_gt_dist = concat_dir(dataset_dir, "gt_dis_1M.fbin");
+    } else if (dataset == "SPACEV1M" || dataset == "SPACEV10M") {
+        dataset_dir = "/mnt/scratch/wenqi/Faiss_experiments/SPACEV";
+        // fname_query_vectors = concat_dir(dataset_dir, "query_10K.bin");
+        // if (dataset == "SPACEV1M") {
+        //     fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_1M.ibin");
+        //     fname_gt_dist = concat_dir(dataset_dir, "gt_dis_1M.fbin");
+        // } else if (dataset == "SPACEV10M") {
+        //     fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_10M.ibin");
+        //     fname_gt_dist = concat_dir(dataset_dir, "gt_dis_10M.fbin");
+        // }
     }
 
     // initialization values

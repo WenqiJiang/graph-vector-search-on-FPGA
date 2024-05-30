@@ -25,10 +25,10 @@ class Resources:
             sum_resources.URAM += resource.URAM
 
         return sum_resources
-    
+
     def __str__(self):
         return f"BRAM_18K: {self.BRAM_18K}, DSP: {self.DSP}, FF: {self.FF}, LUT: {self.LUT}, URAM: {self.URAM}"
-    
+
     def calculate_percentage(self, resource_total):
         """
         Calculate the percentage of the current object compared to the total resources.
@@ -40,7 +40,7 @@ class Resources:
         percentage.LUT = safe_div(self.LUT, resource_total.LUT)
         percentage.URAM = safe_div(self.URAM, resource_total.URAM)
 
-        print(percentage)
+        # print(percentage)
 
         return percentage
 
@@ -65,18 +65,21 @@ resource_fetch_vectors = Resources(BRAM_18K=0, DSP=0, FF=945, LUT=868, URAM=0)
 resource_compute_distances = Resources(BRAM_18K=26, DSP=122, FF=29080, LUT=21517, URAM=0)
 
 # Total resources
-resource_total = Resources.add_resources(
-    [resource_controller, resource_fetch_neighbor_ids, resource_bloom_filter, resource_fetch_vectors, resource_compute_distances])
-
-# Calculate the percentage of resources used by each task
-print("Controller resource ratio:")
-resource_controller.calculate_percentage(resource_total)
-
-print("Bloom filter resource ratio:")
-resource_bloom_filter.calculate_percentage(resource_total)
-
-print("Compute distances resource ratio:")
-resource_compute_distances.calculate_percentage(resource_total)
+def get_total_resources(mode='inter-query', n_BFC=4):
+    if mode == 'inter-query':
+        resource_total = Resources.add_resources(
+            n_BFC * [resource_controller, resource_fetch_neighbor_ids, resource_bloom_filter, resource_fetch_vectors, resource_compute_distances])
+    elif mode == 'intra-query':
+        resource_total = Resources.add_resources(
+            [resource_controller, resource_fetch_neighbor_ids] +
+            n_BFC * [resource_bloom_filter, resource_fetch_vectors, resource_compute_distances])
+    
+    # Calculate the percentage of resources used by each task
+    print("Controller resource ratio:", resource_controller.calculate_percentage(resource_total))
+    print("Bloom filter resource ratio:", resource_bloom_filter.calculate_percentage(resource_total))
+    print("Compute distances resource ratio:", resource_compute_distances.calculate_percentage(resource_total))
+     
+    return resource_total
 
 
 def calculate_utilization_control(freq, qps, avg_hops, avg_visited):
@@ -124,16 +127,47 @@ def calculate_utilization_compute_distances(freq, qps, avg_hops, avg_visited, d)
 #     """
 #     pass
 
-def calculate_silicon_efficiency(freq, qps, avg_hops, avg_visited, d):
+def calculate_silicon_efficiency(freq, qps, avg_hops, avg_visited, d, mode='inter-query', n_BFC=4):
     """
     Calculate the silicon efficiency of the accelerator.
     """
+    assert mode in ['inter-query', 'intra-query']
     util_control = calculate_utilization_control(freq, qps, avg_hops, avg_visited)
-    util_bloom_filter = calculate_utilization_bloom_filter(freq, qps, avg_hops, avg_visited)
-    util_compute_distances = calculate_utilization_compute_distances(freq, qps, avg_hops, avg_visited, d)
-    print("Control utilization:", util_control)
-    print("Bloom filter utilization:", util_bloom_filter)
-    print("Compute distances utilization:", util_compute_distances)
+    if mode == 'inter-query':
+        util_control /= n_BFC
+    util_bloom_filter = calculate_utilization_bloom_filter(freq, qps, avg_hops, avg_visited) / n_BFC
+    util_compute_distances = calculate_utilization_compute_distances(freq, qps, avg_hops, avg_visited, d) / n_BFC
+    print("Control utilization: {:.2f}%".format(util_control * 100))
+    print("Bloom filter utilization: {:.2f}%".format(util_bloom_filter * 100))
+    print("Compute distances utilization: {:.2f}%".format(util_compute_distances * 100))
+
+    # # calculated weighted resource consumption
+    # resource_controller
+    # # Fetch neighbors
+    # resource_fetch_neighbor_ids 
+    # # Bloom filter
+    # resource_bloom_filter
+    # # Fetch vectors
+    # resource_fetch_vectors 
+    # # Compute
+    # resource_compute_distances 
+    weighted_util = 0
+    if mode == 'inter-query':
+        resource_total = get_total_resources(mode='inter-query', n_BFC=n_BFC)
+        weighted_util += resource_controller.calculate_percentage(resource_total).LUT * util_control * n_BFC
+        weighted_util += resource_bloom_filter.calculate_percentage(resource_total).LUT * util_bloom_filter * n_BFC
+        weighted_util += resource_compute_distances.calculate_percentage(resource_total).LUT * util_compute_distances * n_BFC
+    elif mode == 'intra-query':
+        resource_total = get_total_resources(mode='intra-query', n_BFC=n_BFC)
+        weighted_util += resource_controller.calculate_percentage(resource_total).LUT * util_control
+        weighted_util += resource_bloom_filter.calculate_percentage(resource_total).LUT * util_bloom_filter * n_BFC
+        weighted_util += resource_compute_distances.calculate_percentage(resource_total).LUT * util_compute_distances * n_BFC
+    print("Weighted utilization: {:.2f}%".format(weighted_util * 100))
+
+    
+
+
+
 
 
 """
@@ -169,19 +203,43 @@ best dst  (mc = 1, mg = 4): time_ms_kernel: 336.277, recall_1: 0.9945, recall_10
 # Calculate the silicon efficiency of the accelerator
 freq = 200 * 10**6
 nq = 10000
-n_pipelines = 4
+n_BFC = 4
 d = 128
 
-print("Baseline:")
+print("\n==== Silicon efficiency ====")
+
+print("\nBaseline (inter-query):")
 time_ms_kernel = 641.453
-qps = nq * 1000 / time_ms_kernel / n_pipelines
+qps = nq * 1000 / time_ms_kernel
 avg_hops = 70.0091
 avg_visited = 1745.550
-calculate_silicon_efficiency(freq, qps, avg_hops, avg_visited, d)
+calculate_silicon_efficiency(freq, qps, avg_hops, avg_visited, d, mode='inter-query', n_BFC=n_BFC)
 
-print("DST:")
+# Inter query:
+# 75        HNSW   SIFT1M         64  64                  1                     4         336.261    0.9945    0.98176   87.7296     2181.500
+print("\nDST (inter-query):")
 time_ms_kernel = 336.277
-qps = nq * 1000 / time_ms_kernel / n_pipelines
+qps = nq * 1000 / time_ms_kernel 
 avg_hops = 87.7296
 avg_visited = 2181.500
-calculate_silicon_efficiency(freq, qps, avg_hops, avg_visited, d)
+calculate_silicon_efficiency(freq, qps, avg_hops, avg_visited, d, mode='inter-query', n_BFC=n_BFC)
+
+# Intra query:
+# 0         HNSW   SIFT1M         64  64                  1                     1        1814.540    0.9938    0.98012   70.0090        None
+print("\nBaseline (intra-query):")
+time_ms_kernel = 1814.540
+qps = nq * 1000 / time_ms_kernel
+avg_hops = 70.0091
+avg_visited = 1745.550
+calculate_silicon_efficiency(freq, qps, avg_hops, avg_visited, d, mode='intra-query', n_BFC=n_BFC)
+
+# Inter query:
+# 85        HNSW   SIFT1M         64  64                  2                     6         440.623    0.9945    0.98471  131.1770     3198.620
+# Intra query:
+# 13        HNSW   SIFT1M         64  64                  2                     6         674.088    0.9953    0.98543  131.1840        None
+print("\nDST (intra-query):")
+time_ms_kernel = 674.088
+qps = nq * 1000 / time_ms_kernel
+avg_hops = 131.1770
+avg_visited = 3198.620
+calculate_silicon_efficiency(freq, qps, avg_hops, avg_visited, d, mode='intra-query', n_BFC=n_BFC)
