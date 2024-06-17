@@ -16,6 +16,12 @@ import seaborn
 import numpy as np
 import pandas as pd
 
+import seaborn as sns 
+# plt.style.use('ggplot')
+# plt.style.use('seaborn-pastel') 
+# plt.style.use('seaborn-colorblind') 
+
+# sns.set_theme(style="whitegrid")
 # plt.style.use('seaborn')
 # plt.style.use('seaborn-colorblind')
 plt.style.use('seaborn-pastel')
@@ -50,13 +56,13 @@ def plot_speedup(df_1_chan, df_2_chan, df_4_chan, graph_type="HNSW", dataset="SI
 
     df_chan_list = [df_1_chan, df_2_chan, df_4_chan]
     # get three subplots, horizontally 
-    fig, ax = plt.subplots(1, 1, figsize=(3, 2))
+    fig, ax = plt.subplots(1, 1, figsize=(3, 1.8))
     x = ["1", "2", "4"]
 
-    label_font = 10
+    label_font = 12
     markersize = 8
     tick_font = 10
-    legend_font = 10
+    legend_font = 12
 
     # 2 x 2 plots
     # plot group 1: speed up based on time for slowest / fastest run for different PE numbers - with solid lines (y axis 1)
@@ -81,18 +87,18 @@ def plot_speedup(df_1_chan, df_2_chan, df_4_chan, graph_type="HNSW", dataset="SI
 
     # print info, with :.2f precision
     print("\n=== Dataset: {}, Graph: {} ===".format(dataset, graph_type))
-    print("DST Speedup over 1-PP BFS: {:.2f}, {:.2f}, {:.2f}".format(*y_speedup_dst))
-    print("BFS Speedup over 1-PP BFS: {:.2f}, {:.2f}, {:.2f}".format(*y_speedup_bfs))
+    print("DST Speedup over 1-BFC BFS: {:.2f}, {:.2f}, {:.2f}".format(*y_speedup_dst))
+    print("BFS Speedup over 1-BFC BFS: {:.2f}, {:.2f}, {:.2f}".format(*y_speedup_bfs))
     print("DST Speedup over BFS (1, 2, 4 chan): {:.2f}, {:.2f}, {:.2f}".format(*y_speedup_dst / np.array(y_speedup_bfs)))
-    print("DST Speedup over 1-PP DST: {:.2f}, {:.2f}, {:.2f}".format(*y_speedup_dst / y_speedup_dst[0]))
+    print("DST Speedup over 1-BFC DST: {:.2f}, {:.2f}, {:.2f}".format(*y_speedup_dst / y_speedup_dst[0]))
 
-    print("DST Hops Ratio to 1-PP BFS: {:.2f}, {:.2f}, {:.2f}".format(*y_avg_hops_ratio_dst))
+    print("DST Hops Ratio to 1-BFC BFS: {:.2f}, {:.2f}, {:.2f}".format(*y_avg_hops_ratio_dst))
 
     # plot 
     plt_speedup_dst = ax.plot(x, y_speedup_dst, marker='o', markersize=markersize, label='DST speedup')
     plt_speedup_bfs = ax.plot(x, y_speedup_bfs, marker='o', markersize=markersize, label='BFS speedup')
-    ax.set_xlabel('Number of Bloom-fetch-compute (BFC) units', fontsize=label_font)
-    ax.set_ylabel('Normalized speedup\nover 1-PP BFS', fontsize=label_font)
+    ax.set_xlabel('#Bloom-fetch-compute (BFC) unit', fontsize=label_font)
+    ax.set_ylabel('Norm. speedup\nover 1-BFC BFS', fontsize=label_font)
     # show graph type and dataset on upper left
     ax.text(0.1, y_speedup_dst[-1], '{},{}'.format(dataset, graph_type), fontsize=label_font, horizontalalignment='left', verticalalignment='top')
     
@@ -100,7 +106,7 @@ def plot_speedup(df_1_chan, df_2_chan, df_4_chan, graph_type="HNSW", dataset="SI
     ax2 = ax.twinx()
     plt_avg_hops_ratio_dst = ax2.plot(x, y_avg_hops_ratio_dst, marker='^', markersize=markersize, label='DST hops', linestyle='--')
     plt_avg_hops_ratio_bfs = ax2.plot(x, y_avg_hops_ratio_bfs, marker='^', markersize=markersize, label='BFS hops', linestyle='--')
-    ax2.set_ylabel('Normalized #hops\ncompared to 1-PP BFS', fontsize=label_font)
+    ax2.set_ylabel('Norm. #hops\nover 1-BFC BFS', fontsize=label_font)
 
     # mark the speedup of 4 chan dst to 1 chan dst, with a vertical line (with speedup), with y range from  y_speedup_dst[0] to  y_speedup_dst[-1]
     # dst_speedup_4_to_1 = y_speedup_dst[-1] / y_speedup_dst[0]
@@ -120,13 +126,16 @@ def plot_speedup(df_1_chan, df_2_chan, df_4_chan, graph_type="HNSW", dataset="SI
 
     # set legend
     plots = plt_speedup_dst + plt_speedup_bfs + plt_avg_hops_ratio_dst + plt_avg_hops_ratio_bfs
-    ax.legend(plots, [p.get_label() for p in plots], loc=(-0.1, 1.05), fontsize=legend_font, ncol=2)
+    ax.legend(plots, [p.get_label() for p in plots], loc=(-0.2, 1.05), fontsize=legend_font, ncol=2, frameon=False)
 
+	# add horizontal grid
+    # ax.grid(axis='y', linestyle='-', alpha=0.5, linewidth=1)
 
     # set x lim
     ax.set_xlim(-0.2, 2.1)
 
-    plt.savefig('./images/intra_query_chan_scalability/intra_query_scalability_{}_{}.png'.format(graph_type, dataset), transparent=False, dpi=200, bbox_inches="tight")
+    for out_type in ['png', 'pdf']:
+        plt.savefig('./images/intra_query_chan_scalability/intra_query_scalability_{}_{}.{}'.format(graph_type, dataset, out_type), transparent=False, dpi=200, bbox_inches="tight")
 
     # plt.show()
  
@@ -136,7 +145,7 @@ if __name__ == "__main__":
     df_2_chan = pd.read_pickle(args.df_path_2_chan)
     df_4_chan = pd.read_pickle(args.df_path_4_chan)
     # graph_types = ['HNSW']
-    datasets = ['SIFT10M', 'Deep10M']
+    datasets = ['SIFT10M', 'Deep10M', 'SPACEV10M']
     graph_types = ['HNSW', 'NSG']
 
     for graph_type in graph_types:

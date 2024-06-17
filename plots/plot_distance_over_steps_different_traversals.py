@@ -14,12 +14,12 @@ for i, color in enumerate(plt.rcParams['axes.prop_cycle']):
 print(default_colors[0], type(default_colors[0]))
 
 
-def plot_distance_over_steps_subplots(mc_mg_groups = [(1, 1), (4, 1), (2, 2)]):
+def plot_distance_over_steps_subplots(dataset="SIFT1M", graph_type="HNSW", mc_mg_groups = [(1, 1), (4, 1), (2, 2)]):
 
     folder_name = 'saved_distances_over_steps'
 
     n_subplots = len(mc_mg_groups) 
-    fig, ax = plt.subplots(3, 1, figsize=(6, 3), sharex=True,) # share x axis
+    fig, ax = plt.subplots(3, 1, figsize=(6, 2.8), sharex=True,) # share x axis
 
     # distances between plots
     plt.subplots_adjust(hspace=0.25)
@@ -32,16 +32,20 @@ def plot_distance_over_steps_subplots(mc_mg_groups = [(1, 1), (4, 1), (2, 2)]):
     # // dist, id of last step
     # /// -2 (as finish)
 
-    label_font = 10
+    label_font = 11
     markersize = 0.1
     tick_font = 8
-    title_font = 10
+    title_font = 11
 
+    # set x lim
+    x_max = None
+    y_max = None
     
+    algo_names = []
     for pid, (mc, mg) in enumerate(mc_mg_groups):
-        fname_dist = os.path.join(folder_name, f'per_query_dists_SIFT1M_HNSW_mc{mc}_mg{mg}.float')
-        fname_cand_dist = os.path.join(folder_name, f'per_query_cand_dists_SIFT1M_HNSW_mc{mc}_mg{mg}.float')
-        fname_cand_num_neighbors = os.path.join(folder_name, f'per_query_cand_num_neighbors_SIFT1M_HNSW_mc{mc}_mg{mg}.int')
+        fname_dist = os.path.join(folder_name, f'per_query_dists_{dataset}_{graph_type}_mc{mc}_mg{mg}.float')
+        fname_cand_dist = os.path.join(folder_name, f'per_query_cand_dists_{dataset}_{graph_type}_mc{mc}_mg{mg}.float')
+        fname_cand_num_neighbors = os.path.join(folder_name, f'per_query_cand_num_neighbors_{dataset}_{graph_type}_mc{mc}_mg{mg}.int')
         data_raw_dist = np.fromfile(fname_dist, dtype=np.float32)
         data_raw_cand_dist = np.fromfile(fname_cand_dist, dtype=np.float32)
         data_raw_cand_num_neighbors = np.fromfile(fname_cand_num_neighbors, dtype=np.int32)
@@ -49,7 +53,7 @@ def plot_distance_over_steps_subplots(mc_mg_groups = [(1, 1), (4, 1), (2, 2)]):
         cand_dist_over_steps = []
         cand_num_neighbors_over_steps = []
         cand_dist_step_ids = [0]
-        qid = 0 # query id
+        qid = 1 # query id
         # qid = 10 # query id
         q_cnt = 0
         for j, dist in enumerate(list(data_raw_dist)):
@@ -105,10 +109,11 @@ def plot_distance_over_steps_subplots(mc_mg_groups = [(1, 1), (4, 1), (2, 2)]):
             color = default_colors[0]
         elif mc > 1 and mg == 1:
             algo = "(b) Multi-Candidate Search" + f" (mc={mc})"
-            color = default_colors[1]
+            color = default_colors[2]
         elif mg > 1:
             algo = "(c) Delayed-Synchronization Traversal" + f" (mc={mc}, mg={mg})"
-            color = default_colors[2]
+            color = default_colors[1]
+        algo_names.append(algo)
 
         x = np.arange(len(dist_over_steps)) + 1
         print(len(x))
@@ -116,51 +121,61 @@ def plot_distance_over_steps_subplots(mc_mg_groups = [(1, 1), (4, 1), (2, 2)]):
         # reduce marker sizes
         plot_cand = ax[pid].scatter(cand_dist_step_ids, cand_dist_over_steps, marker='x', s=15, color='#BBBBBB')
 
-        # find the nearest neighbor
-        min_dist = np.min(dist_over_steps)
-        min_dist_idx = np.argmin(dist_over_steps)
-        plot_nearest_neighbors = ax[pid].scatter([min_dist_idx], [min_dist], marker='o', s=5, color='#555555')
+        # find the 10 nearest neighbor and their indexes
+        min_dist = []
+        min_dist_idx = []
+        dist_over_steps_with_idx = list(enumerate(dist_over_steps))
+        dist_over_steps_with_idx.sort(key=lambda x: x[1])
+        for i in range(10):
+            min_dist.append(dist_over_steps_with_idx[i][1])
+            min_dist_idx.append(dist_over_steps_with_idx[i][0])
+        plot_nearest_neighbors = ax[pid].scatter(min_dist_idx, min_dist, marker='*', s=20, color='#555555')
 
         # plot1 = ax.plot(data_x, data_y_plot1, marker='^', markersize=markersize) # color=color_plot1,
         # ax.legend([plot0[0], plot1[0]], ["plot0_legend", "plot1_legend"], loc='upper right', fontsize=label_font)
         # ax[pid].get_xaxis().set_visible(True)
         if pid == n_subplots - 1:
             # ax[pid].tick_params(top=False, bottom=True, left=True, right=False, labelleft=True, labelsize=tick_font)
-            ax[pid].set_xlabel('Step IDs (each is a neighbor of a candidate node)', fontsize=label_font)
+            ax[pid].set_xlabel('Traversal procedure (number of visited nodes)', fontsize=label_font)
         ax[pid].set_ylabel('Distance\nto query', fontsize=label_font)
         # set y as exponential
         ax[pid].ticklabel_format(style='sci', axis='y', scilimits=(0,0))
 
         # set x lim
-        x_max = 3100
-        y_max = 4e+5
-        ax[pid].set_xlim(0, x_max)
-        ax[pid].set_ylim(0, y_max)
+        if x_max is None and y_max is None:
+            x_max = 1.02 * len(dist_over_steps)
+            y_max = 1.2 * np.max(dist_over_steps)
+        x_max = max(1.02 * len(dist_over_steps), x_max)
+        for tmp_pid in range(pid + 1):
+            ax[tmp_pid].set_xlim(0, x_max)
+            ax[tmp_pid].set_ylim(0, y_max)
 
         # set y tick font
         # ax[pid].tick_params(axis='y', labelsize=tick_font)
 
         # find nearest neighbor in dist_over_steps, and add an arrow pointing to it
-        ax[pid].annotate(f'1st-NN', xy=(min_dist_idx + 1, min_dist), xytext=(min_dist_idx + 1, y_max * 0.7),
-                    arrowprops=dict(facecolor='black', arrowstyle='->'), fontsize=label_font, horizontalalignment='center', verticalalignment='top', )
+        # ax[pid].annotate(f'1st-NN', xy=(min_dist_idx + 1, min_dist), xytext=(min_dist_idx + 1, y_max * 0.7),
+        #             arrowprops=dict(facecolor='black', arrowstyle='->'), fontsize=label_font, horizontalalignment='center', verticalalignment='top', )
 
-        if pid == 0:
-            ax[pid].set_title("Traversal processs of the same query (Dataset: SIFT1M, Graph: HNSW)", fontsize=title_font)
+        # if pid == 0:
+        #     ax[pid].set_title(f"Traversal processs of the same query (Dataset: {dataset}, Graph: {graph_type})", fontsize=title_font)
 
-        ax[pid].text(0.98 * x_max, 0.95 * y_max, algo, fontsize=label_font, verticalalignment='top', horizontalalignment='right')
+    for pid, (mc, mg) in enumerate(mc_mg_groups):
+        ax[pid].text(0.98 * x_max, 0.95 * y_max, algo_names[pid], fontsize=label_font, verticalalignment='top', horizontalalignment='right')
 
         # ax.spines['top'].set_visible(False)
         # ax.spines['right'].set_visible(False)
 
         # plt.rcParams.update({'figure.autolayout': True})
 
-    plt.savefig(f'./images/distance_over_steps/distances_over_steps_all.png', transparent=False, dpi=200, bbox_inches="tight")
+    for out_type in ['png', 'pdf']:
+        plt.savefig(f'./images/distance_over_steps/distances_over_steps_all_{dataset}_{graph_type}.{out_type}', transparent=False, dpi=200, bbox_inches="tight")
     # plt.show()
 
-def plot_distance_over_steps(mc=1, mg=1):
+def plot_distance_over_steps(dataset="SIFT1M", graph_type="HNSW", mc=1, mg=1):
     
     folder_name = 'saved_distances_over_steps'
-    fname_dist = os.path.join(folder_name, f'per_query_dists_SIFT1M_HNSW_mc{mc}_mg{mg}.float')
+    fname_dist = os.path.join(folder_name, f'per_query_dists_{dataset}_{graph_type}_mc{mc}_mg{mg}.float')
     data_raw_dist = np.fromfile(fname_dist, dtype=np.float32)
     dist_over_steps = []
 
@@ -236,18 +251,25 @@ def plot_distance_over_steps(mc=1, mg=1):
 
     ax.set_title(algo, fontsize=title_font)
 
-    ax.text(0.95 * x_max, 0.95 * y_max, "Dataset: SIFT1M, Graph: HNSW", fontsize=label_font, verticalalignment='top', horizontalalignment='right')
+    ax.text(0.95 * x_max, 0.95 * y_max, f"Dataset: {dataset}, Graph: {graph_type}", fontsize=label_font, verticalalignment='top', horizontalalignment='right')
 
     # ax.spines['top'].set_visible(False)
     # ax.spines['right'].set_visible(False)
 
     # plt.rcParams.update({'figure.autolayout': True})
 
-    plt.savefig(f'./images/distance_over_steps/distances_over_steps_mc{mc}_mg{mg}.png', transparent=False, dpi=200, bbox_inches="tight")
+    for out_type in ['png', 'pdf']:
+        plt.savefig(f'./images/distance_over_steps/distances_over_steps_{dataset}_{graph_type}_mc{mc}_mg{mg}.{out_type}', transparent=False, dpi=200, bbox_inches="tight")
     # plt.show()
 
 if __name__ == "__main__":
     mc_mg_groups = [(1, 1), (4, 1), (2, 2)]
-    plot_distance_over_steps_subplots(mc_mg_groups=mc_mg_groups)
-    for mc, mg in mc_mg_groups:
-        plot_distance_over_steps(mc=mc, mg=mg)
+    
+    datasets = ["SIFT1M", "Deep1M", "SPACEV1M"]
+    graph_types = ["HNSW", "NSG"]
+    for dataset in datasets:
+        for graph_type in graph_types:
+            plot_distance_over_steps_subplots(dataset=dataset, graph_type=graph_type, mc_mg_groups=mc_mg_groups)
+    
+    # for mc, mg in mc_mg_groups:
+    #     plot_distance_over_steps(mc=mc, mg=mg)

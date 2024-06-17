@@ -18,7 +18,7 @@ This folder contains all the plotting scripts as well as scripts used for printi
 
 `plot_throughput_CPU_GPU_FPGA.py` shows the throughput comparison between CPUs, GPUs, and FPGAs.
 
-(unsed) `plot_intra_vs_inter_performance.py` shows the performance cross-over points between intra and inter-query parallelism, without network latency. 
+(unsed) `plot_intra_vs_inter_performance.py` shows the performance cross-over points between intra and Across-query parallelism, without network latency. 
 
 (unused) `plot_latency_FPGA.py` shows the latency distribution of only FPGAs.
 
@@ -33,17 +33,16 @@ python plot_distance_over_steps_different_traversals.py
 
 DST speedup over BFS:
 ```
-# plot all (hard-coded) settings: inter-query
-python plot_dst_speedup_across_settings.py --df_path ../perf_test_scripts/saved_df/throughput_FPGA_inter_query_4_chan.pickle --suffix inter_query
-# plot all (hard-coded) settings: intra-query
-python plot_dst_speedup_across_settings.py --df_path ../perf_test_scripts/saved_df/throughput_FPGA_intra_query_4_chan.pickle --suffix intra_query
+python plot_dst_speedup_across_settings.py \
+	--df_path_inter_query ../perf_test_scripts/saved_df/throughput_FPGA_inter_query_4_chan.pickle \
+	--df_path_intra_query ../perf_test_scripts/saved_df/throughput_FPGA_intra_query_4_chan.pickle
 ```
 
 DST heatmap (performance, #hops, recall):
 ```
 # plot all (hard-coded) settings: intra-query
 python plot_dst_speedup_nodes_recall.py --plot_all 1 --df_path ../perf_test_scripts/saved_df/throughput_FPGA_intra_query_4_chan.pickle --suffix intra_query --max_mc 4 --max_mg 7
-# plot all (hard-coded) settings: inter-query
+# plot all (hard-coded) settings: Across-query
 python plot_dst_speedup_nodes_recall.py --plot_all 1 --df_path ../perf_test_scripts/saved_df/throughput_FPGA_inter_query_4_chan.pickle --suffix inter_query --max_mc 4 --max_mg 7
 ```
 
@@ -63,4 +62,17 @@ python plot_latency_CPU_GPU_FPGA.py
 Throughput CPU, GPU, FPGA:
 ```
 python plot_throughput_CPU_GPU_FPGA.py 
+```
+
+Energy consumption:
+```
+python print_energy.py 
+```
+
+Subgraph vs full graph search:
+
+```
+python plot_subgraph_vs_full_graph.py --dataset SPACEV1M --min_recall 0.85 --max_recall 0.95 --comparison_recall 0.9
+python plot_subgraph_vs_full_graph.py --dataset SIFT1M --min_recall 0.96 --max_recall 0.995 --comparison_recall 0.99
+python plot_subgraph_vs_full_graph.py --dataset Deep1M --min_recall 0.95 --max_recall 0.995 --comparison_recall 0.9
 ```

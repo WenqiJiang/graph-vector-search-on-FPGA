@@ -13,14 +13,14 @@ num_FPGA : 1
 # CPU_IP_addr : "127.0.0.1"
 CPU_IP_addr : "10.253.74.18"
 # CPU_IP_addr : "10.233.1.1" # doesn't work, firewall issue
-FPGA_IP_addr_list : ["10.253.74.22"]
+FPGA_IP_addr_list : ["10.253.74.18"]
 # FPGA_IP_addr_list : ["10.1.212.78"]
 # FPGA_IP_addr_list : ["127.0.0.1"]
 C2F_port_list: [8881]
 F2C_port_list: [5001]
 
 # Fixed parameters
-D: 128
+D: 100
 ef: 64 # == ef
 
 # Tunable parameters at runtime
@@ -34,6 +34,6 @@ query_window_size: 10000
 
 # dataset
 # dataset: NULL 
-dataset: "SIFT1M"
+dataset: "SPACEV1M"
 graph_type: "HNSW"
 max_degree: 64

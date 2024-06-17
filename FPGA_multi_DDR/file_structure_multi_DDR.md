@@ -27,17 +27,95 @@ This one is used to track the distance over steps, to compare BFS, MCS, and DST.
 
 Commands for testing: 
 
-BFS: mc=1, mg=1
+```
+cd /mnt/scratch/wenqi/tmp_bitstreams/eval_trace_FPGA_inter_query_v1.3_D128
+
+# BFS: mc=1, mg=1
 ./host xclbin/vadd.hw.xclbin 1 1 64 HNSW SIFT1M 64 10000
 
-MCS: mc=4, mg=1
+# MCS: mc=4, mg=1
 ./host xclbin/vadd.hw.xclbin 4 1 64 HNSW SIFT1M 64 10000
 
-DST: mc=2, mg=2
+# DST: mc=2, mg=2
 ./host xclbin/vadd.hw.xclbin 2 2 64 HNSW SIFT1M 64 10000
 
-DST: mc=1, mg=4
+# DST: mc=1, mg=4
 ./host xclbin/vadd.hw.xclbin 1 4 64 HNSW SIFT1M 64 10000
+
+# BFS: mc=1, mg=1
+./host xclbin/vadd.hw.xclbin 1 1 64 NSG SIFT1M 64 10000
+
+# MCS: mc=4, mg=1
+./host xclbin/vadd.hw.xclbin 4 1 64 NSG SIFT1M 64 10000
+
+# DST: mc=2, mg=2
+./host xclbin/vadd.hw.xclbin 2 2 64 NSG SIFT1M 64 10000
+
+# DST: mc=1, mg=4
+./host xclbin/vadd.hw.xclbin 1 4 64 NSG SIFT1M 64 10000
+
+cp per_query_* /mnt/scratch/wenqi/graph-vector-search-on-FPGA/plots/saved_distances_over_steps/
+```
+
+```
+cd /mnt/scratch/wenqi/tmp_bitstreams/eval_trace_FPGA_inter_query_v1.3_D96
+
+# BFS: mc=1, mg=1
+./host xclbin/vadd.hw.xclbin 1 1 64 HNSW Deep1M 64 10000
+
+# MCS: mc=4, mg=1
+./host xclbin/vadd.hw.xclbin 4 1 64 HNSW Deep1M 64 10000
+
+# DST: mc=2, mg=2
+./host xclbin/vadd.hw.xclbin 2 2 64 HNSW Deep1M 64 10000
+
+# DST: mc=1, mg=4
+./host xclbin/vadd.hw.xclbin 1 4 64 HNSW Deep1M 64 10000
+
+# BFS: mc=1, mg=1
+./host xclbin/vadd.hw.xclbin 1 1 64 NSG Deep1M 64 10000
+
+# MCS: mc=4, mg=1
+./host xclbin/vadd.hw.xclbin 4 1 64 NSG Deep1M 64 10000
+
+# DST: mc=2, mg=2
+./host xclbin/vadd.hw.xclbin 2 2 64 NSG Deep1M 64 10000
+
+# DST: mc=1, mg=4
+./host xclbin/vadd.hw.xclbin 1 4 64 NSG Deep1M 64 10000
+
+cp per_query_* /mnt/scratch/wenqi/graph-vector-search-on-FPGA/plots/saved_distances_over_steps/
+```
+
+```
+cd /mnt/scratch/wenqi/tmp_bitstreams/eval_trace_FPGA_inter_query_v1.3_D100
+
+# BFS: mc=1, mg=1
+./host xclbin/vadd.hw.xclbin 1 1 64 HNSW SPACEV1M 64 10000
+
+# MCS: mc=4, mg=1
+./host xclbin/vadd.hw.xclbin 4 1 64 HNSW SPACEV1M 64 10000
+
+# DST: mc=2, mg=2
+./host xclbin/vadd.hw.xclbin 2 2 64 HNSW SPACEV1M 64 10000
+
+# DST: mc=1, mg=4
+./host xclbin/vadd.hw.xclbin 1 4 64 HNSW SPACEV1M 64 10000
+
+# BFS: mc=1, mg=1
+./host xclbin/vadd.hw.xclbin 1 1 64 NSG SPACEV1M 64 10000
+
+# MCS: mc=4, mg=1
+./host xclbin/vadd.hw.xclbin 4 1 64 NSG SPACEV1M 64 10000
+
+# DST: mc=2, mg=2
+./host xclbin/vadd.hw.xclbin 2 2 64 NSG SPACEV1M 64 10000
+
+# DST: mc=1, mg=4
+./host xclbin/vadd.hw.xclbin 1 4 64 NSG SPACEV1M 64 10000
+
+cp per_query_* /mnt/scratch/wenqi/graph-vector-search-on-FPGA/plots/saved_distances_over_steps/
+```
 
 ## Unused V1.1 FPGA_inter_query_v1.1_multi_kernel : multi-kernel
 

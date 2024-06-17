@@ -142,6 +142,8 @@ if dataset is not None:
 		D = 96
 	elif dataset.startswith('SBERT'):
 		D = 384
+	elif dataset.startswith('SPACEV'):
+		D = 100
 	else:
 		raise NotImplementedError
 

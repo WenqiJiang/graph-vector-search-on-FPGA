@@ -163,6 +163,7 @@ public:
     else if (dataset.find("Deep") == 0) { D = 96;}
     else if (dataset == "GLOVE") { D = 300; }
     else if (dataset.find("SBERT") == 0 ) { D = 384; }
+    else if (dataset.find("SPACEV") == 0 ) { D = 100; }
     else { std::cout << "Unknown dataset: " << dataset << std::endl; exit(1);}
 
     // Initialize internal variables
@@ -272,6 +273,22 @@ public:
         fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_1000M.ibin");
         fname_gt_dist = concat_dir(dataset_dir, "gt_dis_1000M.fbin");
       }
+    }  else if (dataset.find("SPACEV") == 0) {
+      dataset_dir = "/mnt/scratch/wenqi/Faiss_experiments/SPACEV";
+      fname_query_vectors = concat_dir(dataset_dir, "query_10K.bin");
+      if (dataset == "SPACEV1M") {
+          fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_1M.ibin");
+          fname_gt_dist = concat_dir(dataset_dir, "gt_dis_1M.fbin");
+      } else if (dataset == "SPACEV10M") {
+          fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_10M.ibin");
+          fname_gt_dist = concat_dir(dataset_dir, "gt_dis_10M.fbin");
+      } else if (dataset == "SPACEV100M") {
+        fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_100M.ibin");
+        fname_gt_dist = concat_dir(dataset_dir, "gt_dis_100M.fbin");
+      } else if (dataset == "SPACEV1000M") {
+        fname_gt_vec_ID = concat_dir(dataset_dir, "gt_idx_1000M.ibin");
+        fname_gt_dist = concat_dir(dataset_dir, "gt_dis_1000M.fbin");
+      }
     } else {
       std::cout << "Unknown dataset: " << dataset << std::endl;
       exit(1);
@@ -291,7 +308,11 @@ public:
         index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/GLOVE_MD" + std::to_string(max_degree);
     } else if (dataset == "SBERT1M") {
         index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/SBERT1M_MD" + std::to_string(max_degree);
-    } else {
+    } else if (dataset == "SPACEV1M") {
+        index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/SPACEV1M_MD" + std::to_string(max_degree);
+    } else if (dataset == "SPACEV10M") {
+        index_dir = "/mnt/scratch/wenqi/hnsw_experiments/data/FPGA_hnsw/SPACEV10M_MD" + std::to_string(max_degree);
+    }  else {
         std::cout << "Unknown dataset\n";
         exit(1);
     }
@@ -309,8 +330,14 @@ public:
     std::cout << "raw_query_vectors_size: " << raw_query_vectors_size << std::endl;
     std::cout << "raw_gt_vec_ID_size: " << raw_gt_vec_ID_size << std::endl;
     std::cout << "raw_gt_dist_size: " << raw_gt_dist_size << std::endl;
-    std::vector<float, aligned_allocator<float>> query_vectors(D * query_num, 0);
-    std::vector<unsigned char> raw_query_vectors(raw_query_vectors_size / sizeof(unsigned char), 0);
+	size_t d_after_padding = D;
+	if (D % 16 != 0) {
+		d_after_padding = (D / 16 + 1) * 16;
+		std::cout << "D is not multiple of 16, padding to " << d_after_padding << std::endl;
+	}
+    std::vector<float, aligned_allocator<float>> query_vectors(d_after_padding * query_num, 0);
+	memset(query_vectors.data(), 0, d_after_padding * query_num * sizeof(float)); // set 0 for padding
+    std::vector<char> raw_query_vectors(raw_query_vectors_size / sizeof(char), 0);
     std::vector<int> raw_gt_vec_ID(raw_gt_vec_ID_size / sizeof(int), 0);
     std::vector<float> raw_gt_dist(raw_gt_dist_size / sizeof(float), 0);
 
@@ -361,6 +388,36 @@ public:
               gt_dist[qid * max_topK + i] = raw_gt_dist[qid * len_per_gt + offset + i];
           }
       }
+    } else if (dataset.find("SPACEV") == 0) {
+        // queries: fbin, ground truth: ibin, first 8 bytes are num vec & dim
+        size_t len_per_query = D * sizeof(char);
+        size_t offset_bytes = 8; // first 8 bytes are num vec & dim
+        // raw query vectors are in int8 format, need to convert to flow format for query_vectors
+        for (int qid = 0; qid < query_num; qid++) {
+            for (int i = 0; i < D; i++) {
+                // first load as unsigned int, thus reducing offset of 128 between int8 and uint8
+                float val = (float) raw_query_vectors[qid * len_per_query + offset_bytes + i];
+                query_vectors[qid * d_after_padding + i] = val;
+            }
+        }
+		// // print the first query
+		// std::cout << "First query: ";
+		// for (int i = 0; i < D; i++) {
+		// 	std::cout << query_vectors[i] << " ";
+		// }
+		// // print the last query
+		// std::cout << "Last query: ";
+		// for (int i = 0; i < D; i++) {
+		// 	std::cout << query_vectors[(query_num - 1) * d_after_padding + i] << " ";
+		// }
+        size_t len_per_gt = 1000;
+        size_t offset = 2; // first 8 bytes are num vec & dim
+        for (int qid = 0; qid < query_num; qid++) {
+            for (int i = 0; i < max_topK; i++) {
+                gt_vec_ID[qid * max_topK + i] = raw_gt_vec_ID[qid * len_per_gt + offset + i];
+                gt_dist[qid * max_topK + i] = raw_gt_dist[qid * len_per_gt + offset + i];
+            }
+        }
     } else if (dataset.find("SBERT") == 0) {
       // queries: raw bin, ground truth: ibin, first 8 bytes are num vec & dim
       size_t len_per_query = D * sizeof(float);
@@ -384,7 +441,7 @@ public:
     // store queries into the send buffer
     for (int qid = 0; qid < query_num; qid++) {
       char* query_addr = buf_C2F + qid * bytes_vec;
-      memcpy(query_addr, &query_vectors[qid * D], D * sizeof(float));
+      memcpy(query_addr, &query_vectors[qid * d_after_padding], d_after_padding * sizeof(float));
     }
 
   }
@@ -640,6 +697,7 @@ public:
                   "hw id: " << hw_id << " gt id: " << gt << std::endl; 
               dist_match_id_mismatch_cnt++;
           }
+			  std::cout << "hw id: " << hw_id << " gt id: " << gt << "\thw dist" << out_dist[qid * ef] << " gt dist: " << gt_dist[qid * max_topK] << std::endl;
       }
 
       if (ef >= 10) {

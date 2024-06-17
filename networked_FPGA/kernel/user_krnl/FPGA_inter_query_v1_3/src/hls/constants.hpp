@@ -49,15 +49,20 @@ const int debug_size = 2;
 // FIFO depth
 const int depth_network_in = 512; // data FIFOs without wide data types
 
-#if D == 128
+#if D == 128 // SIFT
 	const int depth_data = 512; // data FIFOs without wide data types
 	const int depth_control = 16; // 16
 	const int depth_fetched_vectors = 512; // 512-bit width to memory
 	const int depth_query_vectors = 128; // 512-bit width to memory
-#elif D == 96
+#elif D == 96 // Deep
 	const int depth_data = 512; // data FIFOs without wide data types
 	const int depth_control = 512; // 16
 	const int depth_fetched_vectors = 512; // 512-bit width to memory
+	const int depth_query_vectors = 128; // 512-bit width to memory
+#elif D == 100 // SPACEV
+	const int depth_data = 512; // data FIFOs without wide data types
+	const int depth_control = 16; // 16
+	const int depth_fetched_vectors = 128; // 512-bit width to memory
 	const int depth_query_vectors = 128; // 512-bit width to memory
 #else // SBERT does not work
 	const int depth_data = 512; // data FIFOs without wide data types

@@ -13,7 +13,7 @@ sns.set_theme(style="whitegrid")
 # Set the palette to the "pastel" default palette:
 # sns.set_palette("pastel")
 
-def plot_latency(dataset='SIFT1M', graph_type="HNSW", max_degree=64, ef=64, batch_sizes=[1,2,4,8,16]):
+def plot_latency(dataset='SIFT1M', graph_type="HNSW", max_degree=64, ef=64, batch_sizes=[1,2,4,8,16,32]):
 
 	### Note: For violin graph, a single violin's data must be in the same column
 	###   e.g., given 3 violin plots, each with 100 points, the shape of the array
@@ -89,9 +89,11 @@ def plot_latency(dataset='SIFT1M', graph_type="HNSW", max_degree=64, ef=64, batc
 	# plt.show()
 
 if __name__ == "__main__":
-	datasets = ["SIFT1M", "SIFT10M", "Deep1M", "Deep10M"]
+
+	datasets = ["SIFT1M", "SIFT10M", "Deep1M", "Deep10M", "SPACEV1M", "SPACEV10M"]
 	graph_types = ["HNSW", "NSG"]
+	batch_sizes=[1,2,4,8,16,32]
 
 	for dataset in datasets:
 		for graph_type in graph_types:
-			plot_latency(dataset, graph_type)
+			plot_latency(dataset, graph_type,batch_sizes=batch_sizes)
