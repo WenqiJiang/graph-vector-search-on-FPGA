@@ -19,7 +19,7 @@ def plot_distance_over_steps_subplots(dataset="SIFT1M", graph_type="HNSW", mc_mg
     folder_name = 'saved_distances_over_steps'
 
     n_subplots = len(mc_mg_groups) 
-    fig, ax = plt.subplots(3, 1, figsize=(6, 2.8), sharex=True,) # share x axis
+    fig, ax = plt.subplots(3, 1, figsize=(6, 3), sharex=True,) # share x axis
 
     # distances between plots
     plt.subplots_adjust(hspace=0.25)
@@ -105,13 +105,16 @@ def plot_distance_over_steps_subplots(dataset="SIFT1M", graph_type="HNSW", mc_mg
 
         # set title
         if mc == 1 and mg == 1:
-            algo = "(a) Best-First Search"
+            algo = "Best-First Search"
+            # algo = "(a) Best-First Search"
             color = default_colors[0]
         elif mc > 1 and mg == 1:
-            algo = "(b) Multi-Candidate Search" + f" (mc={mc})"
+            # algo = "(b) Multi-Candidate Search" + f" (mc={mc})"
+            algo = "Multi-Candidate Search" + f" (mc={mc})"
             color = default_colors[2]
         elif mg > 1:
-            algo = "(c) Delayed-Synchronization Traversal" + f" (mc={mc}, mg={mg})"
+            # algo = "(c) Delayed-Synchronization Traversal" + f" (mc={mc}, mg={mg})"
+            algo = "Delayed-Synchronization Traversal" + f" (mc={mc}, mg={mg})"
             color = default_colors[1]
         algo_names.append(algo)
 
@@ -201,7 +204,7 @@ def plot_distance_over_steps(dataset="SIFT1M", graph_type="HNSW", mc=1, mg=1):
             elif q_cnt == qid:
                 dist_over_steps.append(dist)
 
-    fig, ax = plt.subplots(1, 1, figsize=(6, 1.5))
+    fig, ax = plt.subplots(1, 1, figsize=(6, 1.2))
 
     label_font = 10
     markersize = 1

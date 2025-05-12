@@ -34,7 +34,7 @@ parser.add_argument('--max_mg', type=int, default=6, help="max mg")
 args = parser.parse_args()
 
 
-def plot_heatmap(df, graph_type, dataset, max_degree, ef, suffix='inter_query', max_mg=6, max_mc=3):
+def plot_heatmap(df, graph_type, dataset, max_degree, ef, suffix='inter_query', max_mg=6, max_mc=3, show_title=True):
 
     # select rows 
     df = df.loc[(df['graph_type'] == graph_type) & (df['dataset'] == dataset) & (df['max_degree'] == max_degree) & 
@@ -60,6 +60,10 @@ def plot_heatmap(df, graph_type, dataset, max_degree, ef, suffix='inter_query', 
             speedup_array[mc][mg] = time_array[0][0] / time_array[mc][mg]
     normalized_node_array = nodes_array / nodes_array[0][0]
 
+    # Compute utilization == #Nodes / Latency ~ Nodes x Speedup
+    compute_util_array = normalized_node_array * speedup_array
+
+
     print("Time (ms) array:\n", time_array)
     print("Nodes array:\n", nodes_array)
     print("Recall array:\n", recall_array)
@@ -67,7 +71,7 @@ def plot_heatmap(df, graph_type, dataset, max_degree, ef, suffix='inter_query', 
 
     def plot_all():
         # get three subplots, horizontally 
-        fig, ax_array = plt.subplots(1, 3, figsize=(18, 1.5))
+        fig, ax_array = plt.subplots(1, 3, figsize=(18, 1.8))
         (ax_speedup, ax_nodes, ax_recall) = ax_array
         # set space between subplots
         plt.subplots_adjust(wspace=0.1)
@@ -116,14 +120,16 @@ def plot_heatmap(df, graph_type, dataset, max_degree, ef, suffix='inter_query', 
         # add plot title
         if suffix == "inter_query":
             plt.suptitle(f'(a) Across-query parallelism, {graph_type} on {dataset}, max_degree={max_degree}', fontsize=14, y=1.2)
-            ax_speedup.set_title('Speedup over BFS', fontsize=label_font)
-            ax_nodes.set_title('Normalized average #hops per search', fontsize=label_font)
-            ax_recall.set_title('Recall R@10', fontsize=label_font)
+            if show_title:
+                ax_speedup.set_title('Speedup over BFS', fontsize=label_font)
+                ax_nodes.set_title('Normalized average #hops per search', fontsize=label_font)
+                ax_recall.set_title('Recall R@10', fontsize=label_font)
         elif suffix == "intra_query":
             plt.suptitle(f'(b) Intra-query parallelism, {graph_type} on {dataset}, max_degree={max_degree}', fontsize=14, y=1.2)
-            ax_speedup.set_title('Speedup over BFS', fontsize=label_font)
-            ax_nodes.set_title('Normalized average #hops per search', fontsize=label_font)
-            ax_recall.set_title('Recall R@10', fontsize=label_font)
+            if show_title:
+                ax_speedup.set_title('Speedup over BFS', fontsize=label_font)
+                ax_nodes.set_title('Normalized average #hops per search', fontsize=label_font)
+                ax_recall.set_title('Recall R@10', fontsize=label_font)
 
         # save each subplot as a separate image
         for out_type in ['png', 'pdf']:
@@ -133,7 +139,7 @@ def plot_heatmap(df, graph_type, dataset, max_degree, ef, suffix='inter_query', 
 
     def plot_each_subplot(mode='speedup'):
         # get three subplots, horizontally 
-        fig, ax = plt.subplots(figsize=(5, 1.5))
+        fig, ax = plt.subplots(figsize=(5.5, 1.8))
 
         # matplotlib color map objects: https://matplotlib.org/stable/tutorials/colors/colormaps.html
         # cmap = 'RdBu'
@@ -157,7 +163,14 @@ def plot_heatmap(df, graph_type, dataset, max_degree, ef, suffix='inter_query', 
         elif mode == 'nodes':
             seaborn.heatmap(normalized_node_array, cmap='OrRd', annot=True, fmt=".2f", cbar_kws={})
         elif mode == 'recall':
-            seaborn.heatmap(recall_array, cmap='Blues', annot=True, fmt=".2f", cbar_kws={})
+            seaborn.heatmap(recall_array, cmap='Purples', annot=True, fmt=".2f", cbar_kws={})
+        elif mode == 'compute_util':
+            if suffix == "intra_query":
+                cmap = 'Greens'
+            elif suffix == "inter_query":
+                cmap = 'Blues'
+            seaborn.heatmap(compute_util_array, cmap=cmap, annot=True, fmt=".2f", cbar_kws={})
+        
         # ax_heatmap = seaborn.heatmap(data, cmap=cmap, cbar_kws={'label': 'colorbar title'})
         # set colorbar label size by hacking: https://stackoverflow.com/questions/48586738/seaborn-heatmap-colorbar-label-font-size
         ax.figure.axes[-1].yaxis.label.set_size(12)
@@ -183,34 +196,45 @@ def plot_heatmap(df, graph_type, dataset, max_degree, ef, suffix='inter_query', 
 
         # add plot title
         if mode == "speedup":
-            if suffix == "inter_query":
-                ax.set_title('Speedup over BFS (Across-query)', fontsize=label_font)
-            elif suffix == "intra_query":
-                ax.set_title('Speedup over BFS (Intra-query)', fontsize=label_font)
+            if suffix == "inter_query" and show_title:
+                ax.set_title('(b) Speedup over BFS (Across-query)', fontsize=label_font)
+            elif suffix == "intra_query" and show_title:
+                ax.set_title('(a) Speedup over BFS (Intra-query)', fontsize=label_font)
             for out_type in ['png', 'pdf']:
                 plt.savefig('./images/dst_speedup_nodes_recall/dst_speedup_{}_{}_MD{}_ef{}_{}.{}'.format(dataset, graph_type, max_degree, ef, suffix, out_type), transparent=False, dpi=200, bbox_inches="tight")
         elif mode == "nodes":
-            ax.set_title('Normalized avg #hops per search', fontsize=label_font)
+            if show_title:
+                ax.set_title('(c) Normalized avg #hops per search', fontsize=label_font)
             for out_type in ['png', 'pdf']:
                 plt.savefig('./images/dst_speedup_nodes_recall/dst_nodes_{}_{}_MD{}_ef{}_{}.{}'.format(dataset, graph_type, max_degree, ef, suffix, out_type), transparent=False, dpi=200, bbox_inches="tight")
         elif mode == "recall":
-            ax.set_title('Recall R@10', fontsize=label_font)
-            ax.text(0.75, 1.12, f"{dataset}, {graph_type}", horizontalalignment='left', verticalalignment='center', transform=ax.transAxes, fontsize=label_font)
+            if show_title:
+                ax.set_title('(f) Recall R@10', fontsize=label_font)
+                ax.text(0.75, 1.12, f"{dataset}, {graph_type}", horizontalalignment='left', verticalalignment='center', transform=ax.transAxes, fontsize=label_font)
             for out_type in ['png', 'pdf']:
                 plt.savefig('./images/dst_speedup_nodes_recall/dst_recall_{}_{}_MD{}_ef{}_{}.{}'.format(dataset, graph_type, max_degree, ef, suffix, out_type), transparent=False, dpi=200, bbox_inches="tight")
+        if mode == "compute_util":
+            if suffix == "inter_query" and show_title:
+                ax.set_title('(e) Compute efficiency over BFS (Across-query)', fontsize=label_font)
+            elif suffix == "intra_query" and show_title:
+                ax.set_title('(d) Compute efficiency over BFS (Intra-query)', fontsize=label_font)
+            for out_type in ['png', 'pdf']:
+                plt.savefig('./images/dst_speedup_nodes_recall/dst_comp_util_{}_{}_MD{}_ef{}_{}.{}'.format(dataset, graph_type, max_degree, ef, suffix, out_type), transparent=False, dpi=200, bbox_inches="tight")
 
         # save each subplot as a separate image
 
-	# plt.show() 
+    # plt.show() 
 
     # plot_all()
     plot_each_subplot('speedup')
     plot_each_subplot('nodes')
     plot_each_subplot('recall')
+    plot_each_subplot('compute_util')
 
 if __name__ == "__main__":
     # load dataframe
     df = pd.read_pickle(args.df_path)
+    show_title = True
     if args.plot_all:
         # graph_types = ['HNSW']
         graph_types = ['HNSW', 'NSG']
@@ -224,6 +248,6 @@ if __name__ == "__main__":
             for dataset in datasets:
                 for max_degree in max_degrees:
                     for ef in efs:
-                        plot_heatmap(df, graph_type, dataset, max_degree, ef, suffix=args.suffix, max_mg=args.max_mg, max_mc=args.max_mc)
+                        plot_heatmap(df, graph_type, dataset, max_degree, ef, suffix=args.suffix, max_mg=args.max_mg, max_mc=args.max_mc, show_title=show_title)
     else:
-        plot_heatmap(df, args.graph_type, args.dataset, args.max_degree, args.ef, suffix=args.suffix, max_mg=args.max_mg, max_mc=args.max_mc)
+        plot_heatmap(df, args.graph_type, args.dataset, args.max_degree, args.ef, suffix=args.suffix, max_mg=args.max_mg, max_mc=args.max_mc, show_title=True)

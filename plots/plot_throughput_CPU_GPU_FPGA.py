@@ -174,6 +174,9 @@ def plot_throughput(datasets=["SIFT10M", "Deep10M"], graph_types=["HNSW", "NSG"]
             df_fpga_intra = pd.read_pickle(args.df_path_intra_query)
             qps_fpga_intra = get_best_qps(df_fpga_intra, graph_type, dataset, max_degree, ef, batch_size)
             y_fpga_intra[label] = qps_fpga_intra
+    # print the columns 'dataset', 'recall_10', 'qps'
+    print("FPGA throughput (inter):\n", y_fpga_inter)
+    print("FPGA throughput (intra):\n", y_fpga_intra)
 
     def get_error_bar(d):
         """
@@ -302,7 +305,7 @@ def plot_throughput(datasets=["SIFT10M", "Deep10M"], graph_types=["HNSW", "NSG"]
     width = 0.1  # the width of the bars
 
     # two subplots (top and down), share the x axis
-    fig, (ax, ax_norm) = plt.subplots(2, 1, figsize=(9, 3))
+    fig, (ax, ax_norm) = plt.subplots(2, 1, figsize=(18, 3))
     fig.subplots_adjust(hspace=0.1)
     ax_norm.get_shared_x_axes().join(ax, ax_norm)
 
@@ -363,7 +366,7 @@ def plot_throughput(datasets=["SIFT10M", "Deep10M"], graph_types=["HNSW", "NSG"]
     ax_norm.set_xticks(x)
     ax_norm.set_xticklabels(x_labels_with_recall, rotation=0, fontsize=tick_font)
     ax.legend([rects_fpga_inter, rects_fpga_intra, rects_cpu, rects_cpu_faiss, rects_gpu, rects_gpu_faiss], 
-              [ "Falcon (Across-query)", "Falcon (Intra-query)", "CPU (Graph)", "CPU (IVF)", "GPU (Graph)", "GPU (IVF)", ], loc=(0.05, 1.02), ncol=3, \
+              [ "Falcon (Across-query)", "Falcon (Intra-query)", "CPU (Graph)", "CPU (IVF)", "GPU (Graph)", "GPU (IVF)", ], loc=(0.1, 1.02), ncol=6, \
         facecolor='white', framealpha=1, frameon=False, fontsize=legend_font)
     # ax.legend([rects_fpga_inter, rects_fpga_intra, rects_cpu, rects_cpu_faiss, rects_gpu, rects_gpu_faiss], 
     #           [ "Falcon (Across-query)", "Falcon (Intra-query)", "CPU (Graph)", "CPU (IVF)", "GPU (Graph)", "GPU (IVF)", ], loc=(0.2, 1.0), ncol=3, \

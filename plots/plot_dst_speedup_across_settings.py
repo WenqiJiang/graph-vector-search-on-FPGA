@@ -135,7 +135,7 @@ def plot_speedup_all_subplots(dfs, graph_types=["HNSW", "NSG"], datasets=['SIFT1
     n_graphs = len(graph_types)
 
     # get three subplots, horizontally 
-    fig, axs = plt.subplots(n_dfs, n_graphs, figsize=(4 * n_graphs, 1.2 * n_dfs), sharex=True, sharey=True)
+    fig, axs = plt.subplots(n_dfs, n_graphs, figsize=(4 * n_graphs, 2.0 * n_dfs), sharex=True, sharey=True)
 
     # reshape axs into 2D array, in (n_dfs, n_graphs)
     if n_graphs == 1 and n_dfs == 1:

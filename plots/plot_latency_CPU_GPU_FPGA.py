@@ -384,7 +384,7 @@ def plot_latency(datasets=['SIFT1M'], graph_types=["HNSW"], max_degree=64, ef=64
     num_datasets = len(datasets)
     num_graph_types = len(graph_types)
     # num_datasets subplots, horizontally, share the y axis
-    fig, axs = plt.subplots(num_graph_types, num_datasets, figsize=(8 * num_datasets, 2 * num_graph_types), sharey=True, sharex=True)
+    fig, axs = plt.subplots(num_graph_types, num_datasets, figsize=(8 * num_datasets, 3 * num_graph_types), sharey=True, sharex=True)
 
     # reshape axs into 2D array, in (num_graph_types, num_datasets)
     if num_datasets == 1 and num_graph_types == 1:
