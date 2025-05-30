@@ -1,5 +1,20 @@
 # FPGA Accelerator For Graph-based Vector Search
 
+**The official repository has been moved to: https://github.com/fpgasystems/Falcon-accelerate-graph-vector-search**
+
+This is a repository for our VLDB'25 paper [Fast Graph Vector Search via Hardware Acceleration and Delayed-Synchronization Traversal](https://arxiv.org/abs/2406.12385)
+
+```
+@article{jiang2024accelerating,
+  title={Accelerating Graph-based Vector Search via Delayed-Synchronization Traversal},
+  author={Jiang, Wenqi and Hu, Hang and Hoefler, Torsten and Alonso, Gustavo},
+  journal={arXiv preprint arXiv:2406.12385},
+  year={2024}
+}
+```
+
+Software baseline: https://github.com/HangHu-sys/vector_search_baselines
+
 ## All Bitstreams & Experiments
 
 ### Local Bitstreams & Experiments
