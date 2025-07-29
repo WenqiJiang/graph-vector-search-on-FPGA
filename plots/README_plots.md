@@ -46,6 +46,17 @@ python plot_dst_speedup_nodes_recall.py --plot_all 1 --df_path ../perf_test_scri
 python plot_dst_speedup_nodes_recall.py --plot_all 1 --df_path ../perf_test_scripts/saved_df/throughput_FPGA_inter_query_4_chan.pickle --suffix inter_query --max_mc 4 --max_mg 7
 ```
 
+Ablation of speedup given lower degrees:
+```
+# degree = 32
+python plot_dst_speedup_nodes_recall.py --graph_type HNSW --dataset Deep10M --max_degree 32 --ef 64 --df_path ../perf_test_scripts/saved_df/throughput_FPGA_inter_query_4_chan.pickle --suffix inter_query
+python plot_dst_speedup_nodes_recall.py --graph_type HNSW --dataset Deep10M --max_degree 32 --ef 64 --df_path ../perf_test_scripts/saved_df/throughput_FPGA_intra_query_4_chan.pickle --suffix intra_query
+
+# degree=16
+python plot_dst_speedup_nodes_recall.py --graph_type HNSW --dataset Deep10M --max_degree 16 --ef 64 --df_path ../perf_test_scripts/saved_df/throughput_FPGA_inter_query_4_chan.pickle --suffix inter_query
+python plot_dst_speedup_nodes_recall.py --graph_type HNSW --dataset Deep10M --max_degree 16 --ef 64 --df_path ../perf_test_scripts/saved_df/throughput_FPGA_intra_query_4_chan.pickle --suffix intra_query
+```
+
 Intra-query parallel scalability:
 ```
 python plot_intra_query_chan_scalability.py \
